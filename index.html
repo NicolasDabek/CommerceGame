@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commerce Tycoon — Prototype</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet" />
+  <!-- Failsafe : cache les panels non actifs même si le CSS externe ne charge pas -->
+  <style>
+    .panel { display: none !important; }
+    .panel.active { display: flex !important; flex-direction: column; height: 100%; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <h1 class="logo">Commerce Tycoon</h1>
+        <span class="version">Prototype v0.1</span>
+      </div>
+
+      <div class="header-right">
+        <div class="money-display" id="money-display" title="Votre solde">
+          <span class="money-icon">€</span>
+          <span class="money-value" id="money-value">1 250,00</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="main-nav">
+      <button class="nav-btn active" data-panel="history" id="btn-history">
+        <span class="nav-icon">📜</span>
+        <span class="nav-label">Historique</span>
+      </button>
+      <button class="nav-btn" data-panel="auction" id="btn-auction">
+        <span class="nav-icon">🏷️</span>
+        <span class="nav-label">Hôtel de vente</span>
+      </button>
+      <button class="nav-btn" data-panel="buyhouse" id="btn-buyhouse">
+        <span class="nav-icon">🛒</span>
+        <span class="nav-label">Hôtel d'achat</span>
+      </button>
+      <button class="nav-btn" data-panel="inventory" id="btn-inventory">
+        <span class="nav-icon">🎒</span>
+        <span class="nav-label">Inventaire</span>
+      </button>
+    </nav>
+
+    <!-- Main content -->
+    <main class="main-content">
+      <!-- Panel: Historique des transactions -->
+      <section class="panel active" id="panel-history">
+        <div class="panel-header">
+          <h2>Historique des transactions</h2>
+          <div class="panel-actions">
+            <button class="btn btn-small btn-ghost" id="btn-clear-filters">Réinitialiser filtres</button>
+          </div>
+        </div>
+
+        <div class="filters-bar">
+          <select id="filter-type" class="select">
+            <option value="all">Tous les types</option>
+            <option value="matching">Matching auto</option>
+            <option value="buyout">Achat immédiat</option>
+            <option value="auction_end">Fin d'enchère</option>
+          </select>
+          <input type="text" id="filter-item" class="input" placeholder="Rechercher un objet..." />
+        </div>
+
+        <div class="table-container">
+          <table class="data-table" id="history-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Objet</th>
+                <th>Qté</th>
+                <th>Prix unitaire</th>
+                <th>Total</th>
+                <th>Vendeur</th>
+                <th>Acheteur</th>
+                <th>Type</th>
+              </tr>
+            </thead>
+            <tbody id="history-body">
+              <!-- Rempli dynamiquement -->
+              <tr class="empty-row">
+                <td colspan="8">Aucune transaction pour le moment</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Panel: Hôtel de vente -->
+      <section class="panel" id="panel-auction">
+        <div class="panel-header">
+          <h2>Hôtel de vente</h2>
+          <button class="btn btn-primary" id="btn-new-sell">
+            + Mettre en vente
+          </button>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" data-tab="active-sells">Annonces actives</button>
+          <button class="tab" data-tab="my-sells">Mes annonces</button>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table" id="auction-table">
+            <thead>
+              <tr>
+                <th>Objet</th>
+                <th>Qté</th>
+                <th>Prix départ</th>
+                <th>Achat immédiat</th>
+                <th>Vendeur</th>
+                <th>Expire dans</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="auction-body">
+              <tr class="empty-row">
+                <td colspan="7">Aucune annonce active</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Panel: Hôtel d'achat -->
+      <section class="panel" id="panel-buyhouse">
+        <div class="panel-header">
+          <h2>Hôtel d'achat</h2>
+          <button class="btn btn-primary" id="btn-new-buy">
+            + Créer une offre d'achat
+          </button>
+        </div>
+
+        <div class="tabs">
+          <button class="tab active" data-tab="active-buys">Offres actives</button>
+          <button class="tab" data-tab="my-buys">Mes offres</button>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table" id="buyhouse-table">
+            <thead>
+              <tr>
+                <th>Objet</th>
+                <th>Qté</th>
+                <th>Prix proposé</th>
+                <th>Acheteur</th>
+                <th>Expire dans</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="buyhouse-body">
+              <tr class="empty-row">
+                <td colspan="6">Aucune offre d'achat active</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Panel: Inventaire -->
+      <section class="panel" id="panel-inventory">
+        <div class="panel-header">
+          <h2>Inventaire</h2>
+          <div class="inventory-info">
+            <span id="inventory-slots">0 / 10 cases</span>
+          </div>
+        </div>
+
+        <div class="inventory-categories" id="inventory-categories">
+          <button class="category-btn active" data-category="all">Tout</button>
+          <button class="category-btn" data-category="Ressources">Ressources</button>
+          <button class="category-btn" data-category="Électronique">Électronique</button>
+          <button class="category-btn" data-category="Nourriture">Nourriture</button>
+          <button class="category-btn" data-category="Vêtements">Vêtements</button>
+          <button class="category-btn" data-category="Outils">Outils</button>
+          <button class="category-btn" data-category="Divers">Divers</button>
+        </div>
+
+        <div class="inventory-grid" id="inventory-grid">
+          <!-- Cases d'inventaire générées dynamiquement -->
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer / Status -->
+    <footer class="footer">
+      <div class="footer-left">
+        <span id="game-time">Jour 1 — 14:32</span>
+      </div>
+      <div class="footer-right">
+        <span id="status-message">Prêt</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Modal générique (sera réutilisé) -->
+  <div class="modal-overlay hidden" id="modal-overlay">
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">Titre</h3>
+        <button class="modal-close" id="modal-close">×</button>
+      </div>
+      <div class="modal-body" id="modal-body">
+        <!-- Contenu dynamique -->
+      </div>
+      <div class="modal-footer" id="modal-footer">
+        <!-- Boutons dynamiques -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation immédiate (ne dépend pas des modules ES) -->
+  <script>
+    (function () {
+      function showPanel(target) {
+        document.querySelectorAll('.nav-btn').forEach(function (b) {
+          b.classList.toggle('active', b.getAttribute('data-panel') === target);
+        });
+        document.querySelectorAll('.panel').forEach(function (p) {
+          var isTarget = p.id === 'panel-' + target;
+          p.classList.toggle('active', isTarget);
+          p.style.display = isTarget ? 'flex' : 'none';
+        });
+        // Prévenir le jeu pour rafraîchir le contenu du panel (ex: bouton Vendre)
+        window.dispatchEvent(new CustomEvent('panel-changed', { detail: { panel: target } }));
+      }
+
+      document.querySelectorAll('.nav-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          showPanel(btn.getAttribute('data-panel'));
+        });
+      });
+
+      // État initial
+      showPanel('history');
+    })();
+  </script>
+
+  <!-- Logique du jeu (modules ES) -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
