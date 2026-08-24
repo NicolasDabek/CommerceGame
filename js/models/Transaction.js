@@ -36,6 +36,7 @@ export class Transaction {
     this.priceDeltaPct = data.priceDeltaPct ?? null;
     this.playerMargin = data.playerMargin ?? null;
     this.playerMarginPct = data.playerMarginPct ?? null;
+    this.sellerAvgCost = data.sellerAvgCost ?? null;
   }
 
   toJSON() {
@@ -56,7 +57,8 @@ export class Transaction {
       marketPrice: this.marketPrice,
       priceDeltaPct: this.priceDeltaPct,
       playerMargin: this.playerMargin,
-      playerMarginPct: this.playerMarginPct
+      playerMarginPct: this.playerMarginPct,
+      sellerAvgCost: this.sellerAvgCost
     };
   }
 

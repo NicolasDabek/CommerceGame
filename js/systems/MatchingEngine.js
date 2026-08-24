@@ -89,7 +89,8 @@ export class MatchingEngine {
         quality: sellOffer.quality,
         perfection: sellOffer.perfection,
         sellOfferId: sellOffer.id,
-        buyOfferId: buyOffer.id
+        buyOfferId: buyOffer.id,
+        sellerAvgCost: sellOffer.avgCost
       });
 
       transactions.push(tx);
@@ -150,7 +151,8 @@ export class MatchingEngine {
         quality: sellOffer.quality,
         perfection: sellOffer.perfection,
         sellOfferId: sellOffer.id,
-        buyOfferId: buyOffer.id
+        buyOfferId: buyOffer.id,
+        sellerAvgCost: sellOffer.avgCost
       });
 
       transactions.push(tx);
@@ -201,7 +203,8 @@ export class MatchingEngine {
       type: 'buyout',
       quality: sellOffer.quality,
       perfection: sellOffer.perfection,
-      sellOfferId: sellOffer.id
+      sellOfferId: sellOffer.id,
+      sellerAvgCost: sellOffer.avgCost
     });
 
     sellOffer.quantity -= quantity;

@@ -37,6 +37,7 @@ export class Offer {
     this.currentBid = data.currentBid != null ? Number(data.currentBid) : null;  // prix unitaire actuel
     this.currentBidderId = data.currentBidderId || null;
     this.bids = data.bids || [];   // historique simple [{ bidderId, amount, at }]
+    this.avgCost = data.avgCost ?? null;
   }
 
   _computeExpiresAt() {
@@ -109,7 +110,8 @@ export class Offer {
       status: this.status,
       currentBid: this.currentBid,
       currentBidderId: this.currentBidderId,
-      bids: this.bids
+      bids: this.bids,
+      avgCost: this.avgCost
     };
   }
 

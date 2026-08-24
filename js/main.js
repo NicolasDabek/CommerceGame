@@ -8,6 +8,9 @@ import { HistoryUI } from './ui/HistoryUI.js';
 import { AuctionHouseUI } from './ui/AuctionHouseUI.js';
 import { BuyHouseUI } from './ui/BuyHouseUI.js';
 import { InventoryUI } from './ui/InventoryUI.js';
+import { MarketUI } from './ui/MarketUI.js';
+import { NpcUI } from './ui/NpcUI.js';
+import { GoalsUI } from './ui/GoalsUI.js';
 import { getItemById } from './data/items.js';
 
 // ============================================
@@ -209,13 +212,21 @@ function openCreateSellModal() {
     ]
   });
 
-  // Préremplit le prix avec le basePrice
+  // Préremplit le prix avec le marche ajuste par qualite/perfection
   const first = ownedItems[0];
-  const item = getItemById(first.itemId);
-  if (item) {
+  if (first) {
     setTimeout(() => {
+      const select = document.getElementById('sell-item');
       const priceInput = document.getElementById('sell-price');
-      if (priceInput) priceInput.value = item.basePrice.toFixed(2);
+      if (!select || !priceInput) return;
+
+      const updateSuggestedPrice = () => {
+        const [itemId, quality, perfection] = select.value.split('|');
+        priceInput.value = game.getAdjustedMarketPrice(itemId, Number(quality), Number(perfection)).toFixed(2);
+      };
+
+      select.addEventListener('change', updateSuggestedPrice);
+      updateSuggestedPrice();
     }, 0);
   }
 }
@@ -297,12 +308,12 @@ function openCreateBuyModal() {
     ]
   });
 
-  // Préremplit avec le basePrice du premier item
+  // Préremplit avec le prix moyen actuel du premier item
   const firstItem = items[0];
   if (firstItem) {
     setTimeout(() => {
       const priceInput = document.getElementById('buy-price');
-      if (priceInput) priceInput.value = firstItem.basePrice.toFixed(2);
+      if (priceInput) priceInput.value = game.economy.getAveragePrice(firstItem.id).toFixed(2);
     }, 0);
   }
 }
@@ -452,7 +463,7 @@ function openFulfillModal(offerId, maxQty) {
 // ============================================
 // UI instances
 // ============================================
-let historyUI, auctionUI, buyUI, inventoryUI;
+let historyUI, auctionUI, buyUI, inventoryUI, marketUI, npcUI, goalsUI;
 
 function initUI() {
   const resolveName = (id) => game.getNpcName(id);
@@ -516,6 +527,21 @@ function initUI() {
       setStatus(`${item?.name || slot.itemId} — Qté ${slot.quantity} | Q${slot.quality} P${slot.perfection}${avg}`);
     }
   });
+
+  marketUI = new MarketUI({
+    getMarketRows: () => game.getMarketRows(),
+    getEvents: () => game.economy.getActiveEvents()
+  });
+
+  npcUI = new NpcUI({
+    getProfiles: () => game.getNpcProfiles(),
+    resolveName
+  });
+
+  goalsUI = new GoalsUI({
+    getGoals: () => game.getGoals(),
+    getSummary: () => game.getProgressSummary()
+  });
 }
 
 function refreshAllUI() {
@@ -524,6 +550,9 @@ function refreshAllUI() {
   auctionUI?.render();
   buyUI?.render();
   inventoryUI?.render();
+  marketUI?.render();
+  npcUI?.render();
+  goalsUI?.render();
 }
 
 // Rafraîchit l'UI à chaque changement d'onglet (ex: "Pas en stock" → "Vendre")

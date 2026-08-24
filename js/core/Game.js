@@ -213,6 +213,8 @@ export class Game {
 
     if (!result.success) return result;
 
+    const avgCost = this._getAveragePlayerCost(result.itemId);
+
     // Retire les objets de l'inventaire du joueur
     // (on prend le premier stack disponible)
     const removed = this.inventory.remove(result.itemId, result.quantity);
@@ -231,7 +233,8 @@ export class Game {
       sellerId: 'player',
       buyerId: result.buyerId,
       type: 'matching',
-      buyOfferId: offer.id
+      buyOfferId: offer.id,
+      sellerAvgCost: avgCost
     });
 
     this._handleTransaction(tx);
@@ -274,7 +277,7 @@ export class Game {
       : 0;
 
     if (tx.sellerId === 'player') {
-      const avgCost = this._getAveragePlayerCost(tx.itemId);
+      const avgCost = tx.sellerAvgCost ?? this._getAveragePlayerCost(tx.itemId);
       if (avgCost != null) {
         tx.playerMargin = Math.round((tx.price - avgCost) * tx.quantity * 100) / 100;
         tx.playerMarginPct = avgCost > 0
@@ -350,7 +353,8 @@ export class Game {
             type: 'auction_end',
             quality: offer.quality,
             perfection: offer.perfection,
-            sellOfferId: offer.id
+            sellOfferId: offer.id,
+            sellerAvgCost: offer.avgCost
           });
 
           // L'argent de l'enchérisseur est déjà bloqué → on crédite le vendeur

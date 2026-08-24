@@ -63,9 +63,21 @@ export class AuctionHouse {
       }
     }
 
+    let avgCost = null;
+
     // Retire les items de l'inventaire + les frais
     if (ownerId === 'player') {
       const inventory = this.getPlayerInventory();
+      const stacks = inventory.getStacks(itemId).filter(s =>
+        s.quality === quality &&
+        s.perfection === perfection &&
+        s.avgBuyPrice != null
+      );
+      const stackQty = stacks.reduce((sum, s) => sum + s.quantity, 0);
+      if (stackQty > 0) {
+        const totalCost = stacks.reduce((sum, s) => sum + s.avgBuyPrice * s.quantity, 0);
+        avgCost = Math.round((totalCost / stackQty) * 100) / 100;
+      }
       const removed = inventory.remove(itemId, quantity, quality, perfection);
       if (removed < quantity) {
         return { success: false, error: 'Impossible de retirer les objets de l\'inventaire' };
@@ -83,7 +95,8 @@ export class AuctionHouse {
       ownerId,
       durationDays,
       quality,
-      perfection
+      perfection,
+      avgCost
     });
 
     return { success: true, offer, fee };

@@ -720,6 +720,194 @@ body {
 .badge-buyout { background: rgba(116, 185, 255, 0.2); color: var(--info); }
 .badge-auction { background: rgba(253, 203, 110, 0.2); color: var(--warning); }
 
+/* ========== MARKET, NPCS, GOALS ========== */
+.market-events {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+
+.event-pill,
+.mini-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.event-pill {
+  color: var(--text-primary);
+  border-color: rgba(116, 185, 255, 0.35);
+}
+
+.event-pill.muted {
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+
+.trend {
+  font-weight: 800;
+}
+
+.trend.up { color: var(--success); }
+.trend.down { color: var(--danger); }
+.trend.stable { color: var(--text-secondary); }
+
+.sparkline {
+  width: 110px;
+  height: 28px;
+  overflow: visible;
+}
+
+.sparkline polyline {
+  fill: none;
+  stroke: var(--money);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.npc-grid,
+.goals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.npc-card,
+.goal-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  min-width: 0;
+}
+
+.npc-card-header,
+.goal-head,
+.goal-foot,
+.progress-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.npc-card h3,
+.goal-card h3 {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.npc-card-header p,
+.npc-description,
+.goal-card p,
+.npc-history,
+.goal-foot {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.npc-description {
+  margin: 10px 0;
+}
+
+.npc-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.npc-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.npc-stats span {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.npc-section {
+  margin-top: 10px;
+}
+
+.npc-section h4 {
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.npc-history {
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.progress-summary {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.mini-progress {
+  width: 96px;
+  height: 8px;
+  background: var(--bg-card);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.mini-progress i,
+.goal-bar span {
+  display: block;
+  height: 100%;
+  background: var(--success);
+}
+
+.goal-card.completed {
+  border-color: rgba(0, 184, 148, 0.55);
+}
+
+.goal-head span {
+  color: var(--money);
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.goal-card p {
+  margin: 8px 0 12px;
+}
+
+.goal-bar {
+  height: 10px;
+  background: var(--bg-card);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
 /* Responsive léger */
 @media (max-width: 900px) {
   .header {
