@@ -15,6 +15,7 @@ import { NPCController } from '../systems/NPCController.js';
 import { TimeManager } from './TimeManager.js';
 import { Economy } from './Economy.js';
 import { ITEMS, getItemById } from '../data/items.js';
+import { NPCS, getNpcById } from '../data/npcs.js';
 
 export class Game {
   constructor() {
@@ -26,6 +27,7 @@ export class Game {
     this.transactions = [];
     this.currentDay = 1;
     this.startTimestamp = Date.now();
+    this.completedGoals = [];
 
     this.economy = new Economy();
 
@@ -129,6 +131,9 @@ export class Game {
   // Création d'offres (joueur)
   // ============================================
   createSellOffer(params) {
+    const adjusted = this.getAdjustedMarketPrice(params.itemId, params.quality, params.perfection);
+    if (params.price == null && adjusted > 0) params.price = adjusted;
+
     const result = this.auctionHouse.createSellOffer({
       ...params,
       ownerId: 'player'
@@ -261,6 +266,23 @@ export class Game {
   // Gestion interne des transactions
   // ============================================
   _handleTransaction(tx) {
+    const item = getItemById(tx.itemId);
+    const marketPrice = this.economy.getAveragePrice(tx.itemId);
+    tx.marketPrice = marketPrice;
+    tx.priceDeltaPct = marketPrice > 0
+      ? Math.round(((tx.price - marketPrice) / marketPrice) * 1000) / 10
+      : 0;
+
+    if (tx.sellerId === 'player') {
+      const avgCost = this._getAveragePlayerCost(tx.itemId);
+      if (avgCost != null) {
+        tx.playerMargin = Math.round((tx.price - avgCost) * tx.quantity * 100) / 100;
+        tx.playerMarginPct = avgCost > 0
+          ? Math.round(((tx.price - avgCost) / avgCost) * 1000) / 10
+          : null;
+      }
+    }
+
     this.transactions.unshift(tx);
 
     // Économie : met à jour le prix moyen
@@ -270,6 +292,7 @@ export class Game {
     if (tx.sellerId === 'player') {
       this.addMoney(tx.total);
       this.player.recordSale(tx.total);
+      this._checkGoals();
     } else {
       this.npcController.creditNpc(tx.sellerId, tx.total);
     }
@@ -278,6 +301,7 @@ export class Game {
     if (tx.buyerId === 'player') {
       this.player.inventory.add(tx.itemId, tx.quantity, tx.quality, tx.perfection, tx.price);
       this.player.recordPurchase(tx.total);
+      this._checkGoals();
 
       if (tx.type === 'matching') {
         const buyOffer = this.offers.find(o => o.id === tx.buyOfferId);
@@ -411,6 +435,125 @@ export class Game {
     return ITEMS;
   }
 
+  getAdjustedMarketPrice(itemId, quality = 50, perfection = 50) {
+    const avg = this.economy.getAveragePrice(itemId);
+    return this.economy.applyConditionModifier(avg, quality, perfection);
+  }
+
+  getMarketRows() {
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    return ITEMS.map(item => {
+      const sellOffers = this.offers.filter(o => o.type === 'sell' && o.status === 'active' && o.itemId === item.id);
+      const buyOffers = this.offers.filter(o => o.type === 'buy' && o.status === 'active' && o.itemId === item.id);
+      const recentTx = this.transactions.filter(tx => tx.itemId === item.id && now - tx.timestamp <= dayMs);
+      const history = this.economy.priceHistory[item.id] || [];
+      const bestSell = sellOffers.length ? Math.min(...sellOffers.map(o => o.buyoutPrice ?? o.price)) : null;
+      const bestBuy = buyOffers.length ? Math.max(...buyOffers.map(o => o.price)) : null;
+      const average = this.economy.getAveragePrice(item.id);
+      const spread = bestSell != null && bestBuy != null
+        ? Math.round((bestSell - bestBuy) * 100) / 100
+        : null;
+
+      return {
+        item,
+        average,
+        bestSell,
+        bestBuy,
+        spread,
+        volume: recentTx.reduce((sum, tx) => sum + tx.quantity, 0),
+        trend: this.economy.getTrend(item.id),
+        history: history.slice(-16).map(p => p.price)
+      };
+    });
+  }
+
+  getNpcProfiles() {
+    return NPCS.map(npc => {
+      const state = this.npcController.npcStates[npc.id] || {};
+      const npcTransactions = this.transactions.filter(tx => tx.sellerId === npc.id || tx.buyerId === npc.id);
+      const activeOffers = this.offers.filter(o => o.ownerId === npc.id && o.status === 'active');
+      const sold = npcTransactions.filter(tx => tx.sellerId === npc.id).reduce((sum, tx) => sum + tx.total, 0);
+      const bought = npcTransactions.filter(tx => tx.buyerId === npc.id).reduce((sum, tx) => sum + tx.total, 0);
+
+      return {
+        ...npc,
+        capital: state.capital ?? npc.capital,
+        inventory: state.inventory || [],
+        activeOffers,
+        transactions: npcTransactions.slice(0, 5),
+        sold: Math.round(sold * 100) / 100,
+        bought: Math.round(bought * 100) / 100
+      };
+    });
+  }
+
+  getProgressSummary() {
+    return {
+      level: this.player.level,
+      xp: this.player.xp,
+      xpToNext: this.player.xpToNextLevel(),
+      reputation: this.player.reputation,
+      inventorySize: this.player.inventory.size,
+      stats: { ...this.player.stats }
+    };
+  }
+
+  getGoals() {
+    const stats = this.player.stats;
+    const profitableSales = this.transactions.filter(tx =>
+      tx.sellerId === 'player' && (tx.playerMarginPct ?? -Infinity) >= 20
+    ).length;
+    const auctionWins = this.transactions.filter(tx => tx.buyerId === 'player' && tx.type === 'auction_end').length;
+
+    return [
+      {
+        id: 'cash_2000',
+        title: 'Tresorerie solide',
+        description: 'Atteindre 2 000 euros de solde.',
+        progress: Math.min(this.player.money, 2000),
+        target: 2000,
+        reward: '+2 reputation'
+      },
+      {
+        id: 'sell_electronics_10',
+        title: 'Specialiste electronique',
+        description: 'Vendre 10 objets electroniques.',
+        progress: this._countPlayerSoldByCategory('Électronique'),
+        target: 10,
+        reward: '+1 case inventaire'
+      },
+      {
+        id: 'margin_20_1',
+        title: 'Belle marge',
+        description: 'Realiser une vente avec au moins 20 % de marge.',
+        progress: Math.min(profitableSales, 1),
+        target: 1,
+        reward: '+3 reputation'
+      },
+      {
+        id: 'auction_win_1',
+        title: 'Derniere enchere',
+        description: 'Gagner une enchere contre un autre marchand.',
+        progress: Math.min(auctionWins, 1),
+        target: 1,
+        reward: '+2 reputation'
+      },
+      {
+        id: 'transactions_25',
+        title: 'Vrai commercant',
+        description: 'Participer a 25 transactions.',
+        progress: stats.transactionsCount,
+        target: 25,
+        reward: '+2 cases inventaire'
+      }
+    ].map(goal => ({
+      ...goal,
+      completed: this.completedGoals.includes(goal.id) || goal.progress >= goal.target
+    }));
+  }
+
   getNpcName(id) {
     if (id === 'player') return 'Vous';
     return this.npcController.getNpcName(id);
@@ -427,7 +570,8 @@ export class Game {
       currentDay: this.currentDay,
       startTimestamp: this.startTimestamp,
       npcStates: this.npcController.npcStates,
-      economy: this.economy.toJSON()
+      economy: this.economy.toJSON(),
+      completedGoals: [...this.completedGoals]
     };
     Storage.save(data);
   }
@@ -463,6 +607,8 @@ export class Game {
       this.economy = Economy.fromJSON(data.economy);
     }
 
+    this.completedGoals = data.completedGoals || [];
+
     return true;
   }
 
@@ -492,5 +638,39 @@ export class Game {
     this.player.inventory.add('item_006', 1, 80, 65);
     this.save();
     this._notifyUI();
+  }
+
+  _getAveragePlayerCost(itemId) {
+    const stacks = this.player.inventory.getStacks(itemId).filter(s => s.avgBuyPrice != null);
+    if (stacks.length === 0) return null;
+    const qty = stacks.reduce((sum, s) => sum + s.quantity, 0);
+    if (qty <= 0) return null;
+    const total = stacks.reduce((sum, s) => sum + s.avgBuyPrice * s.quantity, 0);
+    return Math.round((total / qty) * 100) / 100;
+  }
+
+  _countPlayerSoldByCategory(category) {
+    return this.transactions
+      .filter(tx => tx.sellerId === 'player')
+      .reduce((sum, tx) => {
+        const item = getItemById(tx.itemId);
+        return item && item.category === category ? sum + tx.quantity : sum;
+      }, 0);
+  }
+
+  _checkGoals() {
+    const newlyCompleted = this.getGoals().filter(goal =>
+      goal.progress >= goal.target && !this.completedGoals.includes(goal.id)
+    );
+
+    newlyCompleted.forEach(goal => {
+      this.completedGoals.push(goal.id);
+      if (goal.id === 'sell_electronics_10') this.player.inventory.expand(1);
+      if (goal.id === 'transactions_25') this.player.inventory.expand(2);
+      if (goal.id === 'cash_2000') this.player.addReputation(2);
+      if (goal.id === 'margin_20_1') this.player.addReputation(3);
+      if (goal.id === 'auction_win_1') this.player.addReputation(2);
+      if (this.uiCallbacks.onStatus) this.uiCallbacks.onStatus(`Objectif termine : ${goal.title}`);
+    });
   }
 }

@@ -59,7 +59,7 @@ export class HistoryUI {
     if (transactions.length === 0) {
       this.tbody.innerHTML = `
         <tr class="empty-row">
-          <td colspan="8">Aucune transaction pour le moment</td>
+          <td colspan="9">Aucune transaction pour le moment</td>
         </tr>
       `;
       return;
@@ -92,6 +92,7 @@ export class HistoryUI {
 
     const seller = this.resolveName(tx.sellerId);
     const buyer = this.resolveName(tx.buyerId);
+    const insight = this._renderInsight(tx);
 
     return `
       <tr>
@@ -103,8 +104,24 @@ export class HistoryUI {
         <td>${seller}</td>
         <td>${buyer}</td>
         <td><span class="badge ${typeClass}">${typeLabel}</span></td>
+        <td>${insight}</td>
       </tr>
     `;
+  }
+
+  _renderInsight(tx) {
+    if (tx.sellerId === 'player' && tx.playerMargin != null) {
+      const cls = tx.playerMargin >= 0 ? 'text-success' : 'text-danger';
+      const pct = tx.playerMarginPct != null ? ` (${tx.playerMarginPct >= 0 ? '+' : ''}${tx.playerMarginPct}%)` : '';
+      return `<span class="${cls}">${tx.playerMargin >= 0 ? '+' : ''}${this._formatMoney(tx.playerMargin)} €${pct}</span>`;
+    }
+
+    if (tx.priceDeltaPct != null) {
+      if (tx.priceDeltaPct <= -8) return '<span class="text-success">Bonne affaire</span>';
+      if (tx.priceDeltaPct >= 8) return '<span class="text-warning">Prix haut</span>';
+    }
+
+    return '<span class="text-muted">Marche</span>';
   }
 
   _formatMoney(amount) {

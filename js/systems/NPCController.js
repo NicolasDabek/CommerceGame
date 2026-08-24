@@ -124,7 +124,7 @@ export class NPCController {
     for (const slot of state.inventory) {
       if (slot.quantity <= 0) continue;
       const item = getItemById(slot.itemId);
-      const avg = this.getAveragePrice(slot.itemId);
+      const avg = this._conditionPrice(this.getAveragePrice(slot.itemId), slot.quality, slot.perfection);
 
       for (const buy of buyOffers) {
         if (buy.itemId !== slot.itemId) continue;
@@ -209,7 +209,7 @@ export class NPCController {
     const candidates = sellOffers
       .map(o => {
         const item = getItemById(o.itemId);
-        const avg = this.getAveragePrice(o.itemId);
+        const avg = this._conditionPrice(this.getAveragePrice(o.itemId), o.quality, o.perfection);
         const preferred = item && npc.preferredCategories.includes(item.category);
         const dealRatio = avg > 0 ? o.buyoutPrice / avg : 1;
         return { offer: o, item, avg, preferred, dealRatio };
@@ -261,7 +261,7 @@ export class NPCController {
     const item = getItemById(slot.itemId);
     if (!item) return null;
 
-    const avg = this.getAveragePrice(slot.itemId);
+    const avg = this._conditionPrice(this.getAveragePrice(slot.itemId), slot.quality, slot.perfection);
     let priceMultiplier = 1.0;
 
     switch (npc.personality) {
@@ -393,5 +393,11 @@ export class NPCController {
   getNpcName(id) {
     const npc = NPCS.find(n => n.id === id);
     return npc ? npc.name : id;
+  }
+
+  _conditionPrice(price, quality = 50, perfection = 50) {
+    const qualityMod = 0.75 + (Number(quality) / 100) * 0.45;
+    const perfectionMod = 0.9 + (Number(perfection) / 100) * 0.25;
+    return Math.max(0.01, Math.round(price * qualityMod * perfectionMod * 100) / 100);
   }
 }

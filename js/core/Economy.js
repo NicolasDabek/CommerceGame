@@ -50,6 +50,27 @@ export class Economy {
     return Math.round(base * catMod * this.globalInflation * 100) / 100;
   }
 
+  applyConditionModifier(price, quality = 50, perfection = 50) {
+    const qualityMod = 0.75 + (Number(quality) / 100) * 0.45;
+    const perfectionMod = 0.9 + (Number(perfection) / 100) * 0.25;
+    return Math.max(0.01, Math.round(price * qualityMod * perfectionMod * 100) / 100);
+  }
+
+  getTrend(itemId) {
+    const history = this.priceHistory[itemId] || [];
+    if (history.length < 3) return 'stable';
+
+    const recent = history.slice(-3).reduce((sum, p) => sum + p.price, 0) / Math.min(3, history.length);
+    const previousSlice = history.slice(Math.max(0, history.length - 8), Math.max(0, history.length - 3));
+    if (previousSlice.length === 0) return 'stable';
+    const previous = previousSlice.reduce((sum, p) => sum + p.price, 0) / previousSlice.length;
+    const delta = previous > 0 ? (recent - previous) / previous : 0;
+
+    if (delta > 0.04) return 'up';
+    if (delta < -0.04) return 'down';
+    return 'stable';
+  }
+
   /**
    * Enregistre une transaction pour mettre à jour le prix moyen
    * Moyenne mobile simple (poids 20% sur le nouveau prix)
@@ -182,7 +203,10 @@ export class Economy {
    */
   getActiveEvents() {
     const now = Date.now();
-    return this.activeEvents.filter(e => e.expiresAt > now);
+    return this.activeEvents.filter(e => e.expiresAt > now).map(e => ({
+      ...e,
+      remainingMs: e.expiresAt - now
+    }));
   }
 
   /**

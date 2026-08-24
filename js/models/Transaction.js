@@ -32,6 +32,10 @@ export class Transaction {
     this.sellOfferId = data.sellOfferId || null;
     this.buyOfferId = data.buyOfferId || null;
     this.timestamp = data.timestamp || Date.now();
+    this.marketPrice = data.marketPrice ?? null;
+    this.priceDeltaPct = data.priceDeltaPct ?? null;
+    this.playerMargin = data.playerMargin ?? null;
+    this.playerMarginPct = data.playerMarginPct ?? null;
   }
 
   toJSON() {
@@ -48,7 +52,11 @@ export class Transaction {
       perfection: this.perfection,
       sellOfferId: this.sellOfferId,
       buyOfferId: this.buyOfferId,
-      timestamp: this.timestamp
+      timestamp: this.timestamp,
+      marketPrice: this.marketPrice,
+      priceDeltaPct: this.priceDeltaPct,
+      playerMargin: this.playerMargin,
+      playerMarginPct: this.playerMarginPct
     };
   }
 

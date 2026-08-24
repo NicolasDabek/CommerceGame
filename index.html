@@ -49,6 +49,18 @@
         <span class="nav-icon">🎒</span>
         <span class="nav-label">Inventaire</span>
       </button>
+      <button class="nav-btn" data-panel="market" id="btn-market">
+        <span class="nav-icon">M</span>
+        <span class="nav-label">Marche</span>
+      </button>
+      <button class="nav-btn" data-panel="npcs" id="btn-npcs">
+        <span class="nav-icon">P</span>
+        <span class="nav-label">PNJ</span>
+      </button>
+      <button class="nav-btn" data-panel="goals" id="btn-goals">
+        <span class="nav-icon">O</span>
+        <span class="nav-label">Objectifs</span>
+      </button>
     </nav>
 
     <!-- Main content -->
@@ -84,12 +96,13 @@
                 <th>Vendeur</th>
                 <th>Acheteur</th>
                 <th>Type</th>
+                <th>Lecture</th>
               </tr>
             </thead>
             <tbody id="history-body">
               <!-- Rempli dynamiquement -->
               <tr class="empty-row">
-                <td colspan="8">Aucune transaction pour le moment</td>
+                <td colspan="9">Aucune transaction pour le moment</td>
               </tr>
             </tbody>
           </table>
@@ -189,6 +202,65 @@
         <div class="inventory-grid" id="inventory-grid">
           <!-- Cases d'inventaire générées dynamiquement -->
         </div>
+      </section>
+
+      <!-- Panel: Marche -->
+      <section class="panel" id="panel-market">
+        <div class="panel-header">
+          <h2>Tableau de marche</h2>
+          <div class="panel-actions">
+            <select id="market-category" class="select">
+              <option value="all">Toutes les categories</option>
+              <option value="Ressources">Ressources</option>
+              <option value="Électronique">Electronique</option>
+              <option value="Nourriture">Nourriture</option>
+              <option value="Vêtements">Vetements</option>
+              <option value="Outils">Outils</option>
+              <option value="Divers">Divers</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="market-events" id="market-events"></div>
+
+        <div class="table-container">
+          <table class="data-table" id="market-table">
+            <thead>
+              <tr>
+                <th>Objet</th>
+                <th>Prix moyen</th>
+                <th>Meilleure vente</th>
+                <th>Meilleur achat</th>
+                <th>Spread</th>
+                <th>Volume recent</th>
+                <th>Tendance</th>
+                <th>Graphique</th>
+              </tr>
+            </thead>
+            <tbody id="market-body">
+              <tr class="empty-row">
+                <td colspan="8">Aucune donnee de marche</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Panel: PNJ -->
+      <section class="panel" id="panel-npcs">
+        <div class="panel-header">
+          <h2>Marchands PNJ</h2>
+        </div>
+        <div class="npc-grid" id="npc-grid"></div>
+      </section>
+
+      <!-- Panel: Objectifs -->
+      <section class="panel" id="panel-goals">
+        <div class="panel-header">
+          <h2>Objectifs et progression</h2>
+          <div class="progress-summary" id="progress-summary"></div>
+        </div>
+        <div class="goals-grid" id="goals-grid"></div>
       </section>
     </main>
 
