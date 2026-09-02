@@ -4,17 +4,13 @@
 
 import { getItemById } from '../data/items.js';
 
+function gameNow() {
+  return (typeof window !== 'undefined' && window.game?.timeManager)
+    ? window.game.timeManager.now()
+    : Date.now();
+}
+
 export class BuyHouseUI {
-  /**
-   * @param {Object} options
-   * @param {Function} options.getActiveBuyOffers
-   * @param {Function} options.getPlayerBuyOffers
-   * @param {Function} options.getPlayerItemCount  - (itemId) => number
-   * @param {Function} options.onCancel
-   * @param {Function} options.onCreateBuy
-   * @param {Function} options.onFulfill          - (offerId, maxQty) => void
-   * @param {Function} options.resolveName
-   */
   constructor(options = {}) {
     this.getActiveBuyOffers = options.getActiveBuyOffers || (() => []);
     this.getPlayerBuyOffers = options.getPlayerBuyOffers || (() => []);
@@ -64,20 +60,16 @@ export class BuyHouseUI {
     }
 
     const sorted = [...offers].sort((a, b) => b.createdAt - a.createdAt);
-
     this.tbody.innerHTML = sorted.map(offer => this._renderRow(offer)).join('');
 
-    // Bind actions
     this.tbody.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', () => {
         const action = btn.dataset.action;
         const offerId = btn.dataset.offerId;
-
         if (action === 'cancel') {
           this.onCancel(offerId);
         } else if (action === 'fulfill') {
-          const maxQty = Number(btn.dataset.maxQty) || 1;
-          this.onFulfill(offerId, maxQty);
+          this.onFulfill(offerId, Number(btn.dataset.maxQty) || 1);
         }
       });
     });
@@ -87,25 +79,20 @@ export class BuyHouseUI {
     const item = getItemById(offer.itemId);
     const itemName = item ? `${item.icon || ''} ${item.name}` : offer.itemId;
     const buyer = this.resolveName(offer.ownerId);
-    const remaining = offer.getRemainingText();
+    const remaining = offer.getRemainingText(gameNow());
 
     let actions = '';
-
     if (offer.ownerId === 'player') {
-      // Mes offres → Annuler
       actions = `
         <button class="btn btn-small btn-ghost" data-action="cancel" data-offer-id="${offer.id}">
           Annuler
         </button>
       `;
     } else {
-      // Offre d'un autre → Vendre si on possède l'objet
       const owned = this.getPlayerItemCount(offer.itemId);
       if (owned > 0) {
         const maxQty = Math.min(owned, offer.quantity);
-        const label = owned >= offer.quantity
-          ? `Vendre (x${maxQty})`
-          : `Vendre ${maxQty}/${offer.quantity}`;
+        const label = owned >= offer.quantity ? `Vendre (x${maxQty})` : `Vendre ${maxQty}/${offer.quantity}`;
         actions = `
           <button class="btn btn-small btn-success" data-action="fulfill" data-offer-id="${offer.id}" data-max-qty="${maxQty}" title="Vente partielle possible">
             ${label}
