@@ -15,6 +15,12 @@ export function enhanceGame(game) {
   if (game.npcController) {
     game.npcController.getNow = () => game.timeManager.now();
     game.npcController.getMsPerGameDay = () => game.timeManager.msPerGameDay;
+    const run = game.npcController.runMatching;
+    game.npcController.runMatching = (offer) => {
+      setTimeout(() => {
+        if (offer && offer.status === 'active') run(offer);
+      }, 12000);
+    };
   }
 
   game.createSellOffer = function(params) {
