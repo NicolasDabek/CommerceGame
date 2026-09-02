@@ -41,7 +41,7 @@ export class AuctionHouse {
       this.removePlayerMoney(fee);
     }
 
-    const offer = new Offer({ type: 'sell', itemId, quantity, price, buyoutPrice, ownerId, durationDays, quality, perfection, avgCost, createdAt, msPerGameDay });
+    const offer = new Offer({ type: 'sell', itemId, quantity, price, buyoutPrice, ownerId, durationDays, quality, perfection, avgCost, createdAt, msPerGameDay, originalQuantity: quantity });
     return { success: true, offer, fee };
   }
 
