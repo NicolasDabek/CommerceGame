@@ -1,47 +1,53 @@
-/**
- * TimeManager — Gestion du temps réel du jeu
- * 1 jour réel = 1 jour de jeu
- * Affiche le jour + heure dans le footer
- */
+export const MS_PER_GAME_DAY_1X = 10 * 60 * 1000;
+export const SPEED_OPTIONS = [0, 1, 10, 60];
 
 export class TimeManager {
-  /**
-   * @param {Object} options
-   * @param {number} options.startTimestamp - Timestamp de début de partie
-   * @param {Function} options.onDayChange  - Callback quand un nouveau jour commence
-   */
   constructor(options = {}) {
     this.startTimestamp = options.startTimestamp || Date.now();
     this.onDayChange = options.onDayChange || (() => {});
-    this.currentDay = 1;
-    this._lastCheckedDay = 1;
+    this.msPerGameDay = options.msPerGameDay || MS_PER_GAME_DAY_1X;
+    this.speed = options.speed ?? 10;
+    this.paused = this.speed === 0;
+    this.gameTimeMs = options.gameTimeMs || 0;
+    this.currentDay = options.currentDay || 1;
+    this._lastCheckedDay = this.currentDay;
+    this._lastReal = Date.now();
   }
 
-  /**
-   * Calcule le jour actuel à partir du temps réel écoulé
-   */
-  getCurrentDay(now = Date.now()) {
-    const msPerDay = 24 * 60 * 60 * 1000;
-    const elapsed = now - this.startTimestamp;
-    return Math.floor(elapsed / msPerDay) + 1;
+  now() {
+    return this.startTimestamp + this.gameTimeMs;
   }
 
-  /**
-   * Retourne une chaîne formatée : "Jour 3 — 14:32"
-   */
-  getDisplayText(now = Date.now()) {
-    const day = this.getCurrentDay(now);
-    const date = new Date(now);
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `Jour ${day} — ${hours}:${minutes}`;
+  setSpeed(speed) {
+    const value = Number(speed);
+    if (!SPEED_OPTIONS.includes(value)) return this.speed;
+    this.speed = value;
+    this.paused = value === 0;
+    this._lastReal = Date.now();
+    return this.speed;
   }
 
-  /**
-   * À appeler régulièrement pour détecter le passage de jour
-   */
+  getCurrentDay() {
+    return Math.floor(this.gameTimeMs / this.msPerGameDay) + 1;
+  }
+
+  getDisplayText() {
+    const day = this.getCurrentDay();
+    const msInDay = this.gameTimeMs % this.msPerGameDay;
+    const totalMinutes = Math.floor((msInDay / this.msPerGameDay) * 24 * 60);
+    const hours = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+    const minutes = String(totalMinutes % 60).padStart(2, '0');
+    const speedLabel = this.paused ? 'pause' : `${this.speed}×`;
+    return `Jour ${day} — ${hours}:${minutes} (${speedLabel})`;
+  }
+
   tick(now = Date.now()) {
-    const day = this.getCurrentDay(now);
+    if (!this.paused) {
+      const dt = Math.max(0, now - this._lastReal);
+      this.gameTimeMs += dt * this.speed;
+    }
+    this._lastReal = now;
+    const day = this.getCurrentDay();
     if (day !== this._lastCheckedDay) {
       this._lastCheckedDay = day;
       this.currentDay = day;
@@ -50,13 +56,18 @@ export class TimeManager {
     return day;
   }
 
-  /**
-   * Met à jour l'élément DOM du footer
-   */
   updateUI(elementId = 'game-time') {
+    if (typeof document === 'undefined') return;
     const el = document.getElementById(elementId);
-    if (el) {
-      el.textContent = this.getDisplayText();
-    }
+    if (el) el.textContent = this.getDisplayText();
+  }
+
+  toJSON() {
+    return {
+      startTimestamp: this.startTimestamp,
+      gameTimeMs: this.gameTimeMs,
+      currentDay: this.getCurrentDay(),
+      speed: this.speed
+    };
   }
 }
