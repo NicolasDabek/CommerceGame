@@ -12,6 +12,13 @@ export function enhanceGame(game) {
     else game.npcController.creditNpc(id, amount);
   };
 
+  if (game.timeManager && !game.timeManager.gameTimeMs && game.currentDay > 1) {
+    game.timeManager.gameTimeMs = (game.currentDay - 1) * game.timeManager.msPerGameDay;
+  }
+
+  const origExpire = game.matchingEngine.expireOffers.bind(game.matchingEngine);
+  game.matchingEngine.expireOffers = (offers, _now) => origExpire(offers, game.timeManager.now());
+
   if (game.npcController) {
     game.npcController.getNow = () => game.timeManager.now();
     game.npcController.getMsPerGameDay = () => game.timeManager.msPerGameDay;
@@ -35,6 +42,8 @@ export function enhanceGame(game) {
     });
     if (!result.success) return result;
 
+    result.offer.expiresAt = result.offer.createdAt + result.offer.durationDays * result.offer.msPerGameDay;
+
     game.offers.push(result.offer);
     if (params.autoMatch === true) {
       const { transactions } = game.matchingEngine.match(result.offer, game.offers);
@@ -57,6 +66,8 @@ export function enhanceGame(game) {
       msPerGameDay: game.timeManager.msPerGameDay
     });
     if (!result.success) return result;
+
+    result.offer.expiresAt = result.offer.createdAt + result.offer.durationDays * result.offer.msPerGameDay;
 
     game.offers.push(result.offer);
     if (params.autoMatch === true) {
