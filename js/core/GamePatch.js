@@ -1,4 +1,7 @@
-/** Surcharge runtime : annonces visibles, carnet, horloge jeu, lockFunds */
+import { JobBoard } from '../systems/JobBoard.js';
+import { Storage } from '../utils/storage.js';
+
+/** Surcharge runtime : annonces visibles, carnet, horloge jeu, lockFunds, jobs */
 export function enhanceGame(game) {
   if (!game || game.__enhanced) return game;
   game.__enhanced = true;
@@ -30,6 +33,32 @@ export function enhanceGame(game) {
     };
   }
 
+  const savedJobs = (Storage.load() || {}).jobs || {};
+  game.jobBoard = new JobBoard(game, savedJobs);
+  game.jobBoard.ensureContracts();
+
+  const origSave = game.save.bind(game);
+  game.save = function() {
+    origSave();
+    const data = Storage.load();
+    if (data) {
+      data.jobs = game.jobBoard.toJSON();
+      Storage.save(data);
+    }
+  };
+
+  const origTick = game.tick.bind(game);
+  game.tick = function() {
+    const dayBefore = game.timeManager.getCurrentDay();
+    origTick();
+    if (game.timeManager.getCurrentDay() !== dayBefore) {
+      game.jobBoard.onNewDay();
+      game.save();
+    } else {
+      game.jobBoard.ensureContracts();
+    }
+  };
+
   game.createSellOffer = function(params) {
     const adjusted = game.getAdjustedMarketPrice(params.itemId, params.quality, params.perfection);
     if (params.price == null && adjusted > 0) params.price = adjusted;
@@ -43,6 +72,7 @@ export function enhanceGame(game) {
     if (!result.success) return result;
 
     result.offer.expiresAt = result.offer.createdAt + result.offer.durationDays * result.offer.msPerGameDay;
+    if (result.fee) game.jobBoard.depositFee(result.fee);
 
     game.offers.push(result.offer);
     if (params.autoMatch === true) {
@@ -68,6 +98,7 @@ export function enhanceGame(game) {
     if (!result.success) return result;
 
     result.offer.expiresAt = result.offer.createdAt + result.offer.durationDays * result.offer.msPerGameDay;
+    if (result.fee) game.jobBoard.depositFee(result.fee);
 
     game.offers.push(result.offer);
     if (params.autoMatch === true) {
@@ -81,6 +112,9 @@ export function enhanceGame(game) {
     return result;
   };
 
+  game.scavenge = () => game.jobBoard.scavenge();
+  game.completeJob = (id) => game.jobBoard.complete(id);
+  game.getJobsView = () => game.jobBoard.getView();
   game.getGameNow = () => game.timeManager.now();
 
   game.getOrderBook = function(itemId) {
