@@ -1,0 +1,11 @@
+{
+  "name": "commerce-game",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Prototype de jeu de commerce (hôtel de vente / hôtel d'achat)",
+  "scripts": {
+    "start": "npx --yes serve . -p 8080",
+    "test": "node tests/run.mjs"
+  }
+}
