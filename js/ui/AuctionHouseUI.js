@@ -4,15 +4,13 @@
 
 import { getItemById } from '../data/items.js';
 
+function gameNow() {
+  return (typeof window !== 'undefined' && window.game?.timeManager)
+    ? window.game.timeManager.now()
+    : Date.now();
+}
+
 export class AuctionHouseUI {
-  /**
-   * @param {Object} options
-   * @param {Function} options.getActiveSellOffers
-   * @param {Function} options.getPlayerSellOffers
-   * @param {Function} options.onBuyout
-   * @param {Function} options.onCancel
-   * @param {Function} options.onCreateSell  - ouvre le modal de création
-   */
   constructor(options = {}) {
     this.getActiveSellOffers = options.getActiveSellOffers || (() => []);
     this.getPlayerSellOffers = options.getPlayerSellOffers || (() => []);
@@ -30,12 +28,10 @@ export class AuctionHouseUI {
   }
 
   _bindEvents() {
-    // Bouton "Mettre en vente"
     if (this.btnNewSell) {
       this.btnNewSell.addEventListener('click', () => this.onCreateSell());
     }
 
-    // Onglets
     const tabs = document.querySelectorAll('#panel-auction .tab');
     tabs.forEach(tab => {
       tab.addEventListener('click', () => {
@@ -63,20 +59,15 @@ export class AuctionHouseUI {
       return;
     }
 
-    // Trie : plus récentes en premier
     const sorted = [...offers].sort((a, b) => b.createdAt - a.createdAt);
-
     this.tbody.innerHTML = sorted.map(offer => this._renderRow(offer)).join('');
 
-    // Bind des boutons d'action
     this.tbody.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', () => {
         const action = btn.dataset.action;
         const offerId = btn.dataset.offerId;
-
         if (action === 'buyout') {
-          const qty = Number(btn.dataset.qty) || 1;
-          this.onBuyout(offerId, qty);
+          this.onBuyout(offerId, Number(btn.dataset.qty) || 1);
         } else if (action === 'cancel') {
           this.onCancel(offerId);
         } else if (action === 'bid') {
@@ -90,9 +81,8 @@ export class AuctionHouseUI {
     const item = getItemById(offer.itemId);
     const itemName = item ? `${item.icon || ''} ${item.name}` : offer.itemId;
     const seller = this.resolveName(offer.ownerId);
-    const remaining = offer.getRemainingText();
+    const remaining = offer.getRemainingText(gameNow());
 
-    // Affiche le prix de départ + enchère actuelle si elle existe
     let priceCell = `<span class="text-money">${this._formatMoney(offer.price)} €</span>`;
     if (offer.currentBid != null) {
       priceCell += `<br><small class="text-warning">Enchère : ${this._formatMoney(offer.currentBid)} € (${this.resolveName(offer.currentBidderId)})</small>`;
@@ -111,7 +101,6 @@ export class AuctionHouseUI {
       `;
     } else {
       const buttons = [];
-      // Toujours possible d'enchérir (sauf si on est déjà le plus offrant)
       if (offer.currentBidderId !== 'player') {
         buttons.push(`
           <button class="btn btn-small btn-warning" data-action="bid" data-offer-id="${offer.id}">
