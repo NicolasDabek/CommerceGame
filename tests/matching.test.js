@@ -22,6 +22,26 @@ export function run() {
       engine.match(sell, [sell, buy]);
       assertEqual(txs.length, 0);
     }],
+    ['partiel reste actif', () => {
+      const txs = [];
+      const engine = new MatchingEngine({ onTransaction: tx => txs.push(tx) });
+      const sell = new Offer({ type: 'sell', itemId: 'item_001', quantity: 5, price: 10, ownerId: 'a', durationDays: 1 });
+      const buy = new Offer({ type: 'buy', itemId: 'item_001', quantity: 2, price: 12, ownerId: 'b', durationDays: 1 });
+      engine.match(sell, [sell, buy]);
+      assertEqual(txs[0].quantity, 2);
+      assertEqual(sell.quantity, 3);
+      assertEqual(sell.status, 'active');
+      assertEqual(buy.status, 'completed');
+    }],
+    ['qualité insuffisante', () => {
+      const txs = [];
+      const engine = new MatchingEngine({ onTransaction: tx => txs.push(tx) });
+      const sell = new Offer({ type: 'sell', itemId: 'item_001', quantity: 1, price: 10, ownerId: 'a', durationDays: 1, quality: 40 });
+      const buy = new Offer({ type: 'buy', itemId: 'item_001', quantity: 1, price: 12, ownerId: 'b', durationDays: 1, minQuality: 70 });
+      engine.match(sell, [sell, buy]);
+      assertEqual(txs.length, 0);
+      assertEqual(sell.status, 'active');
+    }],
     ['FIFO', () => {
       const txs = [];
       const engine = new MatchingEngine({ onTransaction: tx => txs.push(tx) });

@@ -3,72 +3,50 @@
  */
 
 let offerCounter = 0;
+const REAL_DAY_MS = 24 * 60 * 60 * 1000;
 
 export class Offer {
-  /**
-   * @param {Object} data
-   * @param {'sell'|'buy'} data.type
-   * @param {string} data.itemId
-   * @param {number} data.quantity
-   * @param {number} data.price          - Prix unitaire
-   * @param {number|null} data.buyoutPrice - Uniquement pour les ventes (achat immédiat)
-   * @param {string} data.ownerId        - 'player' ou id du PNJ
-   * @param {1|2|7} data.durationDays
-   * @param {number} [data.quality=50]
-   * @param {number} [data.perfection=50]
-   */
   constructor(data) {
     this.id = data.id || `offer_${Date.now()}_${++offerCounter}`;
-    this.type = data.type;                    // 'sell' | 'buy'
+    this.type = data.type;
     this.itemId = data.itemId;
     this.quantity = data.quantity;
+    this.originalQuantity = data.originalQuantity ?? data.quantity;
     this.price = Number(data.price);
     this.buyoutPrice = data.buyoutPrice != null ? Number(data.buyoutPrice) : null;
     this.ownerId = data.ownerId;
-    this.durationDays = data.durationDays;    // 1 | 2 | 7
+    this.durationDays = data.durationDays;
     this.quality = data.quality ?? 50;
     this.perfection = data.perfection ?? 50;
+    this.minQuality = data.minQuality ?? 0;
+    this.minPerfection = data.minPerfection ?? 0;
+    this.msPerGameDay = data.msPerGameDay || REAL_DAY_MS;
 
     this.createdAt = data.createdAt || Date.now();
     this.expiresAt = data.expiresAt || this._computeExpiresAt();
-    this.status = data.status || 'active';    // active | completed | expired | cancelled
+    this.status = data.status || 'active';
 
-    // Système d'enchères
-    this.currentBid = data.currentBid != null ? Number(data.currentBid) : null;  // prix unitaire actuel
+    this.currentBid = data.currentBid != null ? Number(data.currentBid) : null;
     this.currentBidderId = data.currentBidderId || null;
-    this.bids = data.bids || [];   // historique simple [{ bidderId, amount, at }]
+    this.bids = data.bids || [];
     this.avgCost = data.avgCost ?? null;
   }
 
   _computeExpiresAt() {
-    const msPerDay = 24 * 60 * 60 * 1000;
-    return this.createdAt + (this.durationDays * msPerDay);
+    return this.createdAt + (this.durationDays * this.msPerGameDay);
   }
 
-  /**
-   * Frais de mise en vente / offre d'achat
-   * Formule : (pourcentage selon durée) + 0,20 €
-   */
   static calculateListingFee(price, quantity, durationDays) {
     const totalValue = price * quantity;
-    let percent = 0.03; // 1 jour
-
+    let percent = 0.03;
     if (durationDays === 2) percent = 0.06;
     else if (durationDays === 7) percent = 0.10;
-
-    const fee = (totalValue * percent) + 0.20;
-    return Math.round(fee * 100) / 100; // 2 décimales
+    return Math.round((totalValue * percent + 0.20) * 100) / 100;
   }
 
-  /**
-   * Frais de modification de prix (uniquement si nouveau prix > ancien)
-   * Pour l'instant : 2 % de la différence (à affiner plus tard)
-   */
   static calculatePriceChangeFee(oldPrice, newPrice, quantity) {
     if (newPrice <= oldPrice) return 0;
-    const diff = (newPrice - oldPrice) * quantity;
-    const fee = diff * 0.02;
-    return Math.round(fee * 100) / 100;
+    return Math.round((newPrice - oldPrice) * quantity * 0.02 * 100) / 100;
   }
 
   isExpired(now = Date.now()) {
@@ -82,15 +60,17 @@ export class Offer {
   getRemainingText(now = Date.now()) {
     const ms = this.getRemainingMs(now);
     if (ms <= 0) return 'Expiré';
-
-    const hours = Math.floor(ms / (1000 * 60 * 60));
+    const hours = Math.floor((ms / this.msPerGameDay) * 24);
     const days = Math.floor(hours / 24);
     const remainingHours = hours % 24;
-
     if (days > 0) return `${days}j ${remainingHours}h`;
     if (hours > 0) return `${hours}h`;
-    const minutes = Math.floor(ms / (1000 * 60));
+    const minutes = Math.max(1, Math.floor((ms / this.msPerGameDay) * 24 * 60));
     return `${minutes}min`;
+  }
+
+  filledQuantity() {
+    return Math.max(0, (this.originalQuantity || this.quantity) - this.quantity);
   }
 
   toJSON() {
@@ -99,12 +79,16 @@ export class Offer {
       type: this.type,
       itemId: this.itemId,
       quantity: this.quantity,
+      originalQuantity: this.originalQuantity,
       price: this.price,
       buyoutPrice: this.buyoutPrice,
       ownerId: this.ownerId,
       durationDays: this.durationDays,
       quality: this.quality,
       perfection: this.perfection,
+      minQuality: this.minQuality,
+      minPerfection: this.minPerfection,
+      msPerGameDay: this.msPerGameDay,
       createdAt: this.createdAt,
       expiresAt: this.expiresAt,
       status: this.status,
