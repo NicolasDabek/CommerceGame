@@ -1,6 +1,6 @@
 # CommerceGame — Commerce Tycoon
 
-Jeu de commerce inspiré des hôtels de vente de Dofus / Wakfu (hôtel d’achat, matching, enchères, économie dynamique).
+Jeu de commerce inspiré des hôtels de vente de Dofus / Wakfu / Albion Online (hôtel d’achat, matching, enchères, économie dynamique).
 
 Prototype solo avec PNJ. Interface 2D. Architecture prête pour un backend et un monde 3D.
 
