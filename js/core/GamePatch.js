@@ -1,7 +1,6 @@
 import { JobBoard } from '../systems/JobBoard.js';
 import { Storage } from '../utils/storage.js';
 
-/** Surcharge runtime : annonces visibles, carnet, horloge jeu, lockFunds, jobs */
 export function enhanceGame(game) {
   if (!game || game.__enhanced) return game;
   game.__enhanced = true;
@@ -62,7 +61,6 @@ export function enhanceGame(game) {
   game.createSellOffer = function(params) {
     const adjusted = game.getAdjustedMarketPrice(params.itemId, params.quality, params.perfection);
     if (params.price == null && adjusted > 0) params.price = adjusted;
-
     const result = game.auctionHouse.createSellOffer({
       ...params,
       ownerId: 'player',
@@ -70,18 +68,15 @@ export function enhanceGame(game) {
       msPerGameDay: game.timeManager.msPerGameDay
     });
     if (!result.success) return result;
-
     result.offer.expiresAt = result.offer.createdAt + result.offer.durationDays * result.offer.msPerGameDay;
     if (result.fee) game.jobBoard.depositFee(result.fee);
-
     game.offers.push(result.offer);
+    result.matched = 0;
+    result.soldQty = 0;
     if (params.autoMatch === true) {
       const { transactions } = game.matchingEngine.match(result.offer, game.offers);
       result.matched = transactions.length;
       result.soldQty = transactions.reduce((s, tx) => s + tx.quantity, 0);
-    } else {
-      result.matched = 0;
-      result.soldQty = 0;
     }
     game.save();
     game._notifyUI();
@@ -96,16 +91,13 @@ export function enhanceGame(game) {
       msPerGameDay: game.timeManager.msPerGameDay
     });
     if (!result.success) return result;
-
     result.offer.expiresAt = result.offer.createdAt + result.offer.durationDays * result.offer.msPerGameDay;
     if (result.fee) game.jobBoard.depositFee(result.fee);
-
     game.offers.push(result.offer);
+    result.matched = 0;
     if (params.autoMatch === true) {
       const { transactions } = game.matchingEngine.match(result.offer, game.offers);
       result.matched = transactions.length;
-    } else {
-      result.matched = 0;
     }
     game.save();
     game._notifyUI();
@@ -114,6 +106,8 @@ export function enhanceGame(game) {
 
   game.scavenge = () => game.jobBoard.scavenge();
   game.completeJob = (id) => game.jobBoard.complete(id);
+  game.sellFromStall = (itemId, quality, perfection, qty) => game.jobBoard.sellFromStall(itemId, quality, perfection, qty);
+  game.craftJob = (id) => game.jobBoard.craft(id);
   game.getJobsView = () => game.jobBoard.getView();
   game.getGameNow = () => game.timeManager.now();
 
@@ -122,17 +116,17 @@ export function enhanceGame(game) {
     const buys = game.offers.filter(o => o.type === 'buy' && o.status === 'active' && o.itemId === itemId);
     const bestSell = sells.length ? Math.min(...sells.map(o => o.price)) : null;
     const bestBuy = buys.length ? Math.max(...buys.map(o => o.price)) : null;
-    const spread = bestSell != null && bestBuy != null
-      ? Math.round((bestSell - bestBuy) * 100) / 100
-      : null;
     return {
       bestSell,
       bestBuy,
-      spread,
+      spread: bestSell != null && bestBuy != null ? Math.round((bestSell - bestBuy) * 100) / 100 : null,
       sellQty: sells.reduce((s, o) => s + o.quantity, 0),
       buyQty: buys.reduce((s, o) => s + o.quantity, 0)
     };
   };
 
+  if (typeof window !== 'undefined') {
+    setTimeout(() => window.dispatchEvent(new CustomEvent('panel-changed')), 40);
+  }
   return game;
 }
