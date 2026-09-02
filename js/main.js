@@ -283,11 +283,11 @@ function initUI() {
   npcUI = new NpcUI({ getProfiles: () => game.getNpcProfiles(), resolveName });
   goalsUI = new GoalsUI({ getGoals: () => game.getGoals(), getSummary: () => game.getProgressSummary() });
   jobsUI = new JobsUI({
-    getView: () => game.getJobsView ? game.getJobsView() : { contracts: [], stats: {}, feeVault: 0, scavengeUsedToday: 0, maxScavengePerDay: 4 },
+    getView: () => game.getJobsView ? game.getJobsView() : { contracts: [], recipes: [], stallItems: [], stats: {}, feeVault: 0, scavengeUsedToday: 0, maxScavengePerDay: 4, maxStallPerDay: 3 },
     onScavenge: () => {
       const result = game.scavenge ? game.scavenge() : { success: false, error: 'Indisponible' };
       if (result.success && result.type === 'cash') setStatus(`Tournée : +${result.amount.toFixed(2)} €`);
-      else if (result.success) setStatus('Tournée : objet trouvé');
+      else if (result.success) setStatus(`Tournée : ${result.icon || ''} ${result.name || 'objet'} x${result.quantity} (Q${result.quality})`);
       else setStatus(result.error || 'Tournée impossible');
       refreshAllUI();
     },
@@ -295,6 +295,18 @@ function initUI() {
       const result = game.completeJob ? game.completeJob(id) : { success: false, error: 'Indisponible' };
       if (result.success) setStatus(`Contrat livré : +${result.payout.toFixed(2)} €`);
       else setStatus(result.error || 'Livraison impossible');
+      refreshAllUI();
+    },
+    onStall: (itemId, quality, perfection, qty) => {
+      const result = game.sellFromStall ? game.sellFromStall(itemId, quality, perfection, qty) : { success: false, error: 'Indisponible' };
+      if (result.success) setStatus(`Étal : +${result.total.toFixed(2)} €`);
+      else setStatus(result.error || 'Vente impossible');
+      refreshAllUI();
+    },
+    onCraft: (id) => {
+      const result = game.craftJob ? game.craftJob(id) : { success: false, error: 'Indisponible' };
+      if (result.success) setStatus(`Atelier : ${result.name} fabriqué`);
+      else setStatus(result.error || 'Fabrication impossible');
       refreshAllUI();
     }
   });
