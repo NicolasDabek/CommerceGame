@@ -1,33 +1,39 @@
-/**
- * Système de sauvegarde / chargement
- * Utilise localStorage pour le prototype (facilement remplaçable par un backend)
- */
-
 const STORAGE_KEY = 'commerce_tycoon_save';
+const MAX_TRANSACTIONS = 300;
 
 export const Storage = {
-  /**
-   * Sauvegarde l'état complet du jeu
-   * @param {Object} state - GameState
-   */
   save(state) {
     try {
       const data = {
         ...state,
+        transactions: (state.transactions || []).slice(0, MAX_TRANSACTIONS),
         lastSaved: Date.now()
       };
+      if (data.economy?.priceHistory) {
+        const history = {};
+        for (const [id, points] of Object.entries(data.economy.priceHistory)) {
+          history[id] = (points || []).slice(-80);
+        }
+        data.economy = { ...data.economy, priceHistory: history };
+      }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       return true;
     } catch (err) {
       console.error('Erreur de sauvegarde :', err);
-      return false;
+      try {
+        const slim = {
+          ...state,
+          transactions: (state.transactions || []).slice(0, 80),
+          lastSaved: Date.now()
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(slim));
+        return true;
+      } catch (err2) {
+        console.error('Sauvegarde compacte impossible :', err2);
+        return false;
+      }
     }
   },
-
-  /**
-   * Charge la sauvegarde
-   * @returns {Object|null}
-   */
   load() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -38,17 +44,9 @@ export const Storage = {
       return null;
     }
   },
-
-  /**
-   * Supprime la sauvegarde
-   */
   clear() {
     localStorage.removeItem(STORAGE_KEY);
   },
-
-  /**
-   * Vérifie si une sauvegarde existe
-   */
   exists() {
     return localStorage.getItem(STORAGE_KEY) !== null;
   }
