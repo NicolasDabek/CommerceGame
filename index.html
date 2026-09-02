@@ -11,6 +11,10 @@
   <style>
     .panel { display: none !important; }
     .panel.active { display: flex !important; flex-direction: column; height: 100%; }
+    .job-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; }
+    .job-card.completed { border-color: rgba(0, 184, 148, 0.55); }
+    .scavenge-card { border-color: rgba(108, 92, 231, 0.45); }
+    .job-card button:disabled { opacity: 0.45; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -29,43 +33,21 @@
     </header>
 
     <nav class="main-nav">
-      <button class="nav-btn active" data-panel="history" id="btn-history">
-        <span class="nav-icon">📜</span>
-        <span class="nav-label">Historique</span>
-      </button>
-      <button class="nav-btn" data-panel="auction" id="btn-auction">
-        <span class="nav-icon">🏷️</span>
-        <span class="nav-label">Hôtel de vente</span>
-      </button>
-      <button class="nav-btn" data-panel="buyhouse" id="btn-buyhouse">
-        <span class="nav-icon">🛒</span>
-        <span class="nav-label">Hôtel d'achat</span>
-      </button>
-      <button class="nav-btn" data-panel="inventory" id="btn-inventory">
-        <span class="nav-icon">🎒</span>
-        <span class="nav-label">Inventaire</span>
-      </button>
-      <button class="nav-btn" data-panel="market" id="btn-market">
-        <span class="nav-icon">📈</span>
-        <span class="nav-label">Marché</span>
-      </button>
-      <button class="nav-btn" data-panel="npcs" id="btn-npcs">
-        <span class="nav-icon">👥</span>
-        <span class="nav-label">PNJ</span>
-      </button>
-      <button class="nav-btn" data-panel="goals" id="btn-goals">
-        <span class="nav-icon">🎯</span>
-        <span class="nav-label">Objectifs</span>
-      </button>
+      <button class="nav-btn active" data-panel="history" id="btn-history"><span class="nav-icon">📜</span><span class="nav-label">Historique</span></button>
+      <button class="nav-btn" data-panel="auction" id="btn-auction"><span class="nav-icon">🏷️</span><span class="nav-label">Hôtel de vente</span></button>
+      <button class="nav-btn" data-panel="buyhouse" id="btn-buyhouse"><span class="nav-icon">🛒</span><span class="nav-label">Hôtel d'achat</span></button>
+      <button class="nav-btn" data-panel="inventory" id="btn-inventory"><span class="nav-icon">🎒</span><span class="nav-label">Inventaire</span></button>
+      <button class="nav-btn" data-panel="market" id="btn-market"><span class="nav-icon">📈</span><span class="nav-label">Marché</span></button>
+      <button class="nav-btn" data-panel="npcs" id="btn-npcs"><span class="nav-icon">👥</span><span class="nav-label">PNJ</span></button>
+      <button class="nav-btn" data-panel="goals" id="btn-goals"><span class="nav-icon">🎯</span><span class="nav-label">Objectifs</span></button>
+      <button class="nav-btn" data-panel="jobs" id="btn-jobs"><span class="nav-icon">🧰</span><span class="nav-label">Travail</span></button>
     </nav>
 
     <main class="main-content">
       <section class="panel active" id="panel-history">
         <div class="panel-header">
           <h2>Historique des transactions</h2>
-          <div class="panel-actions">
-            <button class="btn btn-small btn-ghost" id="btn-clear-filters">Réinitialiser filtres</button>
-          </div>
+          <div class="panel-actions"><button class="btn btn-small btn-ghost" id="btn-clear-filters">Réinitialiser filtres</button></div>
         </div>
         <div class="filters-bar">
           <select id="filter-type" class="select">
@@ -78,69 +60,42 @@
         </div>
         <div class="table-container">
           <table class="data-table" id="history-table">
-            <thead>
-              <tr>
-                <th>Date</th><th>Objet</th><th>Qté</th><th>Prix unitaire</th><th>Total</th><th>Vendeur</th><th>Acheteur</th><th>Type</th><th>Lecture</th>
-              </tr>
-            </thead>
-            <tbody id="history-body">
-              <tr class="empty-row"><td colspan="9">Aucune transaction pour le moment</td></tr>
-            </tbody>
+            <thead><tr><th>Date</th><th>Objet</th><th>Qté</th><th>Prix unitaire</th><th>Total</th><th>Vendeur</th><th>Acheteur</th><th>Type</th><th>Lecture</th></tr></thead>
+            <tbody id="history-body"><tr class="empty-row"><td colspan="9">Aucune transaction pour le moment</td></tr></tbody>
           </table>
         </div>
       </section>
 
       <section class="panel" id="panel-auction">
-        <div class="panel-header">
-          <h2>Hôtel de vente</h2>
-          <button class="btn btn-primary" id="btn-new-sell">+ Mettre en vente</button>
-        </div>
+        <div class="panel-header"><h2>Hôtel de vente</h2><button class="btn btn-primary" id="btn-new-sell">+ Mettre en vente</button></div>
         <div class="tabs">
           <button class="tab active" data-tab="active-sells">Annonces actives</button>
           <button class="tab" data-tab="my-sells">Mes annonces</button>
         </div>
         <div class="table-container">
           <table class="data-table" id="auction-table">
-            <thead>
-              <tr>
-                <th>Objet</th><th>Qté</th><th>Prix départ</th><th>Achat immédiat</th><th>Vendeur</th><th>Expire dans</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="auction-body">
-              <tr class="empty-row"><td colspan="7">Aucune annonce active</td></tr>
-            </tbody>
+            <thead><tr><th>Objet</th><th>Qté</th><th>Prix départ</th><th>Achat immédiat</th><th>Vendeur</th><th>Expire dans</th><th>Actions</th></tr></thead>
+            <tbody id="auction-body"><tr class="empty-row"><td colspan="7">Aucune annonce active</td></tr></tbody>
           </table>
         </div>
       </section>
 
       <section class="panel" id="panel-buyhouse">
-        <div class="panel-header">
-          <h2>Hôtel d'achat</h2>
-          <button class="btn btn-primary" id="btn-new-buy">+ Créer une offre d'achat</button>
-        </div>
+        <div class="panel-header"><h2>Hôtel d'achat</h2><button class="btn btn-primary" id="btn-new-buy">+ Créer une offre d'achat</button></div>
         <div class="tabs">
           <button class="tab active" data-tab="active-buys">Offres actives</button>
           <button class="tab" data-tab="my-buys">Mes offres</button>
         </div>
         <div class="table-container">
           <table class="data-table" id="buyhouse-table">
-            <thead>
-              <tr>
-                <th>Objet</th><th>Qté</th><th>Prix proposé</th><th>Acheteur</th><th>Expire dans</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="buyhouse-body">
-              <tr class="empty-row"><td colspan="6">Aucune offre d'achat active</td></tr>
-            </tbody>
+            <thead><tr><th>Objet</th><th>Qté</th><th>Prix proposé</th><th>Acheteur</th><th>Expire dans</th><th>Actions</th></tr></thead>
+            <tbody id="buyhouse-body"><tr class="empty-row"><td colspan="6">Aucune offre d'achat active</td></tr></tbody>
           </table>
         </div>
       </section>
 
       <section class="panel" id="panel-inventory">
-        <div class="panel-header">
-          <h2>Inventaire</h2>
-          <div class="inventory-info"><span id="inventory-slots">0 / 10 cases</span></div>
-        </div>
+        <div class="panel-header"><h2>Inventaire</h2><div class="inventory-info"><span id="inventory-slots">0 / 10 cases</span></div></div>
         <div class="inventory-categories" id="inventory-categories">
           <button class="category-btn active" data-category="all">Tout</button>
           <button class="category-btn" data-category="Ressources">Ressources</button>
@@ -171,14 +126,8 @@
         <div class="market-events" id="market-events"></div>
         <div class="table-container">
           <table class="data-table" id="market-table">
-            <thead>
-              <tr>
-                <th>Objet</th><th>Prix moyen</th><th>Meilleure vente</th><th>Meilleur achat</th><th>Spread</th><th>Volume recent</th><th>Tendance</th><th>Graphique</th>
-              </tr>
-            </thead>
-            <tbody id="market-body">
-              <tr class="empty-row"><td colspan="8">Aucune donnee de marche</td></tr>
-            </tbody>
+            <thead><tr><th>Objet</th><th>Prix moyen</th><th>Meilleure vente</th><th>Meilleur achat</th><th>Spread</th><th>Volume recent</th><th>Tendance</th><th>Graphique</th></tr></thead>
+            <tbody id="market-body"><tr class="empty-row"><td colspan="8">Aucune donnee de marche</td></tr></tbody>
           </table>
         </div>
       </section>
@@ -194,6 +143,15 @@
           <div class="progress-summary" id="progress-summary"></div>
         </div>
         <div class="goals-grid" id="goals-grid"></div>
+      </section>
+
+      <section class="panel" id="panel-jobs">
+        <div class="panel-header">
+          <h2>Travail et contrats</h2>
+          <div class="inventory-info" id="jobs-vault">Caisse municipale : 0,00 €</div>
+        </div>
+        <p class="text-muted" style="margin-bottom:14px;font-size:0.9rem">Les frais d'annonces alimentent la caisse. Tournées et contrats réinjectent l'argent dans le jeu.</p>
+        <div class="goals-grid" id="jobs-root"></div>
       </section>
     </main>
 
@@ -228,22 +186,16 @@
         window.dispatchEvent(new CustomEvent('panel-changed', { detail: { panel: target } }));
       }
       document.querySelectorAll('.nav-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          showPanel(btn.getAttribute('data-panel'));
-        });
+        btn.addEventListener('click', function () { showPanel(btn.getAttribute('data-panel')); });
       });
       showPanel('history');
     })();
   </script>
-
   <script type="module" src="js/main.js"></script>
   <script type="module">
     import { enhanceGame } from './js/core/GamePatch.js';
     const t = setInterval(function () {
-      if (window.game) {
-        enhanceGame(window.game);
-        clearInterval(t);
-      }
+      if (window.game) { enhanceGame(window.game); clearInterval(t); }
     }, 50);
   </script>
 </body>
