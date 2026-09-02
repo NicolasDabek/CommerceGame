@@ -13,14 +13,8 @@ import { NpcUI } from './ui/NpcUI.js';
 import { GoalsUI } from './ui/GoalsUI.js';
 import { getItemById } from './data/items.js';
 
-// ============================================
-// Instance principale
-// ============================================
 const game = new Game();
 
-// ============================================
-// Modal générique
-// ============================================
 const Modal = {
   overlay: null,
   titleEl: null,
@@ -32,7 +26,6 @@ const Modal = {
     this.titleEl = document.getElementById('modal-title');
     this.bodyEl = document.getElementById('modal-body');
     this.footerEl = document.getElementById('modal-footer');
-
     document.getElementById('modal-close').addEventListener('click', () => this.close());
     this.overlay.addEventListener('click', (e) => {
       if (e.target === this.overlay) this.close();
@@ -43,17 +36,13 @@ const Modal = {
     this.titleEl.textContent = title;
     this.bodyEl.innerHTML = bodyHTML;
     this.footerEl.innerHTML = '';
-
     buttons.forEach(btn => {
       const button = document.createElement('button');
       button.className = `btn ${btn.className || 'btn-primary'}`;
       button.textContent = btn.label;
-      button.addEventListener('click', () => {
-        if (btn.onClick) btn.onClick();
-      });
+      button.addEventListener('click', () => { if (btn.onClick) btn.onClick(); });
       this.footerEl.appendChild(button);
     });
-
     this.overlay.classList.remove('hidden');
   },
 
@@ -62,43 +51,47 @@ const Modal = {
   }
 };
 
-// ============================================
-// Navigation
-// ============================================
 function initNavigation() {
   const navButtons = document.querySelectorAll('.nav-btn');
   const panels = document.querySelectorAll('.panel');
-
   function showPanel(target) {
-    navButtons.forEach(b => {
-      b.classList.toggle('active', b.dataset.panel === target);
-    });
+    navButtons.forEach(b => b.classList.toggle('active', b.dataset.panel === target));
     panels.forEach(p => {
       const isTarget = p.id === `panel-${target}`;
       p.classList.toggle('active', isTarget);
-      // Force hide/show au cas où le CSS serait en conflit
       p.style.display = isTarget ? 'flex' : 'none';
     });
   }
-
-  navButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      showPanel(btn.dataset.panel);
-    });
-  });
-
-  // Assure l'état initial
+  navButtons.forEach(btn => btn.addEventListener('click', () => showPanel(btn.dataset.panel)));
   showPanel('history');
 }
 
-// ============================================
-// Helpers d'affichage
-// ============================================
 function formatMoney(amount) {
-  return amount.toLocaleString('fr-FR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
+  return amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function getBook(itemId) {
+  if (typeof game.getOrderBook === 'function') return game.getOrderBook(itemId);
+  const sells = game.offers.filter(o => o.type === 'sell' && o.status === 'active' && o.itemId === itemId);
+  const buys = game.offers.filter(o => o.type === 'buy' && o.status === 'active' && o.itemId === itemId);
+  return {
+    bestSell: sells.length ? Math.min(...sells.map(o => o.price)) : null,
+    bestBuy: buys.length ? Math.max(...buys.map(o => o.price)) : null
+  };
+}
+
+function suggestedSellPrice(itemId, quality, perfection) {
+  const avg = game.getAdjustedMarketPrice(itemId, quality, perfection);
+  const book = getBook(itemId);
+  if (book.bestBuy != null) return Math.round(Math.max(avg, book.bestBuy) * 100) / 100;
+  return avg;
+}
+
+function suggestedBuyPrice(itemId) {
+  const avg = game.economy.getAveragePrice(itemId);
+  const book = getBook(itemId);
+  if (book.bestSell != null) return Math.round(Math.min(avg, book.bestSell) * 100) / 100;
+  return avg;
 }
 
 function updateMoneyDisplay() {
@@ -111,13 +104,9 @@ function setStatus(msg) {
   if (el) el.textContent = msg;
 }
 
-// ============================================
-// Modals de création d'offres
-// ============================================
 function openCreateSellModal() {
   const inventory = game.inventory;
   const ownedItems = inventory.items;
-
   if (ownedItems.length === 0) {
     setStatus('Inventaire vide — impossible de vendre');
     return;
@@ -135,10 +124,9 @@ function openCreateSellModal() {
     bodyHTML: `
       <div class="form-group">
         <label>Objet</label>
-        <select id="sell-item" class="select" style="width:100%">
-          ${options}
-        </select>
+        <select id="sell-item" class="select" style="width:100%">${options}</select>
       </div>
+      <p id="sell-market-info" class="text-muted" style="font-size:0.85rem;margin:6px 0 10px"></p>
       <div class="form-row">
         <div class="form-group">
           <label>Quantité</label>
@@ -168,11 +156,7 @@ function openCreateSellModal() {
       </p>
     `,
     buttons: [
-      {
-        label: 'Annuler',
-        className: 'btn-ghost',
-        onClick: () => Modal.close()
-      },
+      { label: 'Annuler', className: 'btn-ghost', onClick: () => Modal.close() },
       {
         label: 'Mettre en vente',
         className: 'btn-primary',
@@ -184,47 +168,45 @@ function openCreateSellModal() {
           const buyoutRaw = document.getElementById('sell-buyout').value;
           const buyout = buyoutRaw ? Number(buyoutRaw) : null;
           const duration = Number(document.getElementById('sell-duration').value);
-
           if (!price || price <= 0 || qty <= 0 || qty > Number(maxQty)) {
             setStatus('Paramètres invalides');
             return;
           }
-
           const result = game.createSellOffer({
-            itemId,
-            quantity: qty,
-            price,
-            buyoutPrice: buyout,
-            durationDays: duration,
-            quality: Number(quality),
-            perfection: Number(perfection)
+            itemId, quantity: qty, price, buyoutPrice: buyout,
+            durationDays: duration, quality: Number(quality), perfection: Number(perfection)
           });
-
           if (result.success) {
             setStatus(`Annonce créée (frais : ${result.fee.toFixed(2)} €)`);
             Modal.close();
             refreshAllUI();
-          } else {
-            setStatus(result.error || 'Erreur');
-          }
+          } else setStatus(result.error || 'Erreur');
         }
       }
     ]
   });
 
-  // Préremplit le prix avec le marche ajuste par qualite/perfection
-  const first = ownedItems[0];
-  if (first) {
+  if (ownedItems[0]) {
     setTimeout(() => {
       const select = document.getElementById('sell-item');
       const priceInput = document.getElementById('sell-price');
+      const infoEl = document.getElementById('sell-market-info');
       if (!select || !priceInput) return;
-
       const updateSuggestedPrice = () => {
         const [itemId, quality, perfection] = select.value.split('|');
-        priceInput.value = game.getAdjustedMarketPrice(itemId, Number(quality), Number(perfection)).toFixed(2);
+        const q = Number(quality);
+        const p = Number(perfection);
+        const avg = game.getAdjustedMarketPrice(itemId, q, p);
+        const rawAvg = game.economy.getAveragePrice(itemId);
+        const book = getBook(itemId);
+        priceInput.value = suggestedSellPrice(itemId, q, p).toFixed(2);
+        const bestBuy = book.bestBuy != null ? formatMoney(book.bestBuy) + ' €' : 'aucune';
+        if (infoEl) {
+          infoEl.innerHTML = `Prix moyen : <strong class="text-money">${formatMoney(rawAvg)} €</strong>` +
+            ` · ajusté Q/P : ${formatMoney(avg)} €` +
+            ` · meilleure offre d'achat : ${bestBuy}`;
+        }
       };
-
       select.addEventListener('change', updateSuggestedPrice);
       updateSuggestedPrice();
     }, 0);
@@ -233,7 +215,6 @@ function openCreateSellModal() {
 
 function openCreateBuyModal() {
   const items = game.getAllItems();
-
   const options = items.map(item =>
     `<option value="${item.id}">${item.icon || ''} ${item.name} (base ${item.basePrice.toFixed(2)} €)</option>`
   ).join('');
@@ -243,10 +224,9 @@ function openCreateBuyModal() {
     bodyHTML: `
       <div class="form-group">
         <label>Objet recherché</label>
-        <select id="buy-item" class="select" style="width:100%">
-          ${options}
-        </select>
+        <select id="buy-item" class="select" style="width:100%">${options}</select>
       </div>
+      <p id="buy-market-info" class="text-muted" style="font-size:0.85rem;margin:6px 0 10px"></p>
       <div class="form-row">
         <div class="form-group">
           <label>Quantité</label>
@@ -270,11 +250,7 @@ function openCreateBuyModal() {
       </p>
     `,
     buttons: [
-      {
-        label: 'Annuler',
-        className: 'btn-ghost',
-        onClick: () => Modal.close()
-      },
+      { label: 'Annuler', className: 'btn-ghost', onClick: () => Modal.close() },
       {
         label: 'Créer l\'offre',
         className: 'btn-primary',
@@ -283,222 +259,144 @@ function openCreateBuyModal() {
           const qty = Number(document.getElementById('buy-qty').value);
           const price = Number(document.getElementById('buy-price').value);
           const duration = Number(document.getElementById('buy-duration').value);
-
           if (!price || price <= 0 || qty <= 0) {
             setStatus('Paramètres invalides');
             return;
           }
-
-          const result = game.createBuyOffer({
-            itemId,
-            quantity: qty,
-            price,
-            durationDays: duration
-          });
-
+          const result = game.createBuyOffer({ itemId, quantity: qty, price, durationDays: duration });
           if (result.success) {
             setStatus(`Offre créée (bloqué : ${result.lockedAmount.toFixed(2)} € + frais ${result.fee.toFixed(2)} €)`);
             Modal.close();
             refreshAllUI();
-          } else {
-            setStatus(result.error || 'Erreur');
-          }
+          } else setStatus(result.error || 'Erreur');
         }
       }
     ]
   });
 
-  // Préremplit avec le prix moyen actuel du premier item
-  const firstItem = items[0];
-  if (firstItem) {
+  if (items[0]) {
     setTimeout(() => {
+      const select = document.getElementById('buy-item');
       const priceInput = document.getElementById('buy-price');
-      if (priceInput) priceInput.value = game.economy.getAveragePrice(firstItem.id).toFixed(2);
+      const infoEl = document.getElementById('buy-market-info');
+      if (!select || !priceInput) return;
+      const updateSuggestedPrice = () => {
+        const itemId = select.value;
+        const avg = game.economy.getAveragePrice(itemId);
+        const book = getBook(itemId);
+        priceInput.value = suggestedBuyPrice(itemId).toFixed(2);
+        const bestSell = book.bestSell != null ? formatMoney(book.bestSell) + ' €' : 'aucune';
+        if (infoEl) {
+          infoEl.innerHTML = `Prix moyen : <strong class="text-money">${formatMoney(avg)} €</strong>` +
+            ` · vente la moins chère : ${bestSell}`;
+        }
+      };
+      select.addEventListener('change', updateSuggestedPrice);
+      updateSuggestedPrice();
     }, 0);
   }
 }
 
 function openBidModal(offerId) {
   const offer = game.offers.find(o => o.id === offerId);
-  if (!offer) {
-    setStatus('Annonce introuvable');
-    return;
-  }
-
+  if (!offer) { setStatus('Annonce introuvable'); return; }
   const item = getItemById(offer.itemId);
-  const minBid = offer.currentBid != null
-    ? Math.round((offer.currentBid + 0.01) * 100) / 100
-    : offer.price;
-
+  const minBid = offer.currentBid != null ? Math.round((offer.currentBid + 0.01) * 100) / 100 : offer.price;
   const currentInfo = offer.currentBid != null
     ? `Enchère actuelle : <strong>${formatMoney(offer.currentBid)} €</strong> par ${game.getNpcName(offer.currentBidderId)}`
     : `Prix de départ : <strong>${formatMoney(offer.price)} €</strong>`;
-
   Modal.open({
     title: `Enchérir — ${item?.icon || ''} ${item?.name || offer.itemId}`,
     bodyHTML: `
       <p style="margin-bottom:12px">${currentInfo}</p>
-      <p class="text-muted" style="margin-bottom:16px;font-size:0.9rem">
-        Quantité : ${offer.quantity} — L'argent sera bloqué jusqu'à la fin de l'enchère.
-      </p>
+      <p class="text-muted" style="margin-bottom:16px;font-size:0.9rem">Quantité : ${offer.quantity} — L'argent sera bloqué jusqu'à la fin de l'enchère.</p>
       <div class="form-group">
         <label>Votre enchère unitaire (€) — minimum ${formatMoney(minBid)} €</label>
         <input type="number" id="bid-amount" class="input" step="0.01" min="${minBid}" value="${minBid.toFixed(2)}" style="width:100%" />
       </div>
-      <p class="text-muted" style="font-size:0.85rem;margin-top:8px">
-        Total bloqué : <span id="bid-total">${formatMoney(minBid * offer.quantity)}</span> €
-      </p>
+      <p class="text-muted" style="font-size:0.85rem;margin-top:8px">Total bloqué : <span id="bid-total">${formatMoney(minBid * offer.quantity)}</span> €</p>
     `,
     buttons: [
+      { label: 'Annuler', className: 'btn-ghost', onClick: () => Modal.close() },
       {
-        label: 'Annuler',
-        className: 'btn-ghost',
-        onClick: () => Modal.close()
-      },
-      {
-        label: 'Enchérir',
-        className: 'btn-warning',
+        label: 'Enchérir', className: 'btn-warning',
         onClick: () => {
           const amount = Number(document.getElementById('bid-amount').value);
-          if (!amount || amount < minBid) {
-            setStatus(`Enchère trop basse (min. ${minBid.toFixed(2)} €)`);
-            return;
-          }
-
+          if (!amount || amount < minBid) { setStatus(`Enchère trop basse (min. ${minBid.toFixed(2)} €)`); return; }
           const result = game.placeBid(offerId, amount);
-          if (result.success) {
-            setStatus(`Enchère placée : ${formatMoney(amount)} €`);
-            Modal.close();
-            refreshAllUI();
-          } else {
-            setStatus(result.error || 'Erreur');
-          }
+          if (result.success) { setStatus(`Enchère placée : ${formatMoney(amount)} €`); Modal.close(); refreshAllUI(); }
+          else setStatus(result.error || 'Erreur');
         }
       }
     ]
   });
-
-  // Met à jour le total bloqué en direct
   setTimeout(() => {
     const input = document.getElementById('bid-amount');
     const totalEl = document.getElementById('bid-total');
-    if (input && totalEl) {
-      input.addEventListener('input', () => {
-        const val = Number(input.value) || 0;
-        totalEl.textContent = formatMoney(val * offer.quantity);
-      });
-    }
+    if (input && totalEl) input.addEventListener('input', () => { totalEl.textContent = formatMoney((Number(input.value) || 0) * offer.quantity); });
   }, 0);
 }
 
 function openFulfillModal(offerId, maxQty) {
   const offer = game.offers.find(o => o.id === offerId);
-  if (!offer) {
-    setStatus('Offre introuvable');
-    return;
-  }
-
+  if (!offer) { setStatus('Offre introuvable'); return; }
   const item = getItemById(offer.itemId);
   const owned = game.inventory.count(offer.itemId);
   const canSell = Math.min(owned, offer.quantity, maxQty);
-
   Modal.open({
     title: `Vendre — ${item?.icon || ''} ${item?.name || offer.itemId}`,
     bodyHTML: `
-      <p style="margin-bottom:12px">
-        L'acheteur propose <strong class="text-money">${formatMoney(offer.price)} €</strong> l'unité.
-      </p>
-      <p class="text-muted" style="margin-bottom:16px;font-size:0.9rem">
-        Vous en possédez ${owned} — Demande : ${offer.quantity}
-      </p>
+      <p style="margin-bottom:12px">L'acheteur propose <strong class="text-money">${formatMoney(offer.price)} €</strong> l'unité.</p>
+      <p class="text-muted" style="margin-bottom:16px;font-size:0.9rem">Vous en possédez ${owned} — Demande : ${offer.quantity}</p>
       <div class="form-group">
         <label>Quantité à vendre (max ${canSell})</label>
         <input type="number" id="fulfill-qty" class="input" value="${canSell}" min="1" max="${canSell}" style="width:100%" />
       </div>
-      <p class="text-muted" style="font-size:0.85rem;margin-top:8px">
-        Total reçu : <span id="fulfill-total" class="text-money">${formatMoney(offer.price * canSell)}</span> €
-      </p>
+      <p class="text-muted" style="font-size:0.85rem;margin-top:8px">Total reçu : <span id="fulfill-total" class="text-money">${formatMoney(offer.price * canSell)}</span> €</p>
     `,
     buttons: [
+      { label: 'Annuler', className: 'btn-ghost', onClick: () => Modal.close() },
       {
-        label: 'Annuler',
-        className: 'btn-ghost',
-        onClick: () => Modal.close()
-      },
-      {
-        label: 'Vendre',
-        className: 'btn-success',
+        label: 'Vendre', className: 'btn-success',
         onClick: () => {
           const qty = Number(document.getElementById('fulfill-qty').value);
-          if (!qty || qty <= 0 || qty > canSell) {
-            setStatus('Quantité invalide');
-            return;
-          }
-
+          if (!qty || qty <= 0 || qty > canSell) { setStatus('Quantité invalide'); return; }
           const result = game.fulfillBuyOffer(offerId, qty);
-          if (result.success) {
-            setStatus(`Vendu ! +${formatMoney(result.total)} €`);
-            Modal.close();
-            refreshAllUI();
-          } else {
-            setStatus(result.error || 'Erreur');
-          }
+          if (result.success) { setStatus(`Vendu ! +${formatMoney(result.total)} €`); Modal.close(); refreshAllUI(); }
+          else setStatus(result.error || 'Erreur');
         }
       }
     ]
   });
-
   setTimeout(() => {
     const input = document.getElementById('fulfill-qty');
     const totalEl = document.getElementById('fulfill-total');
-    if (input && totalEl) {
-      input.addEventListener('input', () => {
-        const val = Number(input.value) || 0;
-        totalEl.textContent = formatMoney(offer.price * val);
-      });
-    }
+    if (input && totalEl) input.addEventListener('input', () => { totalEl.textContent = formatMoney(offer.price * (Number(input.value) || 0)); });
   }, 0);
 }
 
-// ============================================
-// UI instances
-// ============================================
 let historyUI, auctionUI, buyUI, inventoryUI, marketUI, npcUI, goalsUI;
 
 function initUI() {
   const resolveName = (id) => game.getNpcName(id);
-
-  historyUI = new HistoryUI({
-    getTransactions: () => game.transactions,
-    resolveName
-  });
-
+  historyUI = new HistoryUI({ getTransactions: () => game.transactions, resolveName });
   auctionUI = new AuctionHouseUI({
     getActiveSellOffers: () => game.getActiveSellOffers(),
     getPlayerSellOffers: () => game.getPlayerSellOffers(),
     resolveName,
     onBuyout: (offerId, qty) => {
       const result = game.buyout(offerId, qty);
-      if (result.success) {
-        setStatus('Achat immédiat réussi');
-        refreshAllUI();
-      } else {
-        setStatus(result.error || 'Échec de l\'achat');
-      }
+      if (result.success) { setStatus('Achat immédiat réussi'); refreshAllUI(); }
+      else setStatus(result.error || "Échec de l'achat");
     },
     onCancel: (offerId) => {
       const result = game.cancelOffer(offerId);
-      if (result.success) {
-        setStatus('Annonce annulée');
-        refreshAllUI();
-      } else {
-        setStatus(result.error || 'Erreur');
-      }
+      if (result.success) { setStatus('Annonce annulée'); refreshAllUI(); }
+      else setStatus(result.error || 'Erreur');
     },
     onCreateSell: () => openCreateSellModal(),
     onBid: (offerId) => openBidModal(offerId)
   });
-
   buyUI = new BuyHouseUI({
     getActiveBuyOffers: () => game.getActiveBuyOffers(),
     getPlayerBuyOffers: () => game.getPlayerBuyOffers(),
@@ -506,42 +404,23 @@ function initUI() {
     resolveName,
     onCancel: (offerId) => {
       const result = game.cancelOffer(offerId);
-      if (result.success) {
-        setStatus(`Offre annulée (remboursé : ${(result.refund || 0).toFixed(2)} €)`);
-        refreshAllUI();
-      } else {
-        setStatus(result.error || 'Erreur');
-      }
+      if (result.success) { setStatus(`Offre annulée (remboursé : ${(result.refund || 0).toFixed(2)} €)`); refreshAllUI(); }
+      else setStatus(result.error || 'Erreur');
     },
     onCreateBuy: () => openCreateBuyModal(),
     onFulfill: (offerId, maxQty) => openFulfillModal(offerId, maxQty)
   });
-
   inventoryUI = new InventoryUI({
     getInventory: () => game.inventory,
     onSlotClick: (index, slot) => {
       const item = getItemById(slot.itemId);
-      const avg = slot.avgBuyPrice != null
-        ? ` | Achat moy. ${slot.avgBuyPrice.toFixed(2)} €`
-        : '';
+      const avg = slot.avgBuyPrice != null ? ` | Achat moy. ${slot.avgBuyPrice.toFixed(2)} €` : '';
       setStatus(`${item?.name || slot.itemId} — Qté ${slot.quantity} | Q${slot.quality} P${slot.perfection}${avg}`);
     }
   });
-
-  marketUI = new MarketUI({
-    getMarketRows: () => game.getMarketRows(),
-    getEvents: () => game.economy.getActiveEvents()
-  });
-
-  npcUI = new NpcUI({
-    getProfiles: () => game.getNpcProfiles(),
-    resolveName
-  });
-
-  goalsUI = new GoalsUI({
-    getGoals: () => game.getGoals(),
-    getSummary: () => game.getProgressSummary()
-  });
+  marketUI = new MarketUI({ getMarketRows: () => game.getMarketRows(), getEvents: () => game.economy.getActiveEvents() });
+  npcUI = new NpcUI({ getProfiles: () => game.getNpcProfiles(), resolveName });
+  goalsUI = new GoalsUI({ getGoals: () => game.getGoals(), getSummary: () => game.getProgressSummary() });
 }
 
 function refreshAllUI() {
@@ -555,56 +434,25 @@ function refreshAllUI() {
   goalsUI?.render();
 }
 
-// Rafraîchit l'UI à chaque changement d'onglet (ex: "Pas en stock" → "Vendre")
-window.addEventListener('panel-changed', () => {
-  if (historyUI) refreshAllUI();
-});
+window.addEventListener('panel-changed', () => { if (historyUI) refreshAllUI(); });
 
-// ============================================
-// Démarrage
-// ============================================
 function init() {
-  console.log('Commerce Tycoon — Initialisation...');
-
-  // Charge la sauvegarde
   const loaded = game.load();
-  if (loaded) {
-    console.log('Sauvegarde chargée');
-    setStatus('Sauvegarde chargée');
-  } else {
-    console.log('Nouvelle partie');
-    // Donne des objets de départ pour tester
-    game.giveStarterItems();
-    setStatus('Nouvelle partie — objets de départ ajoutés');
-  }
-
-  // UI
+  if (loaded) setStatus('Sauvegarde chargée');
+  else { game.giveStarterItems(); setStatus('Nouvelle partie — objets de départ ajoutés'); }
   initNavigation();
   Modal.init();
   initUI();
   refreshAllUI();
-
-  // Tick principal : temps + PNJ + expirations (toutes les 8 secondes)
   setInterval(() => {
     const offersBefore = game.offers.length;
     game.tick();
-    // Rafraîchit l'UI si quelque chose a changé
-    if (game.offers.length !== offersBefore || game.transactions.length > 0) {
-      refreshAllUI();
-    } else {
-      // Au minimum on met à jour l'heure
-      game.timeManager.updateUI();
-    }
+    if (game.offers.length !== offersBefore || game.transactions.length > 0) refreshAllUI();
+    else game.timeManager.updateUI();
   }, 8000);
-
-  // Première mise à jour de l'heure
   game.timeManager.updateUI();
-
-  // Expose pour debug
   window.game = game;
   window.Modal = Modal;
-
-  console.log('Prototype prêt — les PNJ vont commencer à trader.');
 }
 
 document.addEventListener('DOMContentLoaded', init);
