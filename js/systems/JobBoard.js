@@ -88,6 +88,24 @@ function clamp(n, min, max) {
   return Math.max(min, Math.min(max, Math.round(n)));
 }
 
+function repairPartFor(itemId) {
+  const item = getItemById(itemId);
+  if (!item) return null;
+  switch (item.category) {
+    case 'Électronique':
+      return { itemId: 'item_011', name: 'Composants électroniques', icon: '🔌' };
+    case 'Outils':
+      return { itemId: 'item_010', name: 'Cuivre recyclé (lingot)', icon: '🟠' };
+    case 'Ressources':
+      if (itemId === 'item_012') {
+        return { itemId: 'item_012', name: 'Bois de palette traité', icon: '🪵' };
+      }
+      return null;
+    default:
+      return null;
+  }
+}
+
 export class JobBoard {
   constructor(game, saved = {}) {
     this.game = game;
@@ -383,20 +401,34 @@ export class JobBoard {
     const q = Number(quality);
     const p = Number(perfection);
     if (q >= 90) return { success: false, error: 'Déjà en excellent état' };
+    const part = repairPartFor(itemId);
     const cost = Math.round((4 + (90 - q) * 0.12) * 100) / 100;
     if (!this.game.player.canAfford(cost)) {
       return { success: false, error: `Il faut ${cost.toFixed(2)} €` };
     }
     const inv = this.game.player.inventory;
+    if (part) {
+      const reserved = part.itemId === itemId ? 1 : 0;
+      if (inv.count(part.itemId) - reserved < 1) {
+        return { success: false, error: `Il faut 1 × ${part.name}` };
+      }
+    }
     const removed = inv.remove(itemId, 1, q, p);
     if (removed < 1) return { success: false, error: 'Objet introuvable' };
-    const copper = inv.count('item_010') > 0;
-    if (copper) inv.remove('item_010', 1);
-    const nq = clamp(q + 10 + (copper ? 4 : 0) + this.workshopLevel(), 1, 96);
-    const np = clamp(p + 8 + (copper ? 3 : 0), 1, 96);
+    let usedPart = false;
+    if (part) {
+      const took = inv.remove(part.itemId, 1);
+      if (took < 1) {
+        inv.add(itemId, 1, q, p);
+        return { success: false, error: `Il faut 1 × ${part.name}` };
+      }
+      usedPart = true;
+    }
+    const nq = clamp(q + 10 + (usedPart ? 4 : 0) + this.workshopLevel(), 1, 96);
+    const np = clamp(p + 8 + (usedPart ? 3 : 0), 1, 96);
     if (!inv.add(itemId, 1, nq, np)) {
       inv.add(itemId, 1, q, p);
-      if (copper) inv.add('item_010', 1);
+      if (usedPart) inv.add(part.itemId, 1);
       return { success: false, error: 'Inventaire plein' };
     }
     this.game.removeMoney(cost);
@@ -408,7 +440,14 @@ export class JobBoard {
     const item = getItemById(itemId);
     this.game.save();
     this.game._notifyUI();
-    return { success: true, name: item?.name || itemId, quality: nq, perfection: np, cost, usedCopper: copper };
+    return {
+      success: true,
+      name: item?.name || itemId,
+      quality: nq,
+      perfection: np,
+      cost,
+      partName: usedPart ? part.name : null
+    };
   }
 
   complete(contractId) {
@@ -488,15 +527,24 @@ export class JobBoard {
             && inv.canAdd(r.output.itemId, r.output.qty, previewFocus.quality, previewFocus.perfection)
         };
       }),
-      repairItems: inv.items.filter(s => s.quality < 90).slice(0, 6).map(slot => ({
-        itemId: slot.itemId,
-        quality: slot.quality,
-        perfection: slot.perfection,
-        quantity: slot.quantity,
-        item: getItemById(slot.itemId),
-        cost: Math.round((4 + (90 - slot.quality) * 0.12) * 100) / 100,
-        nextQuality: clamp(slot.quality + 10 + this.workshopLevel(), 1, 96)
-      })),
+      repairItems: inv.items.filter(s => s.quality < 90).slice(0, 6).map(slot => {
+        const part = repairPartFor(slot.itemId);
+        const reserved = part && part.itemId === slot.itemId ? 1 : 0;
+        const partOwned = part ? inv.count(part.itemId) : 0;
+        const hasPart = !part || partOwned - reserved >= 1;
+        return {
+          itemId: slot.itemId,
+          quality: slot.quality,
+          perfection: slot.perfection,
+          quantity: slot.quantity,
+          item: getItemById(slot.itemId),
+          cost: Math.round((4 + (90 - slot.quality) * 0.12) * 100) / 100,
+          nextQuality: clamp(slot.quality + 10 + (hasPart && part ? 4 : 0) + this.workshopLevel(), 1, 96),
+          part,
+          hasPart,
+          partOwned
+        };
+      }),
       stallItems: inv.items.slice(0, 8).map((slot, index) => ({
         index,
         itemId: slot.itemId,
