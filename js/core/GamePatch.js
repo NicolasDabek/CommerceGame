@@ -107,7 +107,8 @@ export function enhanceGame(game) {
   game.scavenge = () => game.jobBoard.scavenge();
   game.completeJob = (id) => game.jobBoard.complete(id);
   game.sellFromStall = (itemId, quality, perfection, qty) => game.jobBoard.sellFromStall(itemId, quality, perfection, qty);
-  game.craftJob = (id) => game.jobBoard.craft(id);
+  game.craftJob = (id, focus) => game.jobBoard.craft(id, { focus: !!focus });
+  game.polishItem = (itemId, quality, perfection) => game.jobBoard.polish(itemId, quality, perfection);
   game.getJobsView = () => game.jobBoard.getView();
   game.getGameNow = () => game.timeManager.now();
 
