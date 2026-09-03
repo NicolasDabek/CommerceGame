@@ -327,6 +327,21 @@ function initUI() {
       if (result.success) setStatus(`Réparé : ${result.name} Q${result.quality}${result.partName ? ' · ' + result.partName : ''}`);
       else setStatus(result.error || 'Réparation impossible');
       refreshAllUI();
+    },
+    onService: (id) => {
+      const result = game.fulfillNpcService ? game.fulfillNpcService(id) : { success: false, error: 'Indisponible' };
+      if (result.success && result.kind === 'repair') setStatus(`Service : réparé ${result.name} pour ${result.npcName} (+${Number(result.payout).toFixed(2)} €)`);
+      else if (result.success) setStatus(`Service : démantèlement pour ${result.npcName} (+${Number(result.payout).toFixed(2)} €)`);
+      else setStatus(result.error || 'Service impossible');
+      refreshAllUI();
+    },
+    onSalvage: (itemId, quality, perfection) => {
+      const result = game.salvageItem ? game.salvageItem(itemId, quality, perfection) : { success: false, error: 'Indisponible' };
+      if (result.success) {
+        const loot = (result.outputs || []).map(o => `${o.icon || ''} ${o.name} x${o.qty}`).join(', ');
+        setStatus(`Démantelé : ${result.name} → ${loot}`);
+      } else setStatus(result.error || 'Démantèlement impossible');
+      refreshAllUI();
     }
   });
 }
