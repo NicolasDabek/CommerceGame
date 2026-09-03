@@ -2,7 +2,7 @@
  * Interface — Hôtel d'achat
  */
 
-import { getItemById } from '../data/items.js';
+import { ITEMS, getItemById } from '../data/items.js';
 
 function gameNow() {
   return (typeof window !== 'undefined' && window.game?.timeManager)
@@ -22,16 +22,29 @@ export class BuyHouseUI {
 
     this.tbody = document.getElementById('buyhouse-body');
     this.btnNewBuy = document.getElementById('btn-new-buy');
+    this.searchEl = document.getElementById('buy-search');
+    this.categoryEl = document.getElementById('buy-category');
+    this.bestOnlyEl = document.getElementById('buy-best-only');
     this.currentTab = 'active-buys';
+    this.query = '';
+    this.category = 'all';
+    this.bestOnly = true;
 
+    this._fillCategories();
     this._bindEvents();
+  }
+
+  _fillCategories() {
+    if (!this.categoryEl) return;
+    const cats = [...new Set(ITEMS.map(i => i.category))];
+    this.categoryEl.innerHTML = `<option value="all">Toutes catégories</option>` +
+      cats.map(c => `<option value="${c}">${c}</option>`).join('');
   }
 
   _bindEvents() {
     if (this.btnNewBuy) {
       this.btnNewBuy.addEventListener('click', () => this.onCreateBuy());
     }
-
     const tabs = document.querySelectorAll('#panel-buyhouse .tab');
     tabs.forEach(tab => {
       tab.addEventListener('click', () => {
@@ -41,36 +54,74 @@ export class BuyHouseUI {
         this.render();
       });
     });
+    if (this.searchEl) {
+      this.searchEl.addEventListener('input', () => {
+        this.query = this.searchEl.value.trim().toLowerCase();
+        this.render();
+      });
+    }
+    if (this.categoryEl) {
+      this.categoryEl.addEventListener('change', () => {
+        this.category = this.categoryEl.value;
+        this.render();
+      });
+    }
+    if (this.bestOnlyEl) {
+      this.bestOnlyEl.checked = true;
+      this.bestOnlyEl.addEventListener('change', () => {
+        this.bestOnly = this.bestOnlyEl.checked;
+        this.render();
+      });
+    }
+  }
+
+  _matches(offer) {
+    const item = getItemById(offer.itemId);
+    if (this.category !== 'all' && item?.category !== this.category) return false;
+    if (!this.query) return true;
+    const buyer = this.resolveName(offer.ownerId) || '';
+    const hay = [item?.name, item?.icon, item?.category, offer.itemId, buyer].join(' ').toLowerCase();
+    return hay.includes(this.query);
+  }
+
+  _applyBestOnly(offers) {
+    if (!this.bestOnly || this.currentTab === 'my-buys') return offers;
+    const best = new Map();
+    offers.forEach(offer => {
+      const prev = best.get(offer.itemId);
+      if (!prev || offer.price > prev.price || (offer.price === prev.price && offer.quantity > prev.quantity)) {
+        best.set(offer.itemId, offer);
+      }
+    });
+    return [...best.values()];
   }
 
   render() {
     if (!this.tbody) return;
 
-    const offers = this.currentTab === 'my-buys'
+    const raw = this.currentTab === 'my-buys'
       ? this.getPlayerBuyOffers()
       : this.getActiveBuyOffers();
+    const filtered = this._applyBestOnly(raw.filter(o => this._matches(o)));
 
-    if (offers.length === 0) {
+    if (filtered.length === 0) {
       this.tbody.innerHTML = `
         <tr class="empty-row">
-          <td colspan="6">Aucune offre d'achat active</td>
+          <td colspan="6">Aucune offre ne correspond aux filtres</td>
         </tr>
       `;
       return;
     }
 
-    const sorted = [...offers].sort((a, b) => b.createdAt - a.createdAt);
+    const sorted = [...filtered].sort((a, b) => b.price - a.price);
     this.tbody.innerHTML = sorted.map(offer => this._renderRow(offer)).join('');
 
     this.tbody.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', () => {
         const action = btn.dataset.action;
         const offerId = btn.dataset.offerId;
-        if (action === 'cancel') {
-          this.onCancel(offerId);
-        } else if (action === 'fulfill') {
-          this.onFulfill(offerId, Number(btn.dataset.maxQty) || 1);
-        }
+        if (action === 'cancel') this.onCancel(offerId);
+        else if (action === 'fulfill') this.onFulfill(offerId, Number(btn.dataset.maxQty) || 1);
       });
     });
   }
@@ -83,21 +134,13 @@ export class BuyHouseUI {
 
     let actions = '';
     if (offer.ownerId === 'player') {
-      actions = `
-        <button class="btn btn-small btn-ghost" data-action="cancel" data-offer-id="${offer.id}">
-          Annuler
-        </button>
-      `;
+      actions = `<button class="btn btn-small btn-ghost" data-action="cancel" data-offer-id="${offer.id}">Annuler</button>`;
     } else {
       const owned = this.getPlayerItemCount(offer.itemId);
       if (owned > 0) {
         const maxQty = Math.min(owned, offer.quantity);
         const label = owned >= offer.quantity ? `Vendre (x${maxQty})` : `Vendre ${maxQty}/${offer.quantity}`;
-        actions = `
-          <button class="btn btn-small btn-success" data-action="fulfill" data-offer-id="${offer.id}" data-max-qty="${maxQty}" title="Vente partielle possible">
-            ${label}
-          </button>
-        `;
+        actions = `<button class="btn btn-small btn-success" data-action="fulfill" data-offer-id="${offer.id}" data-max-qty="${maxQty}" title="Vente partielle possible">${label}</button>`;
       } else {
         actions = `<span class="text-muted">Pas en stock</span>`;
       }
