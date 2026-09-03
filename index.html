@@ -15,6 +15,9 @@
     .job-card.completed { border-color: rgba(0, 184, 148, 0.55); }
     .scavenge-card { border-color: rgba(108, 92, 231, 0.45); }
     .job-card button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .filter-check { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; white-space: nowrap; }
+    .filters-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 8px 0 12px; }
+    .filters-bar .input { min-width: 220px; flex: 1; }
   </style>
 </head>
 <body>
@@ -72,10 +75,15 @@
           <button class="tab active" data-tab="active-sells">Annonces actives</button>
           <button class="tab" data-tab="my-sells">Mes annonces</button>
         </div>
+        <div class="filters-bar" id="auction-filters">
+          <input type="text" id="auction-search" class="input" placeholder="Rechercher un objet, vendeur, enchérisseur..." />
+          <select id="auction-category" class="select"></select>
+          <label class="filter-check"><input type="checkbox" id="auction-best-only" checked /> Prix le plus bas par objet</label>
+        </div>
         <div class="table-container">
           <table class="data-table" id="auction-table">
-            <thead><tr><th>Objet</th><th>Qté</th><th>Prix départ</th><th>Achat immédiat</th><th>Vendeur</th><th>Expire dans</th><th>Actions</th></tr></thead>
-            <tbody id="auction-body"><tr class="empty-row"><td colspan="7">Aucune annonce active</td></tr></tbody>
+            <thead><tr><th>Objet</th><th>Qté</th><th>Prix courant</th><th>Enchère</th><th>Achat immédiat</th><th>Vendeur</th><th>Expire dans</th><th>Actions</th></tr></thead>
+            <tbody id="auction-body"><tr class="empty-row"><td colspan="8">Aucune annonce active</td></tr></tbody>
           </table>
         </div>
       </section>
@@ -85,6 +93,11 @@
         <div class="tabs">
           <button class="tab active" data-tab="active-buys">Offres actives</button>
           <button class="tab" data-tab="my-buys">Mes offres</button>
+        </div>
+        <div class="filters-bar" id="buy-filters">
+          <input type="text" id="buy-search" class="input" placeholder="Rechercher un objet ou un acheteur..." />
+          <select id="buy-category" class="select"></select>
+          <label class="filter-check"><input type="checkbox" id="buy-best-only" checked /> Offre la plus élevée par objet</label>
         </div>
         <div class="table-container">
           <table class="data-table" id="buyhouse-table">
