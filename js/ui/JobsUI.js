@@ -9,6 +9,7 @@ export class JobsUI {
     this.onComplete = options.onComplete || (() => {});
     this.onStall = options.onStall || (() => {});
     this.onCraft = options.onCraft || (() => {});
+    this.onPolish = options.onPolish || (() => {});
     this.root = document.getElementById('jobs-root');
     this.vaultEl = document.getElementById('jobs-vault');
   }
@@ -23,12 +24,17 @@ export class JobsUI {
 
     const leftS = (view.maxScavengePerDay || 4) - (view.scavengeUsedToday || 0);
     const leftStall = (view.maxStallPerDay || 3) - (view.stallUsedToday || 0);
+    const leftCraft = (view.maxCraftsPerDay || 6) - (view.craftsUsedToday || 0);
+    const leftRepair = (view.maxRepairsPerDay || 4) - (view.repairsUsedToday || 0);
     const loot = view.lastLoot;
     const lootLine = loot?.type === 'cash'
       ? `Dernière trouvaille : ${money(loot.amount)} €`
       : loot?.type === 'item'
         ? `Dernière trouvaille : ${loot.icon || ''} ${loot.name || loot.itemId} x${loot.quantity} (Q${loot.quality})`
         : 'Pars en tournée pour trouver du stock sans frais.';
+    const last = view.lastCraft
+      ? `Dernier ouvrage : ${view.lastCraft.icon || ''} ${view.lastCraft.name} Q${view.lastCraft.quality} (~${money(view.lastCraft.value)} €)`
+      : 'La qualité du résultat dépend des pièces utilisées.';
 
     const contracts = (view.contracts || []).map(job => {
       const done = job.status === 'done';
@@ -49,17 +55,38 @@ export class JobsUI {
     }).join('');
 
     const recipes = (view.recipes || []).map(r => {
-      const needs = r.inputs.map(input => `${input.item?.icon || ''} ${input.owned}/${input.qty} ${input.item?.name || ''}`).join(' · ');
+      const needs = r.inputs.map(input => `${input.item?.icon || ''} ${input.owned}/${input.qty}`).join(' · ');
+      const lock = r.unlocked ? '' : ` · niv. ${r.minLevel}`;
+      return `
+        <article class="job-card ${r.unlocked ? '' : 'completed'}">
+          <div class="goal-head">
+            <h3>${r.name}</h3>
+            <span class="text-money">~${money(r.value)} €</span>
+          </div>
+          <p>Produit ${r.outputItem?.icon || ''} ${r.outputItem?.name || ''} · Q${r.preview?.quality || '?'} (soigné Q${r.previewFocus?.quality || '?'})${lock}</p>
+          <p style="font-size:0.82rem;opacity:.8">${needs} · fournitures ${money(r.cost)} € / soigné ${money(r.cost + r.focusCost)} €</p>
+          <div class="goal-foot">
+            <span>${leftCraft} fab.</span>
+            <span>
+              <button class="btn btn-small ${r.canCraft ? 'btn-primary' : 'btn-ghost'}" data-action="craft" data-id="${r.id}" data-focus="0" ${r.canCraft ? '' : 'disabled'}>Fabriquer</button>
+              <button class="btn btn-small ${r.canFocus ? 'btn-success' : 'btn-ghost'}" data-action="craft" data-id="${r.id}" data-focus="1" ${r.canFocus ? '' : 'disabled'}>Soigné</button>
+            </span>
+          </div>
+        </article>`;
+    }).join('');
+
+    const repairs = (view.repairItems || []).map(slot => {
+      const name = slot.item ? `${slot.item.icon || ''} ${slot.item.name}` : slot.itemId;
       return `
         <article class="job-card">
           <div class="goal-head">
-            <h3>${r.name}</h3>
-            <span>${money(r.cost)} €</span>
+            <h3>${name}</h3>
+            <span>Q${slot.quality} → Q${slot.nextQuality}</span>
           </div>
-          <p>Produit ${r.outputItem?.icon || ''} ${r.outputItem?.name || ''} (Q${r.output.quality})</p>
+          <p>Restaure qualité et perfection. +4 Q si tu as un lingot de cuivre.</p>
           <div class="goal-foot">
-            <span>${needs}</span>
-            <button class="btn btn-small ${r.canCraft ? 'btn-primary' : 'btn-ghost'}" data-action="craft" data-id="${r.id}" ${r.canCraft ? '' : 'disabled'}>Fabriquer</button>
+            <span>${money(slot.cost)} € · ${leftRepair} rest.</span>
+            <button class="btn btn-small btn-warning" data-action="polish" data-item="${slot.itemId}" data-quality="${slot.quality}" data-perfection="${slot.perfection}" ${leftRepair > 0 ? '' : 'disabled'}>Réparer</button>
           </div>
         </article>`;
     }).join('');
@@ -95,8 +122,11 @@ export class JobsUI {
       </article>
       <h3 style="grid-column:1/-1;margin:6px 0 0;font-family:var(--font-display)">Contrats du jour</h3>
       ${contracts || '<p class="text-muted">Aucun contrat</p>'}
-      <h3 style="grid-column:1/-1;margin:6px 0 0;font-family:var(--font-display)">Atelier</h3>
+      <h3 style="grid-column:1/-1;margin:6px 0 0;font-family:var(--font-display)">Atelier · niv. ${view.workshopLevel || 1} · ${view.workshopProgress || ''}</h3>
+      <p style="grid-column:1/-1;margin:0;font-size:0.85rem;opacity:.8">${last} Standard consomme les pièces les plus usées ; Soigné prend les meilleures.</p>
       ${recipes}
+      <h3 style="grid-column:1/-1;margin:6px 0 0;font-family:var(--font-display)">Établi de réparation</h3>
+      ${repairs || '<p class="text-muted">Rien à retaper (qualité ≥ 90)</p>'}
       <h3 style="grid-column:1/-1;margin:6px 0 0;font-family:var(--font-display)">Étal de rue</h3>
       ${stalls || '<p class="text-muted">Inventaire vide</p>'}
     `;
@@ -106,7 +136,8 @@ export class JobsUI {
         const action = btn.dataset.action;
         if (action === 'scavenge') this.onScavenge();
         if (action === 'complete') this.onComplete(btn.dataset.id);
-        if (action === 'craft') this.onCraft(btn.dataset.id);
+        if (action === 'craft') this.onCraft(btn.dataset.id, btn.dataset.focus === '1');
+        if (action === 'polish') this.onPolish(btn.dataset.item, Number(btn.dataset.quality), Number(btn.dataset.perfection));
         if (action === 'stall') this.onStall(btn.dataset.item, Number(btn.dataset.quality), Number(btn.dataset.perfection), 1);
       });
     });
