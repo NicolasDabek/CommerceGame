@@ -13,25 +13,64 @@ const SCAVENGE_TABLE = [
 
 const RECIPES = [
   {
+    id: 'craft_box',
+    name: 'Coffret gourmand',
+    minLevel: 1,
+    cost: 3,
+    focusCost: 2,
+    qualityBonus: 8,
+    inputs: [{ itemId: 'item_004', qty: 2 }],
+    output: { itemId: 'item_005', qty: 1 }
+  },
+  {
     id: 'craft_drill',
     name: 'Assembler une perceuse',
+    minLevel: 1,
     cost: 4,
+    focusCost: 3,
+    qualityBonus: 6,
     inputs: [{ itemId: 'item_012', qty: 2 }, { itemId: 'item_010', qty: 2 }],
-    output: { itemId: 'item_008', qty: 1, quality: 62, perfection: 55 }
+    output: { itemId: 'item_008', qty: 1 }
+  },
+  {
+    id: 'craft_jacket',
+    name: 'Retaper une veste',
+    minLevel: 1,
+    cost: 5,
+    focusCost: 3,
+    qualityBonus: 10,
+    inputs: [{ itemId: 'item_006', qty: 1 }, { itemId: 'item_012', qty: 1 }],
+    output: { itemId: 'item_006', qty: 1 }
   },
   {
     id: 'craft_watch',
     name: 'Monter une montre',
+    minLevel: 2,
     cost: 9,
+    focusCost: 5,
+    qualityBonus: 8,
     inputs: [{ itemId: 'item_011', qty: 1 }, { itemId: 'item_002', qty: 1 }],
-    output: { itemId: 'item_013', qty: 1, quality: 70, perfection: 60 }
+    output: { itemId: 'item_013', qty: 1 }
   },
   {
-    id: 'craft_box',
-    name: 'Coffret gourmand',
-    cost: 3,
-    inputs: [{ itemId: 'item_004', qty: 2 }],
-    output: { itemId: 'item_005', qty: 1, quality: 68, perfection: 58 }
+    id: 'craft_saw',
+    name: 'Monter une scie pro',
+    minLevel: 2,
+    cost: 12,
+    focusCost: 6,
+    qualityBonus: 7,
+    inputs: [{ itemId: 'item_008', qty: 1 }, { itemId: 'item_010', qty: 3 }, { itemId: 'item_012', qty: 2 }],
+    output: { itemId: 'item_009', qty: 1 }
+  },
+  {
+    id: 'craft_phone',
+    name: 'Reconditionner un smartphone',
+    minLevel: 3,
+    cost: 18,
+    focusCost: 8,
+    qualityBonus: 9,
+    inputs: [{ itemId: 'item_013', qty: 1 }, { itemId: 'item_011', qty: 1 }, { itemId: 'item_002', qty: 1 }],
+    output: { itemId: 'item_001', qty: 1 }
   }
 ];
 
@@ -45,6 +84,10 @@ function pickWeighted(table) {
   return table[0].itemId;
 }
 
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
 export class JobBoard {
   constructor(game, saved = {}) {
     this.game = game;
@@ -53,12 +96,24 @@ export class JobBoard {
     this.generatedDay = saved.generatedDay || 0;
     this.scavengeUsedToday = saved.scavengeUsedToday || 0;
     this.stallUsedToday = saved.stallUsedToday || 0;
+    this.craftsUsedToday = saved.craftsUsedToday || 0;
+    this.repairsUsedToday = saved.repairsUsedToday || 0;
     this.maxScavengePerDay = 4;
     this.maxStallPerDay = 3;
+    this.maxCraftsPerDay = 6;
+    this.maxRepairsPerDay = 4;
     this.streak = saved.streak || 0;
     this.lastActiveDay = saved.lastActiveDay || 0;
-    this.stats = saved.stats || { scavenges: 0, contracts: 0, crafts: 0, stalls: 0, earned: 0 };
+    this.stats = saved.stats || { scavenges: 0, contracts: 0, crafts: 0, stalls: 0, repairs: 0, earned: 0 };
     this.lastLoot = saved.lastLoot || null;
+    this.lastCraft = saved.lastCraft || null;
+  }
+
+  workshopLevel() {
+    const n = this.stats.crafts || 0;
+    if (n >= 12) return 3;
+    if (n >= 5) return 2;
+    return 1;
   }
 
   depositFee(amount) {
@@ -91,6 +146,8 @@ export class JobBoard {
     this.generatedDay = day;
     this.scavengeUsedToday = 0;
     this.stallUsedToday = 0;
+    this.craftsUsedToday = 0;
+    this.repairsUsedToday = 0;
     this.contracts = this._roll(3, day);
   }
 
@@ -176,13 +233,9 @@ export class JobBoard {
     this.game.save();
     this.game._notifyUI();
     return {
-      success: true,
-      type: 'item',
-      itemId,
-      name: item?.name || itemId,
-      icon: item?.icon || '',
-      quantity: qty,
-      quality,
+      success: true, type: 'item', itemId,
+      name: item?.name || itemId, icon: item?.icon || '',
+      quantity: qty, quality,
       left: this.maxScavengePerDay - this.scavengeUsedToday
     };
   }
@@ -212,11 +265,77 @@ export class JobBoard {
     return { success: true, total, unit: price };
   }
 
-  craft(recipeId) {
+  _previewQuality(recipe, focus) {
+    const inv = this.game.player.inventory;
+    let qSum = 0;
+    let pSum = 0;
+    let units = 0;
+    recipe.inputs.forEach(input => {
+      const stacks = inv.getStacks(input.itemId).slice().sort((a, b) => {
+        const da = a.quality + a.perfection;
+        const db = b.quality + b.perfection;
+        return focus ? db - da : da - db;
+      });
+      let left = input.qty;
+      stacks.forEach(s => {
+        if (left <= 0) return;
+        const take = Math.min(left, s.quantity);
+        qSum += s.quality * take;
+        pSum += s.perfection * take;
+        units += take;
+        left -= take;
+      });
+    });
+    const avgQ = units ? qSum / units : 50;
+    const avgP = units ? pSum / units : 50;
+    const lvl = this.workshopLevel();
+    const bonus = recipe.qualityBonus + (focus ? 12 : 0) + (lvl - 1) * 3;
+    return {
+      quality: clamp(avgQ * 0.82 + bonus, 25, 96),
+      perfection: clamp(avgP * 0.82 + bonus - 2, 25, 96)
+    };
+  }
+
+  _consumeInputs(recipe, focus) {
+    const inv = this.game.player.inventory;
+    let qSum = 0;
+    let pSum = 0;
+    let units = 0;
+    for (const input of recipe.inputs) {
+      const stacks = inv.getStacks(input.itemId).map(s => ({ ...s })).sort((a, b) => {
+        const da = a.quality + a.perfection;
+        const db = b.quality + b.perfection;
+        return focus ? db - da : da - db;
+      });
+      let left = input.qty;
+      for (const s of stacks) {
+        if (left <= 0) break;
+        const take = Math.min(left, s.quantity);
+        inv.remove(input.itemId, take, s.quality, s.perfection);
+        qSum += s.quality * take;
+        pSum += s.perfection * take;
+        units += take;
+        left -= take;
+      }
+      if (left > 0) return null;
+    }
+    return { avgQ: units ? qSum / units : 50, avgP: units ? pSum / units : 50 };
+  }
+
+  craft(recipeId, options = {}) {
+    this.ensureContracts();
+    const focus = !!options.focus;
     const recipe = RECIPES.find(r => r.id === recipeId);
     if (!recipe) return { success: false, error: 'Recette inconnue' };
-    if (!this.game.player.canAfford(recipe.cost)) {
-      return { success: false, error: `Il faut ${recipe.cost.toFixed(2)} € de fournitures` };
+    if (this.workshopLevel() < recipe.minLevel) {
+      return { success: false, error: `Atelier niv. ${recipe.minLevel} requis` };
+    }
+    if (this.craftsUsedToday >= this.maxCraftsPerDay) {
+      return { success: false, error: "Établi saturé pour aujourd'hui" };
+    }
+    const fee = recipe.cost + (focus ? recipe.focusCost : 0);
+    if (!this.game.player.canAfford(fee)) {
+      return { success: false, error: `Il faut ${fee.toFixed(2)} € de fournitures` };
     }
     const inv = this.game.player.inventory;
     for (const input of recipe.inputs) {
@@ -225,20 +344,71 @@ export class JobBoard {
         return { success: false, error: `Manque ${item?.name || input.itemId}` };
       }
     }
-    if (!inv.canAdd(recipe.output.itemId, recipe.output.qty, recipe.output.quality, recipe.output.perfection)) {
+    const preview = this._previewQuality(recipe, focus);
+    if (!inv.canAdd(recipe.output.itemId, recipe.output.qty, preview.quality, preview.perfection)) {
       return { success: false, error: 'Inventaire plein' };
     }
-    this.game.removeMoney(recipe.cost);
-    this.depositFee(recipe.cost);
-    recipe.inputs.forEach(input => inv.remove(input.itemId, input.qty));
-    inv.add(recipe.output.itemId, recipe.output.qty, recipe.output.quality, recipe.output.perfection, recipe.cost);
+    this.game.removeMoney(fee);
+    this.depositFee(fee);
+    const consumed = this._consumeInputs(recipe, focus);
+    if (!consumed) return { success: false, error: 'Pièces insuffisantes' };
+    const quality = preview.quality;
+    const perfection = preview.perfection;
+    inv.add(recipe.output.itemId, recipe.output.qty, quality, perfection, fee);
     this.stats.crafts += 1;
-    this.game.player.addXp(10);
+    this.craftsUsedToday += 1;
+    this.game.player.addXp(focus ? 14 : 10);
     this._markActive();
+    const out = getItemById(recipe.output.itemId);
+    const value = this.game.getAdjustedMarketPrice(recipe.output.itemId, quality, perfection);
+    this.lastCraft = { name: out?.name, icon: out?.icon, quality, perfection, value, focus };
     this.game.save();
     this.game._notifyUI();
-    const out = getItemById(recipe.output.itemId);
-    return { success: true, name: out?.name || recipe.output.itemId };
+    return {
+      success: true,
+      name: out?.name || recipe.output.itemId,
+      quality,
+      perfection,
+      value,
+      focus,
+      level: this.workshopLevel()
+    };
+  }
+
+  polish(itemId, quality, perfection) {
+    this.ensureContracts();
+    if (this.repairsUsedToday >= this.maxRepairsPerDay) {
+      return { success: false, error: "Plus de réparations aujourd'hui" };
+    }
+    const q = Number(quality);
+    const p = Number(perfection);
+    if (q >= 90) return { success: false, error: 'Déjà en excellent état' };
+    const cost = Math.round((4 + (90 - q) * 0.12) * 100) / 100;
+    if (!this.game.player.canAfford(cost)) {
+      return { success: false, error: `Il faut ${cost.toFixed(2)} €` };
+    }
+    const inv = this.game.player.inventory;
+    const removed = inv.remove(itemId, 1, q, p);
+    if (removed < 1) return { success: false, error: 'Objet introuvable' };
+    const copper = inv.count('item_010') > 0;
+    if (copper) inv.remove('item_010', 1);
+    const nq = clamp(q + 10 + (copper ? 4 : 0) + this.workshopLevel(), 1, 96);
+    const np = clamp(p + 8 + (copper ? 3 : 0), 1, 96);
+    if (!inv.add(itemId, 1, nq, np)) {
+      inv.add(itemId, 1, q, p);
+      if (copper) inv.add('item_010', 1);
+      return { success: false, error: 'Inventaire plein' };
+    }
+    this.game.removeMoney(cost);
+    this.depositFee(cost);
+    this.repairsUsedToday += 1;
+    this.stats.repairs = (this.stats.repairs || 0) + 1;
+    this.game.player.addXp(5);
+    this._markActive();
+    const item = getItemById(itemId);
+    this.game.save();
+    this.game._notifyUI();
+    return { success: true, name: item?.name || itemId, quality: nq, perfection: np, cost, usedCopper: copper };
   }
 
   complete(contractId) {
@@ -269,30 +439,63 @@ export class JobBoard {
   getView() {
     this.ensureContracts();
     const inv = this.game.player.inventory;
+    const level = this.workshopLevel();
+    const crafts = this.stats.crafts || 0;
+    const nextAt = level === 1 ? 5 : level === 2 ? 12 : null;
     return {
       feeVault: this.feeVault,
       scavengeUsedToday: this.scavengeUsedToday,
       stallUsedToday: this.stallUsedToday,
+      craftsUsedToday: this.craftsUsedToday,
+      repairsUsedToday: this.repairsUsedToday,
       maxScavengePerDay: this.maxScavengePerDay,
       maxStallPerDay: this.maxStallPerDay,
+      maxCraftsPerDay: this.maxCraftsPerDay,
+      maxRepairsPerDay: this.maxRepairsPerDay,
       streak: this.streak,
       lastLoot: this.lastLoot,
+      lastCraft: this.lastCraft,
+      workshopLevel: level,
+      workshopProgress: nextAt ? `${crafts}/${nextAt} pour niv. ${level + 1}` : `${crafts} fabrications`,
       contracts: this.contracts.map(c => {
         const item = getItemById(c.itemId);
         const owned = inv.count(c.itemId);
         return { ...c, item, owned, canComplete: c.status === 'open' && owned >= c.quantity };
       }),
-      recipes: RECIPES.map(r => ({
-        ...r,
-        outputItem: getItemById(r.output.itemId),
-        inputs: r.inputs.map(input => ({
-          ...input,
-          item: getItemById(input.itemId),
-          owned: inv.count(input.itemId)
-        })),
-        canCraft: this.game.player.canAfford(r.cost)
-          && r.inputs.every(input => inv.count(input.itemId) >= input.qty)
-          && inv.canAdd(r.output.itemId, r.output.qty, r.output.quality, r.output.perfection)
+      recipes: RECIPES.map(r => {
+        const preview = this._previewQuality(r, false);
+        const previewFocus = this._previewQuality(r, true);
+        const value = this.game.getAdjustedMarketPrice(r.output.itemId, preview.quality, preview.perfection);
+        const unlocked = level >= r.minLevel;
+        const hasParts = r.inputs.every(input => inv.count(input.itemId) >= input.qty);
+        return {
+          ...r,
+          outputItem: getItemById(r.output.itemId),
+          preview,
+          previewFocus,
+          value,
+          unlocked,
+          inputs: r.inputs.map(input => ({
+            ...input,
+            item: getItemById(input.itemId),
+            owned: inv.count(input.itemId)
+          })),
+          canCraft: unlocked && hasParts && this.game.player.canAfford(r.cost)
+            && this.craftsUsedToday < this.maxCraftsPerDay
+            && inv.canAdd(r.output.itemId, r.output.qty, preview.quality, preview.perfection),
+          canFocus: unlocked && hasParts && this.game.player.canAfford(r.cost + r.focusCost)
+            && this.craftsUsedToday < this.maxCraftsPerDay
+            && inv.canAdd(r.output.itemId, r.output.qty, previewFocus.quality, previewFocus.perfection)
+        };
+      }),
+      repairItems: inv.items.filter(s => s.quality < 90).slice(0, 6).map(slot => ({
+        itemId: slot.itemId,
+        quality: slot.quality,
+        perfection: slot.perfection,
+        quantity: slot.quantity,
+        item: getItemById(slot.itemId),
+        cost: Math.round((4 + (90 - slot.quality) * 0.12) * 100) / 100,
+        nextQuality: clamp(slot.quality + 10 + this.workshopLevel(), 1, 96)
       })),
       stallItems: inv.items.slice(0, 8).map((slot, index) => ({
         index,
@@ -314,10 +517,13 @@ export class JobBoard {
       generatedDay: this.generatedDay,
       scavengeUsedToday: this.scavengeUsedToday,
       stallUsedToday: this.stallUsedToday,
+      craftsUsedToday: this.craftsUsedToday,
+      repairsUsedToday: this.repairsUsedToday,
       streak: this.streak,
       lastActiveDay: this.lastActiveDay,
       stats: this.stats,
-      lastLoot: this.lastLoot
+      lastLoot: this.lastLoot,
+      lastCraft: this.lastCraft
     };
   }
 }
