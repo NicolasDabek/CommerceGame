@@ -77,16 +77,20 @@ export class JobsUI {
 
     const repairs = (view.repairItems || []).map(slot => {
       const name = slot.item ? `${slot.item.icon || ''} ${slot.item.name}` : slot.itemId;
+      const partLine = slot.part
+        ? `${slot.part.icon || ''} Pièce : ${slot.part.name} (${slot.hasPart ? 'en stock' : 'manque'})`
+        : 'Réparation simple (fournitures uniquement).';
+      const can = leftRepair > 0 && slot.hasPart !== false;
       return `
         <article class="job-card">
           <div class="goal-head">
             <h3>${name}</h3>
             <span>Q${slot.quality} → Q${slot.nextQuality}</span>
           </div>
-          <p>Restaure qualité et perfection. +4 Q si tu as un lingot de cuivre.</p>
+          <p>${partLine}</p>
           <div class="goal-foot">
             <span>${money(slot.cost)} € · ${leftRepair} rest.</span>
-            <button class="btn btn-small btn-warning" data-action="polish" data-item="${slot.itemId}" data-quality="${slot.quality}" data-perfection="${slot.perfection}" ${leftRepair > 0 ? '' : 'disabled'}>Réparer</button>
+            <button class="btn btn-small ${can ? 'btn-warning' : 'btn-ghost'}" data-action="polish" data-item="${slot.itemId}" data-quality="${slot.quality}" data-perfection="${slot.perfection}" ${can ? '' : 'disabled'}>Réparer</button>
           </div>
         </article>`;
     }).join('');
