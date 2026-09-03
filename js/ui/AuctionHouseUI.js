@@ -2,12 +2,16 @@
  * Interface — Hôtel de vente
  */
 
-import { getItemById } from '../data/items.js';
+import { ITEMS, getItemById } from '../data/items.js';
 
 function gameNow() {
   return (typeof window !== 'undefined' && window.game?.timeManager)
     ? window.game.timeManager.now()
     : Date.now();
+}
+
+function effectivePrice(offer) {
+  return offer.currentBid != null ? offer.currentBid : offer.price;
 }
 
 export class AuctionHouseUI {
@@ -22,16 +26,29 @@ export class AuctionHouseUI {
 
     this.tbody = document.getElementById('auction-body');
     this.btnNewSell = document.getElementById('btn-new-sell');
+    this.searchEl = document.getElementById('auction-search');
+    this.categoryEl = document.getElementById('auction-category');
+    this.bestOnlyEl = document.getElementById('auction-best-only');
     this.currentTab = 'active-sells';
+    this.query = '';
+    this.category = 'all';
+    this.bestOnly = true;
 
+    this._fillCategories();
     this._bindEvents();
+  }
+
+  _fillCategories() {
+    if (!this.categoryEl) return;
+    const cats = [...new Set(ITEMS.map(i => i.category))];
+    this.categoryEl.innerHTML = `<option value="all">Toutes catégories</option>` +
+      cats.map(c => `<option value="${c}">${c}</option>`).join('');
   }
 
   _bindEvents() {
     if (this.btnNewSell) {
       this.btnNewSell.addEventListener('click', () => this.onCreateSell());
     }
-
     const tabs = document.querySelectorAll('#panel-auction .tab');
     tabs.forEach(tab => {
       tab.addEventListener('click', () => {
@@ -41,38 +58,85 @@ export class AuctionHouseUI {
         this.render();
       });
     });
+    if (this.searchEl) {
+      this.searchEl.addEventListener('input', () => {
+        this.query = this.searchEl.value.trim().toLowerCase();
+        this.render();
+      });
+    }
+    if (this.categoryEl) {
+      this.categoryEl.addEventListener('change', () => {
+        this.category = this.categoryEl.value;
+        this.render();
+      });
+    }
+    if (this.bestOnlyEl) {
+      this.bestOnlyEl.checked = true;
+      this.bestOnlyEl.addEventListener('change', () => {
+        this.bestOnly = this.bestOnlyEl.checked;
+        this.render();
+      });
+    }
+  }
+
+  _matches(offer) {
+    const item = getItemById(offer.itemId);
+    if (this.category !== 'all' && item?.category !== this.category) return false;
+    if (!this.query) return true;
+    const seller = this.resolveName(offer.ownerId) || '';
+    const bidder = offer.currentBidderId ? (this.resolveName(offer.currentBidderId) || '') : '';
+    const hay = [
+      item?.name, item?.icon, item?.category, offer.itemId, seller, bidder
+    ].join(' ').toLowerCase();
+    return hay.includes(this.query);
+  }
+
+  _applyBestOnly(offers) {
+    if (!this.bestOnly || this.currentTab === 'my-sells') return offers;
+    const best = new Map();
+    offers.forEach(offer => {
+      const key = offer.itemId;
+      const prev = best.get(key);
+      if (!prev) {
+        best.set(key, offer);
+        return;
+      }
+      const pNew = effectivePrice(offer);
+      const pOld = effectivePrice(prev);
+      if (pNew < pOld || (pNew === pOld && offer.quantity > prev.quantity)) {
+        best.set(key, offer);
+      }
+    });
+    return [...best.values()];
   }
 
   render() {
     if (!this.tbody) return;
 
-    const offers = this.currentTab === 'my-sells'
+    const raw = this.currentTab === 'my-sells'
       ? this.getPlayerSellOffers()
       : this.getActiveSellOffers();
+    const filtered = this._applyBestOnly(raw.filter(o => this._matches(o)));
 
-    if (offers.length === 0) {
+    if (filtered.length === 0) {
       this.tbody.innerHTML = `
         <tr class="empty-row">
-          <td colspan="7">Aucune annonce active</td>
+          <td colspan="8">Aucune annonce ne correspond aux filtres</td>
         </tr>
       `;
       return;
     }
 
-    const sorted = [...offers].sort((a, b) => b.createdAt - a.createdAt);
+    const sorted = [...filtered].sort((a, b) => effectivePrice(a) - effectivePrice(b));
     this.tbody.innerHTML = sorted.map(offer => this._renderRow(offer)).join('');
 
     this.tbody.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', () => {
         const action = btn.dataset.action;
         const offerId = btn.dataset.offerId;
-        if (action === 'buyout') {
-          this.onBuyout(offerId, Number(btn.dataset.qty) || 1);
-        } else if (action === 'cancel') {
-          this.onCancel(offerId);
-        } else if (action === 'bid') {
-          this.onBid(offerId);
-        }
+        if (action === 'buyout') this.onBuyout(offerId, Number(btn.dataset.qty) || 1);
+        else if (action === 'cancel') this.onCancel(offerId);
+        else if (action === 'bid') this.onBid(offerId);
       });
     });
   }
@@ -82,10 +146,13 @@ export class AuctionHouseUI {
     const itemName = item ? `${item.icon || ''} ${item.name}` : offer.itemId;
     const seller = this.resolveName(offer.ownerId);
     const remaining = offer.getRemainingText(gameNow());
+    const going = effectivePrice(offer);
 
-    let priceCell = `<span class="text-money">${this._formatMoney(offer.price)} €</span>`;
+    let bidCell = `<span class="text-muted">—</span>`;
     if (offer.currentBid != null) {
-      priceCell += `<br><small class="text-warning">Enchère : ${this._formatMoney(offer.currentBid)} € (${this.resolveName(offer.currentBidderId)})</small>`;
+      const bidder = this.resolveName(offer.currentBidderId);
+      const count = Array.isArray(offer.bids) ? offer.bids.length : 1;
+      bidCell = `<span class="text-warning">${this._formatMoney(offer.currentBid)} €</span><br><small>${bidder} · ${count} ench.</small>`;
     }
 
     const buyoutCell = offer.buyoutPrice
@@ -94,35 +161,24 @@ export class AuctionHouseUI {
 
     let actions = '';
     if (offer.ownerId === 'player') {
-      actions = `
-        <button class="btn btn-small btn-ghost" data-action="cancel" data-offer-id="${offer.id}">
-          Annuler
-        </button>
-      `;
+      actions = `<button class="btn btn-small btn-ghost" data-action="cancel" data-offer-id="${offer.id}">Annuler</button>`;
     } else {
       const buttons = [];
       if (offer.currentBidderId !== 'player') {
-        buttons.push(`
-          <button class="btn btn-small btn-warning" data-action="bid" data-offer-id="${offer.id}">
-            Enchérir
-          </button>
-        `);
+        buttons.push(`<button class="btn btn-small btn-warning" data-action="bid" data-offer-id="${offer.id}">Enchérir</button>`);
       }
       if (offer.buyoutPrice) {
-        buttons.push(`
-          <button class="btn btn-small btn-primary" data-action="buyout" data-offer-id="${offer.id}" data-qty="${offer.quantity}">
-            Acheter
-          </button>
-        `);
+        buttons.push(`<button class="btn btn-small btn-primary" data-action="buyout" data-offer-id="${offer.id}" data-qty="${offer.quantity}">Acheter</button>`);
       }
       actions = buttons.join(' ') || `<span class="text-muted">Votre enchère</span>`;
     }
 
     return `
       <tr>
-        <td>${itemName}</td>
+        <td>${itemName}<br><small class="text-muted">Q${offer.quality} P${offer.perfection}</small></td>
         <td>${offer.quantity}</td>
-        <td>${priceCell}</td>
+        <td><span class="text-money">${this._formatMoney(going)} €</span>${offer.currentBid != null ? `<br><small class="text-muted">départ ${this._formatMoney(offer.price)} €</small>` : ''}</td>
+        <td>${bidCell}</td>
         <td>${buyoutCell}</td>
         <td>${seller}</td>
         <td class="text-muted">${remaining}</td>
