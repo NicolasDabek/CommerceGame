@@ -10,6 +10,8 @@ export class JobsUI {
     this.onStall = options.onStall || (() => {});
     this.onCraft = options.onCraft || (() => {});
     this.onPolish = options.onPolish || (() => {});
+    this.onService = options.onService || (() => {});
+    this.onSalvage = options.onSalvage || (() => {});
     this.root = document.getElementById('jobs-root');
     this.vaultEl = document.getElementById('jobs-vault');
   }
@@ -26,6 +28,8 @@ export class JobsUI {
     const leftStall = (view.maxStallPerDay || 3) - (view.stallUsedToday || 0);
     const leftCraft = (view.maxCraftsPerDay || 6) - (view.craftsUsedToday || 0);
     const leftRepair = (view.maxRepairsPerDay || 4) - (view.repairsUsedToday || 0);
+    const leftService = (view.maxServicesPerDay || 4) - (view.servicesUsedToday || 0);
+    const leftSalvage = (view.maxSalvagePerDay || 4) - (view.salvageUsedToday || 0);
     const loot = view.lastLoot;
     const lootLine = loot?.type === 'cash'
       ? `Dernière trouvaille : ${money(loot.amount)} €`
@@ -95,6 +99,63 @@ export class JobsUI {
         </article>`;
     }).join('');
 
+    const services = (view.services || []).map(job => {
+      const done = job.status === 'done';
+      const name = job.item ? `${job.item.icon || ''} ${job.item.name}` : job.itemId;
+      if (job.kind === 'repair') {
+        const partLine = job.part
+          ? `${job.part.icon || ''} Pièce à fournir : ${job.part.name} (${job.hasPart ? 'en stock' : 'manque'})`
+          : 'Réparation simple, sans pièce spéciale.';
+        return `
+          <article class="job-card ${done ? 'completed' : ''} scavenge-card">
+            <div class="goal-head">
+              <h3>Réparer pour ${job.npcName}</h3>
+              <span class="text-money">${money(job.pay)} €</span>
+            </div>
+            <p>${name} Q${job.quality} → Q${job.nextQuality}</p>
+            <p style="font-size:0.82rem;opacity:.8">${partLine}</p>
+            <div class="goal-foot">
+              <span>${leftService} serv.</span>
+              ${done
+                ? '<span class="text-success">Rendu</span>'
+                : `<button class="btn btn-small ${job.canFulfill ? 'btn-warning' : 'btn-ghost'}" data-action="service" data-id="${job.id}" ${job.canFulfill ? '' : 'disabled'}>Réparer</button>`}
+            </div>
+          </article>`;
+      }
+      const loot = (job.outputs || []).map(o => `${o.icon || ''} ${o.name} x${o.qty}`).join(' · ');
+      return `
+        <article class="job-card ${done ? 'completed' : ''} scavenge-card">
+          <div class="goal-head">
+            <h3>Démanteler pour ${job.npcName}</h3>
+            <span class="text-money">${money(job.pay)} €</span>
+          </div>
+          <p>${name} Q${job.quality} — le client récupère : ${loot || 'ressources'}</p>
+          <div class="goal-foot">
+            <span>${leftService} serv.</span>
+            ${done
+              ? '<span class="text-success">Traité</span>'
+              : `<button class="btn btn-small ${job.canFulfill ? 'btn-warning' : 'btn-ghost'}" data-action="service" data-id="${job.id}" ${job.canFulfill ? '' : 'disabled'}>Démanteler</button>`}
+          </div>
+        </article>`;
+    }).join('');
+
+    const salvages = (view.salvageItems || []).map(slot => {
+      const name = slot.item ? `${slot.item.icon || ''} ${slot.item.name}` : slot.itemId;
+      const loot = (slot.outputs || []).map(o => `${o.icon || ''} ${o.name} x${o.qty}`).join(' · ');
+      return `
+        <article class="job-card">
+          <div class="goal-head">
+            <h3>${name}</h3>
+            <span>Q${slot.quality}</span>
+          </div>
+          <p>Récupère ${loot || 'rien'}</p>
+          <div class="goal-foot">
+            <span>${leftSalvage} rest.</span>
+            <button class="btn btn-small ${leftSalvage > 0 ? 'btn-primary' : 'btn-ghost'}" data-action="salvage" data-item="${slot.itemId}" data-quality="${slot.quality}" data-perfection="${slot.perfection}" ${leftSalvage > 0 ? '' : 'disabled'}>Démanteler 1</button>
+          </div>
+        </article>`;
+    }).join('');
+
     const stalls = (view.stallItems || []).map(slot => {
       const name = slot.item ? `${slot.item.icon || ''} ${slot.item.name}` : slot.itemId;
       const price = Math.round(slot.unit * 0.9 * 100) / 100;
@@ -132,6 +193,12 @@ export class JobsUI {
       <h3 style="grid-column:1/-1;margin:6px 0 0;font-family:var(--font-display)">Établi de réparation</h3>
       <p style="grid-column:1/-1;margin:0;font-size:0.85rem;opacity:.8">Pièce selon la catégorie : électronique → composants, outils → cuivre, bois → bois. Vêtements, nourriture et lingots : fournitures seulement.</p>
       ${repairs || '<p class="text-muted">Rien à retaper (qualité ≥ 90)</p>'}
+      <h3 style="grid-column:1/-1;margin:6px 0 0;font-family:var(--font-display)">Atelier client · PNJ</h3>
+      <p style="grid-column:1/-1;margin:0;font-size:0.85rem;opacity:.8">Réparer : tu fournis la pièce, le PNJ paie. Démanteler : le PNJ récupère les ressources, tu es payé pour la main-d'oeuvre.</p>
+      ${services || '<p class="text-muted">Aucune demande client pour aujourd\'hui</p>'}
+      <h3 style="grid-column:1/-1;margin:6px 0 0;font-family:var(--font-display)">Démantèlement</h3>
+      <p style="grid-column:1/-1;margin:0;font-size:0.85rem;opacity:.8">Électronique → composants. Outils → cuivre (et bois si bonne qualité). L'objet est détruit.</p>
+      ${salvages || '<p class="text-muted">Rien à démonter (électronique ou outils)</p>'}
       <h3 style="grid-column:1/-1;margin:6px 0 0;font-family:var(--font-display)">Étal de rue</h3>
       ${stalls || '<p class="text-muted">Inventaire vide</p>'}
     `;
@@ -143,6 +210,8 @@ export class JobsUI {
         if (action === 'complete') this.onComplete(btn.dataset.id);
         if (action === 'craft') this.onCraft(btn.dataset.id, btn.dataset.focus === '1');
         if (action === 'polish') this.onPolish(btn.dataset.item, Number(btn.dataset.quality), Number(btn.dataset.perfection));
+        if (action === 'service') this.onService(btn.dataset.id);
+        if (action === 'salvage') this.onSalvage(btn.dataset.item, Number(btn.dataset.quality), Number(btn.dataset.perfection));
         if (action === 'stall') this.onStall(btn.dataset.item, Number(btn.dataset.quality), Number(btn.dataset.perfection), 1);
       });
     });
