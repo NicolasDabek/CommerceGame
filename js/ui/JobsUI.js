@@ -63,10 +63,10 @@ export class JobsUI {
             <h3>${r.name}</h3>
             <span class="text-money">~${money(r.value)} €</span>
           </div>
-          <p>Produit ${r.outputItem?.icon || ''} ${r.outputItem?.name || ''} · Q${r.preview?.quality || '?'} (soigné Q${r.previewFocus?.quality || '?'})${lock}</p>
+          <p>Produit ${r.outputItem?.icon || ''} ${r.outputItem?.name || ''} · Q${r.preview?.quality || '?'} (soigné Q${r.previewFocus?.quality || '?'})</p>
           <p style="font-size:0.82rem;opacity:.8">${needs} · fournitures ${money(r.cost)} € / soigné ${money(r.cost + r.focusCost)} €</p>
           <div class="goal-foot">
-            <span>${leftCraft} fab.</span>
+            <span>${leftCraft} fab.${lock}</span>
             <span>
               <button class="btn btn-small ${r.canCraft ? 'btn-primary' : 'btn-ghost'}" data-action="craft" data-id="${r.id}" data-focus="0" ${r.canCraft ? '' : 'disabled'}>Fabriquer</button>
               <button class="btn btn-small ${r.canFocus ? 'btn-success' : 'btn-ghost'}" data-action="craft" data-id="${r.id}" data-focus="1" ${r.canFocus ? '' : 'disabled'}>Soigné</button>
@@ -130,6 +130,7 @@ export class JobsUI {
       <p style="grid-column:1/-1;margin:0;font-size:0.85rem;opacity:.8">${last} Standard consomme les pièces les plus usées ; Soigné prend les meilleures.</p>
       ${recipes}
       <h3 style="grid-column:1/-1;margin:6px 0 0;font-family:var(--font-display)">Établi de réparation</h3>
+      <p style="grid-column:1/-1;margin:0;font-size:0.85rem;opacity:.8">Pièce selon la catégorie : électronique → composants, outils → cuivre, bois → bois. Vêtements, nourriture et lingots : fournitures seulement.</p>
       ${repairs || '<p class="text-muted">Rien à retaper (qualité ≥ 90)</p>'}
       <h3 style="grid-column:1/-1;margin:6px 0 0;font-family:var(--font-display)">Étal de rue</h3>
       ${stalls || '<p class="text-muted">Inventaire vide</p>'}
