@@ -52,6 +52,11 @@ export class AuctionHouse {
     if (sellOffer.ownerId === buyerId) return { success: false, error: 'Vous ne pouvez pas acheter votre propre annonce' };
     const totalCost = sellOffer.buyoutPrice * quantity;
     if (buyerId === 'player' && this.getPlayerMoney() < totalCost) return { success: false, error: 'Fonds insuffisants' };
+    if (sellOffer.currentBidderId && sellOffer.currentBid != null) {
+      const refund = Math.round(sellOffer.currentBid * sellOffer.quantity * 100) / 100;
+      if (this.unlockFunds) this.unlockFunds(sellOffer.currentBidderId, refund);
+      else if (sellOffer.currentBidderId === 'player') this.addPlayerMoney(refund);
+    }
     const tx = this.matchingEngine.executeBuyout(sellOffer, buyerId, quantity);
     if (!tx) return { success: false, error: 'Echec de la transaction' };
     if (buyerId === 'player') this.removePlayerMoney(totalCost);
@@ -101,8 +106,10 @@ export class AuctionHouse {
 
   cancel(offer) {
     if (!offer || offer.type !== 'sell' || offer.status !== 'active') return { success: false, error: 'Annonce invalide ou déjà terminée' };
-    if (offer.currentBidderId === 'player' && offer.currentBid != null) {
-      this.addPlayerMoney(Math.round(offer.currentBid * offer.quantity * 100) / 100);
+    if (offer.currentBidderId && offer.currentBid != null) {
+      const refund = Math.round(offer.currentBid * offer.quantity * 100) / 100;
+      if (this.unlockFunds) this.unlockFunds(offer.currentBidderId, refund);
+      else if (offer.currentBidderId === 'player') this.addPlayerMoney(refund);
     }
     offer.status = 'cancelled';
     if (offer.ownerId === 'player') {
