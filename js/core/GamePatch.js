@@ -24,6 +24,7 @@ export function enhanceGame(game) {
   if (game.npcController) {
     game.npcController.getNow = () => game.timeManager.now();
     game.npcController.getMsPerGameDay = () => game.timeManager.msPerGameDay;
+    game.npcController.executeBid = (offer, npcId, amount) => game.auctionHouse.placeBid(offer, npcId, amount);
     const run = game.npcController.runMatching;
     game.npcController.runMatching = (offer) => {
       setTimeout(() => {
@@ -115,7 +116,7 @@ export function enhanceGame(game) {
   game.getOrderBook = function(itemId) {
     const sells = game.offers.filter(o => o.type === 'sell' && o.status === 'active' && o.itemId === itemId);
     const buys = game.offers.filter(o => o.type === 'buy' && o.status === 'active' && o.itemId === itemId);
-    const bestSell = sells.length ? Math.min(...sells.map(o => o.price)) : null;
+    const bestSell = sells.length ? Math.min(...sells.map(o => o.currentBid != null ? o.currentBid : o.price)) : null;
     const bestBuy = buys.length ? Math.max(...buys.map(o => o.price)) : null;
     return {
       bestSell,
