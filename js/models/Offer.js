@@ -36,6 +36,32 @@ export class Offer {
     return this.createdAt + (this.durationDays * this.msPerGameDay);
   }
 
+  bidStep() {
+    const start = Number(this.price) || 0;
+    if (start >= 50) return 1;
+    if (start >= 10) return 0.1;
+    return 0.01;
+  }
+
+  minNextBid() {
+    const step = this.bidStep();
+    if (this.currentBid == null) return Math.round(this.price * 100) / 100;
+    return Math.round((this.currentBid + step) * 100) / 100;
+  }
+
+  canBidAmount(amount) {
+    const bid = Number(amount);
+    if (!(bid > 0)) return { ok: false, error: 'Enchère invalide' };
+    const minBid = this.minNextBid();
+    if (bid < minBid) {
+      return { ok: false, error: `Enchère trop basse (minimum ${minBid.toFixed(2)} €, palier ${this.bidStep().toFixed(2)} €)` };
+    }
+    if (this.buyoutPrice != null && bid >= this.buyoutPrice) {
+      return { ok: false, error: `L'enchère ne peut pas atteindre l'achat immédiat (${this.buyoutPrice.toFixed(2)} €)` };
+    }
+    return { ok: true, minBid };
+  }
+
   static calculateListingFee(price, quantity, durationDays) {
     const totalValue = price * quantity;
     let percent = 0.03;
