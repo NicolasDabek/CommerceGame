@@ -50,12 +50,17 @@ export function enhanceGame(game) {
   const origTick = game.tick.bind(game);
   game.tick = function() {
     const dayBefore = game.timeManager.getCurrentDay();
+    const snapshot = game.offers.map(o => `${o.id}:${o.currentBid}:${o.status}:${o.quantity}`).join('|');
     origTick();
     if (game.timeManager.getCurrentDay() !== dayBefore) {
       game.jobBoard.onNewDay();
       game.save();
     } else {
       game.jobBoard.ensureContracts();
+    }
+    const after = game.offers.map(o => `${o.id}:${o.currentBid}:${o.status}:${o.quantity}`).join('|');
+    if (after !== snapshot && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('panel-changed'));
     }
   };
 
