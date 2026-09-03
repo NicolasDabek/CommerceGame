@@ -66,11 +66,10 @@ export class AuctionHouse {
   placeBid(sellOffer, bidderId, bidAmount) {
     if (!sellOffer || sellOffer.type !== 'sell' || sellOffer.status !== 'active') return { success: false, error: 'Annonce invalide' };
     if (sellOffer.ownerId === bidderId) return { success: false, error: 'Vous ne pouvez pas enchérir sur votre propre annonce' };
-    const minBid = sellOffer.currentBid != null ? sellOffer.currentBid + 0.01 : sellOffer.price;
-    if (bidAmount < minBid) return { success: false, error: `Enchère trop basse (minimum ${minBid.toFixed(2)} €)` };
-    if (sellOffer.buyoutPrice != null && bidAmount >= sellOffer.buyoutPrice) {
-      return { success: false, error: `Utilisez l'achat immédiat à ${sellOffer.buyoutPrice.toFixed(2)} €` };
-    }
+    const check = typeof sellOffer.canBidAmount === 'function'
+      ? sellOffer.canBidAmount(bidAmount)
+      : { ok: Number(bidAmount) >= (sellOffer.currentBid != null ? sellOffer.currentBid + 0.01 : sellOffer.price) && !(sellOffer.buyoutPrice != null && bidAmount >= sellOffer.buyoutPrice) };
+    if (!check.ok) return { success: false, error: check.error || 'Enchère refusée' };
     const totalLocked = Math.round(bidAmount * sellOffer.quantity * 100) / 100;
     const previousBidderId = sellOffer.currentBidderId;
     const previousBid = sellOffer.currentBid;
@@ -85,9 +84,9 @@ export class AuctionHouse {
       else if (previousBidderId === 'player') this.addPlayerMoney(refund);
     }
     if (!this.lockFunds && bidderId === 'player') this.removePlayerMoney(totalLocked);
-    sellOffer.currentBid = bidAmount;
+    sellOffer.currentBid = Math.round(Number(bidAmount) * 100) / 100;
     sellOffer.currentBidderId = bidderId;
-    sellOffer.bids.push({ bidderId, amount: bidAmount, at: Date.now() });
+    sellOffer.bids.push({ bidderId, amount: sellOffer.currentBid, at: Date.now() });
     return { success: true, previousBidderId, previousBid };
   }
 
