@@ -43,6 +43,7 @@ export class NpcUI {
           <strong class="text-money">${this._formatMoney(profile.capital)} €</strong>
         </div>
         <p class="npc-description">${profile.description}</p>
+        ${profile.lastIntent ? `<p class="text-muted" style="font-size:0.82rem;margin:6px 0 0">Dernière action : ${profile.lastIntent}</p>` : ''}
         <div class="npc-tags">
           ${profile.preferredCategories.map(cat => `<span class="mini-chip">${cat}</span>`).join('')}
         </div>
