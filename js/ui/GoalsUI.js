@@ -9,7 +9,6 @@ export class GoalsUI {
   render() {
     this._renderSummary();
     if (!this.root) return;
-
     const goals = this.getGoals();
     this.root.innerHTML = goals.map(goal => {
       const pct = goal.target > 0 ? Math.min(100, Math.round((goal.progress / goal.target) * 100)) : 0;
@@ -17,7 +16,7 @@ export class GoalsUI {
         <article class="goal-card ${goal.completed ? 'completed' : ''}">
           <div class="goal-head">
             <h3>${goal.title}</h3>
-            <span>${goal.completed ? 'Termine' : `${pct}%`}</span>
+            <span>${goal.completed ? 'Terminé' : `${pct}%`}</span>
           </div>
           <p>${goal.description}</p>
           <div class="goal-bar"><span style="width:${pct}%"></span></div>
@@ -37,7 +36,8 @@ export class GoalsUI {
     this.summaryEl.innerHTML = `
       <span>Niveau ${summary.level || 1}</span>
       <span>XP ${summary.xp || 0}/${summary.xpToNext || 100}</span>
-      <span>Reputation ${summary.reputation || 0}</span>
+      <span>Réputation ${summary.reputation || 0} (${summary.reputationTitle || 'Nouveau venu'})</span>
+      <span>Frais de place ${Math.round((summary.feeMultiplier || 1) * 100)}%</span>
       <span>Inventaire ${summary.inventorySize || 10} cases</span>
       <span class="mini-progress"><i style="width:${xpPct}%"></i></span>
     `;

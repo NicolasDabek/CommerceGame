@@ -6,25 +6,17 @@
 import { Inventory } from './Inventory.js';
 
 export class Player {
-  /**
-   * @param {Object} data
-   */
   constructor(data = {}) {
     this.id = data.id || 'player';
     this.name = data.name || 'Joueur';
     this.money = data.money ?? 1250.00;
-
-    // Inventaire
     this.inventory = data.inventory instanceof Inventory
       ? data.inventory
       : Inventory.fromJSON(data.inventory || { size: 10, items: [] });
-
-    // Progression
     this.level = data.level ?? 1;
     this.xp = data.xp ?? 0;
-    this.reputation = data.reputation ?? 0;   // réputation marchande
-
-    // Stats de commerce
+    this.reputation = data.reputation ?? 0;
+    this.allianceClanId = data.allianceClanId || null;
     this.stats = {
       totalSales: data.stats?.totalSales ?? 0,
       totalPurchases: data.stats?.totalPurchases ?? 0,
@@ -33,17 +25,10 @@ export class Player {
       transactionsCount: data.stats?.transactionsCount ?? 0,
       ...(data.stats || {})
     };
-
-    // Liste noire (joueurs / PNJ avec qui on refuse de trader)
     this.blacklist = data.blacklist || [];
-
-    // Taxes éventuelles (modificateur, 0 = pas de taxe extra)
     this.taxRate = data.taxRate ?? 0;
   }
 
-  // ============================================
-  // Argent
-  // ============================================
   addMoney(amount) {
     this.money = Math.round((this.money + amount) * 100) / 100;
     return this.money;
@@ -59,9 +44,6 @@ export class Player {
     return this.money >= amount;
   }
 
-  // ============================================
-  // Progression
-  // ============================================
   addXp(amount) {
     this.xp += amount;
     const needed = this.xpToNextLevel();
@@ -76,12 +58,29 @@ export class Player {
   }
 
   addReputation(amount) {
-    this.reputation = Math.max(0, this.reputation + amount);
+    this.reputation = Math.max(-40, Math.min(120, this.reputation + amount));
+    return this.reputation;
   }
 
-  // ============================================
-  // Stats
-  // ============================================
+  getReputationTitle() {
+    const r = this.reputation;
+    if (r >= 60) return 'Maison reconnue';
+    if (r >= 35) return 'Marchand estimé';
+    if (r >= 18) return 'Commerçant fiable';
+    if (r >= 8) return 'Connu sur la place';
+    if (r >= 0) return 'Nouveau venu';
+    if (r >= -12) return 'Peu fiable';
+    return 'Indésirable';
+  }
+
+  getFeeMultiplier() {
+    return Math.max(0.62, Math.min(1.28, 1 - this.reputation * 0.008));
+  }
+
+  getTrustScore() {
+    return Math.max(-1, Math.min(1, this.reputation / 40));
+  }
+
   recordSale(total) {
     this.stats.totalSales += 1;
     this.stats.totalEarned = Math.round((this.stats.totalEarned + total) * 100) / 100;
@@ -97,26 +96,18 @@ export class Player {
     this.addXp(Math.max(1, Math.floor(total / 15)));
   }
 
-  // ============================================
-  // Liste noire
-  // ============================================
   isBlacklisted(id) {
     return this.blacklist.includes(id);
   }
 
   addToBlacklist(id) {
-    if (!this.blacklist.includes(id)) {
-      this.blacklist.push(id);
-    }
+    if (!this.blacklist.includes(id)) this.blacklist.push(id);
   }
 
   removeFromBlacklist(id) {
     this.blacklist = this.blacklist.filter(x => x !== id);
   }
 
-  // ============================================
-  // Sérialisation
-  // ============================================
   toJSON() {
     return {
       id: this.id,
@@ -126,6 +117,7 @@ export class Player {
       level: this.level,
       xp: this.xp,
       reputation: this.reputation,
+      allianceClanId: this.allianceClanId,
       stats: { ...this.stats },
       blacklist: [...this.blacklist],
       taxRate: this.taxRate
