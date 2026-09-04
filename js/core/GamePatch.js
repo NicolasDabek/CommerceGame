@@ -1,5 +1,7 @@
 import { JobBoard } from '../systems/JobBoard.js';
 import { Storage } from '../utils/storage.js';
+import { Offer } from '../models/Offer.js';
+import { CLANS, getClanById } from '../data/npcs.js';
 
 export function enhanceGame(game) {
   if (!game || game.__enhanced) return game;
@@ -24,6 +26,8 @@ export function enhanceGame(game) {
   if (game.npcController) {
     game.npcController.getNow = () => game.timeManager.now();
     game.npcController.getMsPerGameDay = () => game.timeManager.msPerGameDay;
+    game.npcController.getPlayerRep = () => game.player.reputation;
+    game.npcController.getPlayerAlliance = () => game.player.allianceClanId;
     game.npcController.executeBid = (offer, npcId, amount) => game.auctionHouse.placeBid(offer, npcId, amount);
     game.npcController.executeCancel = (offer, npcId) => {
       if (!offer || offer.ownerId !== npcId || offer.status !== 'active') return { success: false };
@@ -45,6 +49,58 @@ export function enhanceGame(game) {
   const savedJobs = (Storage.load() || {}).jobs || {};
   game.jobBoard = new JobBoard(game, savedJobs);
   game.jobBoard.ensureContracts();
+
+  if (!Offer.__repFees) {
+    Offer.__repFees = true;
+    const origListing = Offer.calculateListingFee.bind(Offer);
+    const origChange = Offer.calculatePriceChangeFee.bind(Offer);
+    Offer.calculateListingFee = (price, quantity, durationDays) => {
+      const base = origListing(price, quantity, durationDays);
+      const mult = game.player?.getFeeMultiplier?.() ?? 1;
+      return Math.round(base * mult * 100) / 100;
+    };
+    Offer.calculatePriceChangeFee = (oldPrice, newPrice, quantity) => {
+      const base = origChange(oldPrice, newPrice, quantity);
+      const mult = game.player?.getFeeMultiplier?.() ?? 1;
+      return Math.round(base * mult * 100) / 100;
+    };
+  }
+
+  game.joinClan = function(clanId) {
+    const clan = getClanById(clanId);
+    if (!clan) return { success: false, error: 'Clan inconnu' };
+    const current = game.player.allianceClanId;
+    if (current === clanId) return { success: false, error: 'Déjà allié à ce clan' };
+    const need = clan.joinRep || 8;
+    if ((game.player.reputation || 0) < need) {
+      return { success: false, error: `Il faut ${need} de réputation pour rejoindre ${clan.name}` };
+    }
+    if (current) game.player.addReputation(-3);
+    game.player.allianceClanId = clanId;
+    game.player.addReputation(1);
+    game.save();
+    game._notifyUI();
+    return { success: true, clan };
+  };
+
+  game.leaveClan = function() {
+    if (!game.player.allianceClanId) return { success: false, error: 'Aucune alliance' };
+    game.player.addReputation(-2);
+    game.player.allianceClanId = null;
+    game.save();
+    game._notifyUI();
+    return { success: true };
+  };
+
+  game.getClans = function() {
+    const ally = game.player.allianceClanId;
+    return CLANS.map(clan => ({
+      ...clan,
+      allied: ally === clan.id,
+      rival: ally ? getClanById(ally)?.rivalId === clan.id : false,
+      members: (game.getNpcProfiles ? game.getNpcProfiles() : []).filter(p => p.clanId === clan.id).length
+    }));
+  };
 
   const origSave = game.save.bind(game);
   game.save = function() {
@@ -141,7 +197,13 @@ export function enhanceGame(game) {
         lastIntent: ai.lastIntent || game.npcController?.npcStates?.[p.id]?.lastIntent || null,
         mood: ai.mood ?? 0,
         rivalry: ai.rivalry ?? 0,
-        focusName: ai.focusName || null
+        focusName: ai.focusName || null,
+        clanId: ai.clanId || p.clanId || null,
+        clanName: ai.clanName || null,
+        clanIcon: ai.clanIcon || null,
+        clanColor: ai.clanColor || null,
+        trust: ai.trust ?? 0,
+        allied: game.player.allianceClanId && game.player.allianceClanId === (ai.clanId || p.clanId)
       };
     });
   };
