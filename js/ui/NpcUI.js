@@ -1,25 +1,65 @@
 import { getItemById } from '../data/items.js';
+import { CLANS, getClanById } from '../data/npcs.js';
 
 export class NpcUI {
   constructor(options = {}) {
     this.getProfiles = options.getProfiles || (() => []);
     this.resolveName = options.resolveName || ((id) => id);
+    this.getAlliance = options.getAlliance || (() => null);
+    this.getReputation = options.getReputation || (() => 0);
+    this.onJoinClan = options.onJoinClan || null;
+    this.onLeaveClan = options.onLeaveClan || null;
     this.root = document.getElementById('npc-grid');
   }
 
   render() {
     if (!this.root) return;
     const profiles = this.getProfiles();
+    const alliance = this.getAlliance();
+    const rep = this.getReputation();
 
     if (profiles.length === 0) {
       this.root.innerHTML = '<p class="text-muted">Aucun marchand.</p>';
       return;
     }
 
-    this.root.innerHTML = profiles.map(profile => this._renderCard(profile)).join('');
+    const clanBlocks = CLANS.map(clan => {
+      const members = profiles.filter(p => p.clanId === clan.id);
+      const allied = alliance === clan.id;
+      const rivalOfAlly = alliance && getClanById(alliance)?.rivalId === clan.id;
+      const canJoin = !allied && rep >= (clan.joinRep || 8);
+      return `
+        <section class="clan-block" style="border-color:${clan.color}">
+          <header class="clan-head">
+            <div>
+              <h3>${clan.icon} ${clan.name}</h3>
+              <p class="text-muted">${clan.motto} · ${clan.specialty}</p>
+            </div>
+            <div class="clan-actions">
+              ${allied ? '<span class="mini-chip">Allié</span>' : ''}
+              ${rivalOfAlly ? '<span class="mini-chip">Rival</span>' : ''}
+              ${allied
+                ? `<button class="btn btn-small btn-ghost" data-leave-clan="1">Quitter</button>`
+                : `<button class="btn btn-small ${canJoin ? '' : 'btn-ghost'}" data-join-clan="${clan.id}" ${canJoin ? '' : 'disabled'} title="Réputation ${clan.joinRep}+">${canJoin ? "S'allier" : `Rep. ${clan.joinRep}`}</button>`}
+            </div>
+          </header>
+          <div class="npc-grid clan-members">
+            ${members.map(p => this._renderCard(p, clan, allied)).join('')}
+          </div>
+        </section>
+      `;
+    }).join('');
+
+    this.root.innerHTML = clanBlocks;
+    this.root.querySelectorAll('[data-join-clan]').forEach(btn => {
+      btn.addEventListener('click', () => this.onJoinClan && this.onJoinClan(btn.getAttribute('data-join-clan')));
+    });
+    this.root.querySelectorAll('[data-leave-clan]').forEach(btn => {
+      btn.addEventListener('click', () => this.onLeaveClan && this.onLeaveClan());
+    });
   }
 
-  _renderCard(profile) {
+  _renderCard(profile, clan, allied) {
     const inventoryQty = profile.inventory.reduce((sum, slot) => sum + slot.quantity, 0);
     const topInventory = profile.inventory.slice(0, 3).map(slot => {
       const item = getItemById(slot.itemId);
@@ -33,17 +73,20 @@ export class NpcUI {
       return `<li>${item?.icon || ''} ${verb} ${this.resolveName(other)} · ${this._formatMoney(tx.total)} €</li>`;
     }).join('');
 
+    const trust = typeof profile.trust === 'number' ? profile.trust : 0;
+    const trustLabel = trust > 0.3 ? 'vous fait confiance' : trust < -0.3 ? 'méfiant' : 'neutre';
+
     return `
       <article class="npc-card">
         <div class="npc-card-header">
           <div>
             <h3>${profile.name}</h3>
-            <p>${profile.personality} · activite ${(profile.aggressiveness * 100).toFixed(0)}%</p>
+            <p>${profile.personality} · ${(profile.aggressiveness * 100).toFixed(0)}% · ${clan?.icon || ''} ${clan?.name || ''}</p>
           </div>
           <strong class="text-money">${this._formatMoney(profile.capital)} €</strong>
         </div>
         <p class="npc-description">${profile.description}</p>
-        ${this._aiLine(profile)}
+        ${this._aiLine(profile, allied, trustLabel)}
         <div class="npc-tags">
           ${profile.preferredCategories.map(cat => `<span class="mini-chip">${cat}</span>`).join('')}
         </div>
@@ -65,7 +108,7 @@ export class NpcUI {
     `;
   }
 
-  _aiLine(profile) {
+  _aiLine(profile, allied, trustLabel) {
     const bits = [];
     if (profile.lastIntent) bits.push(`Dernière action : ${profile.lastIntent}`);
     if (profile.focusName) bits.push(`Focus : ${profile.focusName}`);
@@ -73,7 +116,9 @@ export class NpcUI {
       const mood = profile.mood > 0.35 ? 'confiant' : profile.mood < -0.35 ? 'tendu' : 'calme';
       bits.push(`Humeur : ${mood}`);
     }
+    bits.push(`Confiance : ${trustLabel}`);
     if (profile.rivalry > 0.45) bits.push('Rivalise avec vous');
+    if (allied) bits.push('Clan allié');
     if (!bits.length) return '';
     return `<p class="text-muted" style="font-size:0.82rem;margin:6px 0 0">${bits.join(' · ')}</p>`;
   }
