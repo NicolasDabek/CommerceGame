@@ -25,6 +25,15 @@ export function enhanceGame(game) {
     game.npcController.getNow = () => game.timeManager.now();
     game.npcController.getMsPerGameDay = () => game.timeManager.msPerGameDay;
     game.npcController.executeBid = (offer, npcId, amount) => game.auctionHouse.placeBid(offer, npcId, amount);
+    game.npcController.executeCancel = (offer, npcId) => {
+      if (!offer || offer.ownerId !== npcId || offer.status !== 'active') return { success: false };
+      if (offer.currentBidderId && offer.currentBid != null) {
+        const refund = Math.round(offer.currentBid * offer.quantity * 100) / 100;
+        if (game.auctionHouse.unlockFunds) game.auctionHouse.unlockFunds(offer.currentBidderId, refund);
+      }
+      offer.status = 'cancelled';
+      return { success: true };
+    };
     const run = game.npcController.runMatching;
     game.npcController.runMatching = (offer) => {
       setTimeout(() => {
@@ -54,6 +63,9 @@ export function enhanceGame(game) {
     origTick();
     if (game.timeManager.getCurrentDay() !== dayBefore) {
       game.jobBoard.onNewDay();
+      if (game.npcController && typeof game.npcController.onNewDay === 'function') {
+        game.npcController.onNewDay(game.timeManager.getCurrentDay());
+      }
       game.save();
     } else {
       game.jobBoard.ensureContracts();
@@ -119,6 +131,20 @@ export function enhanceGame(game) {
   game.salvageItem = (itemId, quality, perfection) => game.jobBoard.salvageOwn(itemId, quality, perfection);
   game.getJobsView = () => game.jobBoard.getView();
   game.getGameNow = () => game.timeManager.now();
+
+  const origProfiles = game.getNpcProfiles.bind(game);
+  game.getNpcProfiles = function() {
+    return origProfiles().map(p => {
+      const ai = game.npcController?.getAiSnapshot?.(p.id) || {};
+      return {
+        ...p,
+        lastIntent: ai.lastIntent || game.npcController?.npcStates?.[p.id]?.lastIntent || null,
+        mood: ai.mood ?? 0,
+        rivalry: ai.rivalry ?? 0,
+        focusName: ai.focusName || null
+      };
+    });
+  };
 
   game.getOrderBook = function(itemId) {
     const sells = game.offers.filter(o => o.type === 'sell' && o.status === 'active' && o.itemId === itemId);

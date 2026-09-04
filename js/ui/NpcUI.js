@@ -43,7 +43,7 @@ export class NpcUI {
           <strong class="text-money">${this._formatMoney(profile.capital)} €</strong>
         </div>
         <p class="npc-description">${profile.description}</p>
-        ${profile.lastIntent ? `<p class="text-muted" style="font-size:0.82rem;margin:6px 0 0">Dernière action : ${profile.lastIntent}</p>` : ''}
+        ${this._aiLine(profile)}
         <div class="npc-tags">
           ${profile.preferredCategories.map(cat => `<span class="mini-chip">${cat}</span>`).join('')}
         </div>
@@ -63,6 +63,19 @@ export class NpcUI {
         </div>
       </article>
     `;
+  }
+
+  _aiLine(profile) {
+    const bits = [];
+    if (profile.lastIntent) bits.push(`Dernière action : ${profile.lastIntent}`);
+    if (profile.focusName) bits.push(`Focus : ${profile.focusName}`);
+    if (typeof profile.mood === 'number') {
+      const mood = profile.mood > 0.35 ? 'confiant' : profile.mood < -0.35 ? 'tendu' : 'calme';
+      bits.push(`Humeur : ${mood}`);
+    }
+    if (profile.rivalry > 0.45) bits.push('Rivalise avec vous');
+    if (!bits.length) return '';
+    return `<p class="text-muted" style="font-size:0.82rem;margin:6px 0 0">${bits.join(' · ')}</p>`;
   }
 
   _formatMoney(amount) {
