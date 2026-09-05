@@ -1,6 +1,14 @@
 import { TownWorld } from './TownWorld.js';
 import { enhanceGame } from '../core/GamePatch.js';
 
+function hideLegacyPanels() {
+  document.querySelectorAll('.panel').forEach((p) => {
+    p.classList.remove('active');
+    p.style.setProperty('display', 'none', 'important');
+  });
+  document.getElementById('interior-overlay')?.classList.remove('open');
+}
+
 function inspect(info) {
   const el = document.getElementById('town-inspect');
   const status = document.getElementById('status-message');
@@ -36,12 +44,21 @@ function wireHud(game, world) {
 }
 
 function mount() {
+  hideLegacyPanels();
   if (!window.game) {
     requestAnimationFrame(mount);
     return;
   }
   const host = document.getElementById('town-canvas-host');
-  if (!host || window.townWorld) return;
+  if (!host) {
+    requestAnimationFrame(mount);
+    return;
+  }
+  if (window.townWorld) {
+    hideLegacyPanels();
+    requestAnimationFrame(() => window.townWorld.resize?.());
+    return;
+  }
   enhanceGame(window.game);
   const world = new TownWorld(host, window.game, {
     onOpenPanel: (panel) => window.showWorldPanel?.(panel),
@@ -49,11 +66,17 @@ function mount() {
   });
   world.start();
   requestAnimationFrame(() => world.resize());
+  setTimeout(() => world.resize(), 200);
   window.townWorld = world;
   wireHud(window.game, world);
+  hideLegacyPanels();
   window.addEventListener('panel-changed', (ev) => {
-    if (ev.detail?.panel === 'town') requestAnimationFrame(() => world.resize());
+    if (ev.detail?.panel === 'town') {
+      hideLegacyPanels();
+      requestAnimationFrame(() => world.resize());
+    }
   });
 }
 
+hideLegacyPanels();
 mount();
