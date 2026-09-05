@@ -58,35 +58,33 @@
             <button class="speed-btn" data-speed="60">60×</button>
           </div>
           <button class="btn btn-small btn-ghost" id="btn-reset-save">Reset</button>
-          <div class="rep-display" id="rep-display"><span id="rep-value">Rep. 0</span></div>
           <div class="money-display" id="money-display"><span class="money-icon">€</span><span class="money-value" id="money-value">1 250,00</span></div>
         </div>
       </header>
       <nav class="world-dock">
-        <button class="dock-btn" data-panel="inventory">🎒 Sac</button>
-        <button class="dock-btn" data-panel="goals">🎯 Objectifs</button>
-        <button class="dock-btn" data-panel="history">📜 Carnet</button>
-        <button class="dock-btn" id="btn-town-recenter">⌖ Recadrer</button>
+        <button class="dock-btn" data-panel="inventory">Sac</button>
+        <button class="dock-btn" data-panel="goals">Objectifs</button>
+        <button class="dock-btn" data-panel="history">Carnet</button>
+        <button class="dock-btn" id="btn-town-recenter">Recadrer</button>
       </nav>
       <aside id="town-inspect" hidden></aside>
     </div>
     <div id="interior-overlay">
       <div class="interior-bar">
-        <button class="btn btn-primary" id="btn-exit-interior">← Sortir dans la rue</button>
-        <span class="text-muted">Les comptoirs restent des registres. La ville est dehors.</span>
+        <button class="btn btn-primary" id="btn-exit-interior">Sortir dans la rue</button>
       </div>
       <div class="interior-body">
-      <section class="panel" id="panel-history"><div class="panel-header"><h2>Historique</h2></div><div class="table-container"><table class="data-table" id="history-table"><thead><tr><th>Date</th><th>Objet</th><th>Qté</th><th>Prix</th><th>Total</th><th>Vendeur</th><th>Acheteur</th><th>Type</th><th>Lecture</th></tr></thead><tbody id="history-body"></tbody></table></div></section>
-      <section class="panel" id="panel-auction"><div class="panel-header"><h2>Hôtel de vente</h2><button class="btn btn-primary" id="btn-new-sell">+ Vendre</button></div><div class="tabs"><button class="tab active" data-tab="active-sells">Annonces</button><button class="tab" data-tab="my-sells">Mes annonces</button></div><div class="table-container"><table class="data-table" id="auction-table"><thead><tr><th>Objet</th><th>Qté</th><th>Prix</th><th>Achat imm.</th><th>Vendeur</th><th>Expire</th><th>Actions</th></tr></thead><tbody id="auction-body"></tbody></table></div></section>
-      <section class="panel" id="panel-buyhouse"><div class="panel-header"><h2>Hôtel d'achat</h2><button class="btn btn-primary" id="btn-new-buy">+ Offre d'achat</button></div><div class="tabs"><button class="tab active" data-tab="active-buys">Offres</button><button class="tab" data-tab="my-buys">Mes offres</button></div><div class="table-container"><table class="data-table" id="buyhouse-table"><thead><tr><th>Objet</th><th>Qté</th><th>Prix</th><th>Acheteur</th><th>Expire</th><th>Actions</th></tr></thead><tbody id="buyhouse-body"></tbody></table></div></section>
+      <section class="panel" id="panel-history"><div class="panel-header"><h2>Historique</h2></div><div class="table-container"><table class="data-table" id="history-table"><thead><tr><th>Date</th><th>Objet</th><th>Qte</th><th>Prix</th><th>Total</th><th>Vendeur</th><th>Acheteur</th><th>Type</th><th>Lecture</th></tr></thead><tbody id="history-body"></tbody></table></div></section>
+      <section class="panel" id="panel-auction"><div class="panel-header"><h2>Hotel de vente</h2><button class="btn btn-primary" id="btn-new-sell">+ Vendre</button></div><div class="tabs"><button class="tab active" data-tab="active-sells">Annonces</button><button class="tab" data-tab="my-sells">Mes annonces</button></div><div class="table-container"><table class="data-table" id="auction-table"><thead><tr><th>Objet</th><th>Qte</th><th>Prix</th><th>Achat imm.</th><th>Vendeur</th><th>Expire</th><th>Actions</th></tr></thead><tbody id="auction-body"></tbody></table></div></section>
+      <section class="panel" id="panel-buyhouse"><div class="panel-header"><h2>Hotel d'achat</h2><button class="btn btn-primary" id="btn-new-buy">+ Offre d'achat</button></div><div class="tabs"><button class="tab active" data-tab="active-buys">Offres</button><button class="tab" data-tab="my-buys">Mes offres</button></div><div class="table-container"><table class="data-table" id="buyhouse-table"><thead><tr><th>Objet</th><th>Qte</th><th>Prix</th><th>Acheteur</th><th>Expire</th><th>Actions</th></tr></thead><tbody id="buyhouse-body"></tbody></table></div></section>
       <section class="panel" id="panel-inventory"><div class="panel-header"><h2>Inventaire</h2><span id="inventory-slots"></span></div><div class="inventory-categories" id="inventory-categories"><button class="category-btn active" data-category="all">Tout</button></div><div class="inventory-grid" id="inventory-grid"></div></section>
-      <section class="panel" id="panel-market"><div class="panel-header"><h2>Marché</h2><select id="market-category" class="select"><option value="all">Tout</option></select></div><div class="market-events" id="market-events"></div><div class="table-container"><table class="data-table" id="market-table"><thead><tr><th>Objet</th><th>Prix moyen</th><th>Vente</th><th>Achat</th><th>Spread</th><th>Volume</th><th>Tendance</th><th>Graphique</th></tr></thead><tbody id="market-body"></tbody></table></div></section>
+      <section class="panel" id="panel-market"><div class="panel-header"><h2>Marche</h2><select id="market-category" class="select"><option value="all">Tout</option></select></div><div class="market-events" id="market-events"></div><div class="table-container"><table class="data-table" id="market-table"><thead><tr><th>Objet</th><th>Prix moyen</th><th>Vente</th><th>Achat</th><th>Spread</th><th>Volume</th><th>Tendance</th><th>Graphique</th></tr></thead><tbody id="market-body"></tbody></table></div></section>
       <section class="panel" id="panel-npcs"><div class="panel-header"><h2>Marchands</h2><p id="clan-status"></p></div><div class="npc-grid" id="npc-grid"></div></section>
       <section class="panel" id="panel-jobs"><div class="panel-header"><h2>Atelier</h2><span id="jobs-vault"></span></div><div id="jobs-root" class="jobs-root"></div></section>
       <section class="panel" id="panel-goals"><div class="panel-header"><h2>Objectifs</h2><div id="progress-summary"></div></div><div class="goals-grid" id="goals-grid"></div></section>
       </div>
     </div>
-    <div class="modal-overlay hidden" id="modal-overlay"><div class="modal" id="modal"><div class="modal-header"><h3 id="modal-title"></h3><button class="modal-close" id="modal-close">×</button></div><div class="modal-body" id="modal-body"></div><div class="modal-footer" id="modal-footer"></div></div></div>
+    <div class="modal-overlay hidden" id="modal-overlay"><div class="modal" id="modal"><div class="modal-header"><h3 id="modal-title"></h3><button class="modal-close" id="modal-close">x</button></div><div class="modal-body" id="modal-body"></div><div class="modal-footer" id="modal-footer"></div></div></div>
   </div>
   <script>
     window.showWorldPanel = function (target) {
@@ -108,5 +106,6 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') window.showWorldPanel('town'); });
   </script>
   <script type="module" src="js/main.js"></script>
+  <script type="module" src="js/world/mount.js"></script>
 </body>
 </html>
