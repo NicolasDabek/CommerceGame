@@ -1,0 +1,17 @@
+/* Écrase l'ancien .panel.active qui réaffichait l'UI 2D au chargement */
+body.world-mode .panel,
+body.world-mode .panel.active {
+  display: none !important;
+}
+body.world-mode #interior-overlay.open .panel.active {
+  display: flex !important;
+  flex-direction: column;
+}
+body.world-mode #app {
+  max-width: none;
+}
+body.world-mode .main-nav,
+body.world-mode .header,
+body.world-mode .footer {
+  display: none !important;
+}
