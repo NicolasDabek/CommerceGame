@@ -26,6 +26,16 @@ npm test
 Le workflow GitHub Pages publie le site depuis `main`.
 À activer une fois : Settings → Pages → GitHub Actions.
 
+## Commerce — lire le marché
+
+Les panneaux d'hôtel de vente / d'achat, de marché et d'inventaire affichent le **contexte prix** déjà calculé par le jeu (moyenne, haut/bas, dernière vente, carnet, stock, marge estimée) :
+
+- **Hôtel de vente** : recherche, catégories, « meilleures offres », badge *Bonne affaire / Cher*, sac et bouton Acheter désactivé si capital insuffisant
+- **Hôtel d'achat** : stock + marge vs votre coût moyen avant de vendre
+- **Marché** : tri par opportunité (écart, bonne affaire, marge, volume) + sparklines
+- **Inventaire** : fiche détail à droite, valeur estimée du sac, *Mettre en vente* / *Vendre à l'hôtel d'achat*
+- **Modales** : boutons de quantité 1 / ½ / Max, fiche insight et aperçu des frais
+
 ## Monde 3D — contrôles
 
 - **ZQSD** (AZERTY) / **WASD** (QWERTY) ou **flèches** : marcher (la caméra suit)
