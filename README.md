@@ -18,14 +18,15 @@ Les modules ES ne fonctionnent pas en `file://`. Alternatives : `npm start` ou `
 ## Tests
 
 ```bash
-npm test          # tests unitaires (économie, IA des PNJ, Comptoir, matching…) + test de stabilité sur 60 jours
+npm test          # tests unitaires (économie, offre/demande, IA et métiers des PNJ, atelier, suivi & ordres, Comptoir, matching…) + stabilité 60 jours
 npm run sim       # simulation headless de l'économie (120 jours, 3 graines)
 npm run sim -- --days=365 --seeds=5 --every=30
 npm run sim -- --json
 ```
 
 La simulation fait tourner les 15 PNJ sans navigateur ni réseau (horloge virtuelle, hasard déterministe)
-et affiche jour par jour le niveau des prix, la masse monétaire, la trésorerie du Comptoir, le stock et le volume.
+et affiche jour par jour le niveau des prix, la masse monétaire, la trésorerie du Comptoir, le stock et le volume,
+plus les indicateurs d'offre et de demande : pénuries par jour, durée des pénuries, consommation et demande non servie de la ville.
 
 ## Déploiement
 
@@ -58,13 +59,53 @@ Les panneaux d'hôtel de vente / d'achat, de marché et d'inventaire affichent l
 - **Lisibilité** : carte *Santé de l'économie* dans le Marché (niveau des prix, masse monétaire, Comptoir, activité),
   pastille dans la barre du haut, et pastille « pourquoi ce prix ? » sous chaque prix moyen.
 
+## Offre et demande
+
+- **Demande de la ville** : population (80–140 habitants, grandit quand la ville est bien servie) × besoins par catégorie
+  × **saison** (cycle de 4 saisons de 7 jours : outils au printemps, nourriture l'été, électronique à l'automne, vêtements l'hiver)
+  × événements. Chaque jour, la ville achète ces objets chez les marchands ; ~30 % des objets durables reviennent **abîmés** sur le marché.
+- **Couverture** = stock utilisable (marchands + annonces + Comptoir, hors objets abîmés) ÷ demande quotidienne.
+  Pénurie < 2 jours, tendu < 5 jours, surplus > 30 jours. La rareté pousse le prix de −8 % à +30 % (élasticité bornée,
+  lissée à 30 %/jour) : c'est un facteur visible dans « pourquoi ce prix ? ».
+- La Halle des prix affiche une colonne **Offre / demande** (pastille, stock, demande/jour, jauge, info-bulle « pourquoi »),
+  une tuile **Saison & population** et un tri « Pénurie ».
+
 ## IA des marchands
 
 Chaque PNJ raisonne à partir d'un **prix de référence** (60 % moyenne du marché + 40 % valeur normale, ajusté à la qualité) :
 annonces bornées entre 78 % et 145 % de ce prix, achats plafonnés à 115 % (125 % pour un collectionneur sur ses favoris),
 stock cible par personnalité, réaction aux pénuries et surplus, rivalité de clan, confiance envers le joueur,
 budget d'actions quotidien et délai avant de remettre en vente un objet retiré. Les cartes Marchands affichent
-la stratégie, la dernière intention **et sa raison**, la trésorerie, le stock vs cible, les besoins et la confiance.
+la stratégie, le métier, la dernière intention **et sa raison**, la trésorerie, le stock vs cible, les besoins et la confiance.
+
+Chaque marchand a un **métier** :
+- **Producteur** (6) : fabrique en priorité ce qui manque à la ville, même avant d'être à court ;
+- **Négociant** (3) : arbitrage hôtel de vente → hôtel d'achat (marge ≥ 6 % après taxe), achète avant les pénuries annoncées ;
+- **Réparateur** (3) : rachète les objets abîmés quand la réparation est rentable et les remet en état (matériaux payés au Comptoir) ;
+- **Collectionneur** (3) : garde ses pièces favorites.
+
+Tous anticipent (stock qui fond), affichent l'objet absent des étals en premier et réagissent au joueur :
+s'il achète beaucoup un objet, les prix d'annonce montent un peu ; s'il en vend beaucoup, les offres d'achat baissent.
+
+## Métiers du joueur & atelier
+
+- Trois métiers progressent de 1 à 5 (0 / 40 / 120 / 250 / 450 XP) : **Réparateur** (fournitures −6 %/niv., temps −10 %/niv.,
+  2ᵉ place d'établi au niv. 3, 3ᵉ au niv. 5, objets rares au niv. 2, épiques au niv. 3), **Artisan** (recettes, qualité +3/niv.),
+  **Négociant** (prime des contrats +4 %/niv., 4ᵉ contrat au niv. 3, places d'ordres permanents). Anciennes sauvegardes :
+  l'expérience est reconstituée depuis les statistiques.
+- **Établi minuté** : réparation rapide (+15 points, 4 h de jeu, 1 cuivre/bois) ou remise à neuf (niv. 2, jusqu'à Q85+2×niv., 10 h,
+  composants ou cuivre). L'objet quitte le sac et revient tout seul. Fournitures = 2 € + points × prix × 0,15 %, versées au
+  Comptoir (puits d'argent). Chaque option affiche les matériaux, le temps et le **profit attendu** ; le coût entre dans le prix de revient.
+- **Bonnes affaires à retaper** : annonces d'objets abîmés dont réparation + revente est rentable, avec bouton Acheter.
+- **Contrats du Comptoir** liés aux pénuries réelles (les 2 stocks les plus bas + 1 commande courante), payés par la trésorerie
+  du Comptoir ; les objets livrés rejoignent son stock. **Commandes des marchands** : un PNJ paie ~10 % au-dessus du marché avec son argent.
+
+## Suivi & ordres (bouton « Suivi »)
+
+- **Liste de suivi** (★ dans la Halle des prix, 10 objets) avec **alertes** « achat ≤ » / « vente ≥ » et alerte de pénurie ; badge non lu.
+- **Ordres d'achat permanents** : une offre d'achat d'1 jour replacée automatiquement chaque jour (2 places, plus avec Négociant).
+- **Bilan (P&L)** : marge réalisée par objet, contrats & services, coûts d'atelier, frais d'annonce, résultat net, latent du stock,
+  barres des 14 derniers jours ; résumé dans le Carnet.
 
 ## Monde 3D — contrôles
 
@@ -99,6 +140,8 @@ Reset sauvegarde : bouton **Reset** ou `localStorage.clear(); location.reload();
 - Hôtel d’achat : offres multiples, capital bloqué, bouton Vendre
 - Matching FIFO au prix de vente, surplus rendu à l’acheteur
 - Économie : prix moyens, inflation, événements **réversibles**, Comptoir municipal régulateur, santé de l'économie
+- Offre et demande par objet (population, saisons, consommation, objets usés), métiers des PNJ et du joueur, établi minuté
+- Suivi & alertes, ordres d'achat permanents, bilan P&L, commandes des marchands
 - 24 objets, 15 PNJ, objectifs, graphique de prix (sparkline)
 - Sauvegarde localStorage plafonnée
 
@@ -110,9 +153,9 @@ Reset sauvegarde : bouton **Reset** ou `localStorage.clear(); location.reload();
 ├── css/style.css     # + fonts.css (polices locales), world-override.css (HUD du monde 3D)
 ├── js/
 │   ├── main.js
-│   ├── core/          # Game, Economy, TimeManager, EventBus, Goals
+│   ├── core/          # Game, Economy, SupplyDemand, condition (état des objets), TimeManager, GamePatch
 │   ├── models/
-│   ├── systems/
+│   ├── systems/       # PNJ, Comptoir, JobBoard (métiers/atelier), TradingDesk (suivi/ordres/bilan)…
 │   ├── ui/
 │   ├── world/         # TownWorld (place 3D) + mount (branchement sur index.html)
 │   ├── data/

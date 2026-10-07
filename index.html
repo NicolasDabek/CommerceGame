@@ -66,6 +66,7 @@
         <button class="dock-btn" data-panel="inventory">Sac</button>
         <button class="dock-btn" data-panel="goals">Objectifs</button>
         <button class="dock-btn" data-panel="history">Carnet</button>
+        <button class="dock-btn" data-panel="trading" title="Liste de suivi, alertes de prix, ordres permanents et bilan">Suivi <span class="dock-badge" id="trading-badge" hidden></span></button>
         <button class="dock-btn" id="btn-town-recenter">Recadrer</button>
       </nav>
       <aside id="town-inspect" hidden></aside>
@@ -79,6 +80,7 @@
         <div class="panel-header">
           <h2>Historique</h2>
         </div>
+        <div id="history-summary" class="history-summary"></div>
         <div class="filters-bar trade-filters">
           <select id="filter-type" class="select">
             <option value="all">Tous les types</option>
@@ -173,16 +175,17 @@
               <option value="discount">Bonne affaire achat</option>
               <option value="margin">Marge revente</option>
               <option value="volume">Volume</option>
+              <option value="shortage">Pénurie (stock bas)</option>
             </select>
           </div>
         </div>
         <div id="economy-health"></div>
         <div class="market-events" id="market-events"></div>
-        <p class="trade-hint text-muted">Haut/bas et graphique = historique local · Marge = si vous vendez à la meilleure offre d'achat · Survolez la pastille sous le prix moyen pour savoir pourquoi il a bougé</p>
+        <p class="trade-hint text-muted">Haut/bas et graphique = historique local · Marge = si vous vendez à la meilleure offre d'achat · Survolez la pastille sous le prix moyen pour savoir pourquoi il a bougé · Offre / demande = jours de stock face à la consommation de la ville · ☆ = suivre l'objet</p>
         <div class="table-container">
           <table class="data-table" id="market-table">
             <thead><tr>
-              <th>Objet</th><th>Moyen</th><th>Haut / bas</th><th>Vente</th><th>Achat</th><th>Écart</th><th>Vous</th><th>Volume</th><th>Tendance</th><th>Graphique</th>
+              <th>Objet</th><th>Moyen</th><th title="Stock disponible face à la demande de la ville. Survolez une pastille pour le détail.">Offre / demande</th><th>Haut / bas</th><th>Vente</th><th>Achat</th><th>Écart</th><th>Vous</th><th>Volume</th><th>Tendance</th><th>Graphique</th>
             </tr></thead>
             <tbody id="market-body"></tbody>
           </table>
@@ -190,6 +193,7 @@
       </section>
       <section class="panel" id="panel-npcs"><div class="panel-header"><h2>Marchands</h2><p id="clan-status"></p></div><div class="npc-grid" id="npc-grid"></div></section>
       <section class="panel" id="panel-jobs"><div class="panel-header"><h2>Atelier</h2><span id="jobs-vault"></span></div><div id="jobs-root" class="jobs-root"></div></section>
+      <section class="panel" id="panel-trading"><div class="panel-header"><h2>Suivi &amp; ordres</h2><span class="text-muted">alertes de prix · achats automatiques · bilan</span></div><div id="trading-root" class="trading-root"></div></section>
       <section class="panel" id="panel-goals"><div class="panel-header"><h2>Objectifs</h2><div id="progress-summary"></div></div><div class="goals-grid" id="goals-grid"></div></section>
       </div>
     </div>

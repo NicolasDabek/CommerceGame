@@ -20,6 +20,27 @@ function mulberry32(seed) {
 }
 
 const r3 = (n) => Math.round(n * 1000) / 1000;
+
+/* Demande de référence (unités / jour) pour mesurer la couverture de façon identique avant / après */
+const REF_CAT = { 'Nourriture': 1.6, 'Ressources': 1.0, 'Outils': 0.5, 'Vêtements': 0.6, 'Électronique': 0.5, 'Divers': 0.3 };
+const REF_RARITY = { 'Commun': 1, 'Rare': 0.5, 'Épique': 0.25 };
+function refDemand(item) {
+  return (REF_CAT[item.category] ?? 0.5) * (REF_RARITY[item.rarity] ?? 1);
+}
+
+/** Pénuries : objet sans aucune annonce (hors Comptoir) ou couverture < 1 jour de demande. */
+function supplyByItem(game, ITEMS) {
+  const units = {};
+  const listed = {};
+  ITEMS.forEach(i => { units[i.id] = 0; listed[i.id] = 0; });
+  Object.values(game.npcController.npcStates).forEach(st => st.inventory.forEach(sl => { units[sl.itemId] = (units[sl.itemId] || 0) + sl.quantity; }));
+  game.offers.forEach(o => {
+    if (o.status !== 'active' || o.type !== 'sell') return;
+    units[o.itemId] = (units[o.itemId] || 0) + o.quantity;
+    if (o.ownerId !== 'city') listed[o.itemId] = (listed[o.itemId] || 0) + o.quantity;
+  });
+  return ITEMS.map(i => ({ id: i.id, units: units[i.id] || 0, listed: listed[i.id] || 0, coverage: (units[i.id] || 0) / refDemand(i) }));
+}
 const avg = (arr) => (arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0);
 
 function moneySupply(game) {
@@ -101,6 +122,10 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000 } =
       const series = [];
       const msPerDay = game.timeManager.msPerGameDay / game.timeManager.speed;
       let txBefore = 0;
+      const shortSince = {};
+      const shortByItem = {};
+      const shortNoListing = {};
+      const shortDurations = [];
       const start = { money: moneySupply(game), stock: stock(game), price: priceIndex(game, ITEMS) };
 
       for (let day = 1; day <= days; day++) {
@@ -115,6 +140,21 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000 } =
         const m = moneySupply(game);
         const s = stock(game);
         // Opportunités pour un joueur : annonces au moins 10 % sous la valeur normale (ajustée Q/P)
+        const sup = supplyByItem(game, ITEMS);
+        let shortNow = 0;
+        sup.forEach(x => {
+          const short = x.listed === 0 || x.coverage < 1;
+          if (short) {
+            shortNow += 1;
+            shortByItem[x.id] = (shortByItem[x.id] || 0) + 1;
+            if (x.listed === 0) shortNoListing[x.id] = (shortNoListing[x.id] || 0) + 1;
+            if (shortSince[x.id] == null) shortSince[x.id] = day;
+          } else if (shortSince[x.id] != null) {
+            shortDurations.push(day - shortSince[x.id]);
+            delete shortSince[x.id];
+          }
+        });
+        const covs = sup.map(x => x.coverage).sort((a, b) => a - b);
         const deals = game.offers.filter(o => {
           if (o.status !== 'active' || o.type !== 'sell') return false;
           const fair = game.economy.getFairValue(o.itemId);
@@ -135,11 +175,20 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000 } =
           reserveStock: s.reserve,
           offers: game.offers.filter(o => o.status === 'active').length,
           deals,
+          shortages: shortNow,
+          coverageMedian: r3(covs[Math.floor(covs.length / 2)]),
+          // Demande de la ville non servie (SupplyDemand) et rareté extrême
+          unmet: game.supplyDemand ? Object.values(game.supplyDemand.items).reduce((t, it) => t + (it.unmet || 0), 0) : null,
+          consumed: game.supplyDemand ? Object.values(game.supplyDemand.items).reduce((t, it) => t + (it.consumed || 0), 0) : null,
+          cityShort: game.supplyDemand ? Object.keys(game.supplyDemand.items).filter(id => game.supplyDemand.getView(id).status === 'shortage').length : null,
+          scarcityMin: game.economy.scarcity ? r3(Math.min(1, ...Object.values(game.economy.scarcity))) : 1,
+          scarcityMax: game.economy.scarcity ? r3(Math.max(1, ...Object.values(game.economy.scarcity))) : 1,
           tx: txCount - txBefore
         });
         txBefore = txCount;
       }
-      runs.push({ seed, start, series, reserveStats: game.reserve ? { ...game.reserve.stats } : null });
+      Object.values(shortSince).forEach(since => shortDurations.push(days + 1 - since));
+      runs.push({ seed, start, series, shortDurations, shortByItem, shortNoListing, cityResolved: game.supplyDemand ? [...game.supplyDemand.resolved] : null, reserveStats: game.reserve ? { ...game.reserve.stats } : null });
     }
   } finally {
     Date.now = realNow;
@@ -177,6 +226,15 @@ export function summarize(runs, days, seeds, elapsedMs) {
     zeroTxDays: tx.filter(v => v === 0).length,
     offersEnd: Math.round(avg(last.map(l => l.offers))),
     dealsPerDay: Math.round(avg(runs.flatMap(r => r.series.map(p => p.deals ?? 0))) * 10) / 10,
+    shortagesPerDay: Math.round(avg(runs.flatMap(r => r.series.map(p => p.shortages ?? 0))) * 10) / 10,
+    shortageDays: Math.round(avg(runs.flatMap(r => r.shortDurations || [])) * 10) / 10,
+    shortageLongest: Math.max(0, ...runs.flatMap(r => r.shortDurations || [])),
+    coverageMedian: Math.round(avg(runs.flatMap(r => r.series.map(p => p.coverageMedian ?? 0))) * 10) / 10,
+    cityConsumedPerDay: runs[0]?.series[0]?.consumed == null ? null : Math.round(avg(runs.flatMap(r => r.series.map(p => p.consumed || 0))) * 10) / 10,
+    cityUnmetPerDay: runs[0]?.series[0]?.unmet == null ? null : Math.round(avg(runs.flatMap(r => r.series.map(p => p.unmet || 0))) * 10) / 10,
+    cityShortagesPerDay: runs[0]?.series[0]?.cityShort == null ? null : Math.round(avg(runs.flatMap(r => r.series.map(p => p.cityShort || 0))) * 10) / 10,
+    cityShortageResolveDays: runs[0]?.cityResolved == null ? null : Math.round(avg(runs.flatMap(r => r.cityResolved)) * 10) / 10,
+    scarcityBand: [r3(Math.min(...runs.flatMap(r => r.series.map(p => p.scarcityMin ?? 1)))), r3(Math.max(...runs.flatMap(r => r.series.map(p => p.scarcityMax ?? 1))))],
     elapsedMs
   };
 }

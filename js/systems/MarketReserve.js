@@ -45,7 +45,7 @@ export class MarketReserve {
     this.treasury = saved.treasury ?? RESERVE_TUNING.startTreasury;
     this.stock = saved.stock || this._starterStock();
     this.stats = {
-      taxes: 0, fees: 0, production: 0, sold: 0, bought: 0, aid: 0, subsidies: 0, destroyed: 0, interventions: 0, procurement: 0, used: 0,
+      taxes: 0, fees: 0, production: 0, sold: 0, bought: 0, aid: 0, subsidies: 0, destroyed: 0, interventions: 0, procurement: 0, used: 0, workshop: 0, contracts: 0,
       ...(saved.stats || {})
     };
     this.lastActions = saved.lastActions || [];

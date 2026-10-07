@@ -3,7 +3,7 @@
  */
 
 import { ITEMS, getItemById } from '../data/items.js';
-import { formatMoney, formatPct, sparkline, marginHtml, dealBadge, priceWhyChip, economyHealthHtml } from './TradeInsights.js';
+import { formatMoney, formatPct, sparkline, marginHtml, dealBadge, priceWhyChip, economyHealthHtml, supplyCellHtml } from './TradeInsights.js';
 
 export class MarketUI {
   constructor(options = {}) {
@@ -11,6 +11,8 @@ export class MarketUI {
     this.getEvents = options.getEvents || (() => []);
     this.getEconomyHealth = options.getEconomyHealth || null;
     this.getMsPerGameDay = options.getMsPerGameDay || (() => 24 * 60 * 60 * 1000);
+    this.isWatched = options.isWatched || (() => false);
+    this.onToggleWatch = options.onToggleWatch || null;
     this.healthEl = document.getElementById('economy-health');
     this.tbody = document.getElementById('market-body');
     this.eventsEl = document.getElementById('market-events');
@@ -64,13 +66,16 @@ export class MarketUI {
     if (rows.length === 0) {
       this.tbody.innerHTML = `
         <tr class="empty-row">
-          <td colspan="10">Aucune donnée de marché</td>
+          <td colspan="11">Aucune donnée de marché</td>
         </tr>
       `;
       return;
     }
 
     this.tbody.innerHTML = rows.map(row => this._renderRow(row)).join('');
+    this.tbody.querySelectorAll('[data-watch]').forEach(btn => {
+      btn.addEventListener('click', () => this.onToggleWatch?.(btn.dataset.watch));
+    });
   }
 
   _sortRows(rows) {
@@ -84,6 +89,8 @@ export class MarketUI {
         return copy.sort((a, b) => (b.marginIfSellToBestBuyPct ?? -Infinity) - (a.marginIfSellToBestBuyPct ?? -Infinity));
       case 'volume':
         return copy.sort((a, b) => b.volume - a.volume);
+      case 'shortage':
+        return copy.sort((a, b) => (a.supply?.coverage ?? 99) - (b.supply?.coverage ?? 99));
       default:
         return copy.sort((a, b) => a.item.category.localeCompare(b.item.category) || a.item.name.localeCompare(b.item.name));
     }
@@ -147,10 +154,15 @@ export class MarketUI {
       || (row.marginIfSellToBestBuyPct != null && row.marginIfSellToBestBuyPct >= 15)
       ? 'row-deal' : '';
 
+    const watched = this.isWatched(row.item.id);
+    const star = this.onToggleWatch
+      ? `<button class="watch-star ${watched ? 'on' : ''}" data-watch="${row.item.id}" title="${watched ? 'Retirer du suivi' : 'Suivre cet objet (alertes de prix)'}" aria-label="Suivre">${watched ? '★' : '☆'}</button>`
+      : '';
     return `
-      <tr class="${dealClass}">
-        <td>${item?.icon || ''} ${item?.name || row.item.id}<br><small class="text-muted">${row.item.category} · ${row.item.rarity}</small></td>
+      <tr class="${dealClass}" data-item-row="${row.item.id}">
+        <td>${star}${item?.icon || ''} ${item?.name || row.item.id}<br><small class="text-muted">${row.item.category} · ${row.item.rarity}</small></td>
         <td class="text-money">${formatMoney(row.average)} €${row.explanation ? `<br>${priceWhyChip(row.explanation)}` : ''}</td>
+        <td>${supplyCellHtml(row.supply)}</td>
         <td class="text-muted">${hiLo}</td>
         <td>${bestSell}${row.sellCount ? `<br><small class="text-muted">${row.sellCount} ann.</small>` : ''}</td>
         <td>${bestBuy}${row.buyCount ? `<br><small class="text-muted">${row.buyCount} off.</small>` : ''}</td>

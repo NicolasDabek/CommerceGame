@@ -6,8 +6,12 @@ import { run as runInsight } from './insight.test.js';
 import { run as runNpc } from './npc.test.js';
 import { run as runReserve } from './reserve.test.js';
 import { run as runStability } from './stability.test.js';
+import { run as runSupply } from './supply.test.js';
+import { run as runProfessions } from './professions.test.js';
+import { run as runJobs } from './jobs.test.js';
+import { run as runTrading } from './trading.test.js';
 
-const suites = [runMatching, runEconomy, runInventory, runAuction, runInsight, runNpc, runReserve, runStability];
+const suites = [runMatching, runEconomy, runInventory, runAuction, runInsight, runNpc, runReserve, runSupply, runProfessions, runJobs, runTrading, runStability];
 let failed = 0;
 
 for (const suite of suites) {

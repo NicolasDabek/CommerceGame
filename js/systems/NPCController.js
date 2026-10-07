@@ -5,9 +5,10 @@
  * Garde-fous : prix d'annonce bornés, achats plafonnés, budget d'actions quotidien, délais par objet.
  */
 
-import { NPCS, getClanById } from '../data/npcs.js';
+import { NPCS, getClanById, getNpcProfession } from '../data/npcs.js';
 import { ITEMS, getItemById } from '../data/items.js';
 import { Offer } from '../models/Offer.js';
+import { conditionMultiplier, conditionLabel, isRepairable } from '../core/condition.js';
 
 /** Profils de stratégie par personnalité (ratios exprimés par rapport au prix de référence). */
 export const PERSONALITY_PROFILES = {
@@ -57,7 +58,11 @@ export const NPC_TUNING = {
   listingFeeRate: 0.5,       // les PNJ paient la moitié des frais du joueur
   actionBase: 4,             // budget d'actions par jour : 4 + agressivité × 6
   actionAggr: 6,
-  cooldownDays: 0.5          // délai avant de remettre en vente un objet retiré
+  cooldownDays: 0.5,         // délai avant de remettre en vente un objet retiré
+  arbitrageMargin: 0.06,     // marge minimale d'un arbitrage (après taxe)
+  repairCostRatio: 0.12,     // coût matériaux d'une remise en état (× valeur normale)
+  repairsPerDay: 2,
+  damagedQuality: 35         // sous cet état, un objet est « abîmé »
 };
 
 function round2(n) {
@@ -88,6 +93,10 @@ export class NPCController {
     this.getNow = options.getNow || (() => Date.now());
     this.getMsPerGameDay = options.getMsPerGameDay || (() => 24 * 60 * 60 * 1000);
     this.getPlayerAlliance = options.getPlayerAlliance || (() => null);
+    /** Vue offre / demande d'un objet (SupplyDemand.getView) — optionnelle. */
+    this.getSupplyView = options.getSupplyView || null;
+    /** true quand la consommation est gérée par la ville (SupplyDemand) */
+    this.externalConsumption = !!options.externalConsumption;
     this._bookCache = null;
     this.npcStates = {};
     NPCS.forEach(npc => { this.npcStates[npc.id] = this._freshState(npc); });
@@ -100,7 +109,7 @@ export class NPCController {
       capital: npc.capital, inventory: this._generateStarterInventory(npc),
       lastActionAt: 0, lastIntent: null, lastReason: null, mood: 0, rivalry: 0,
       focusItemId: null, focusUntil: 0, lossesVsPlayer: 0, winsVsPlayer: 0, dayHint: 0,
-      trust: 0, actionsToday: 0, cooldowns: {}, journal: [], produced: 0, consumed: 0
+      trust: 0, actionsToday: 0, cooldowns: {}, journal: [], produced: 0, consumed: 0, repaired: 0, arbitrages: 0
     };
   }
 
@@ -130,6 +139,14 @@ export class NPCController {
 
   profileOf(npc) {
     return PERSONALITY_PROFILES[npc.personality] || PERSONALITY_PROFILES.opportuniste;
+  }
+
+  professionOf(npc) {
+    return getNpcProfession(npc);
+  }
+
+  isProducer(npc) {
+    return !!(this.professionOf(npc).produces || this.profileOf(npc).producer);
   }
 
   _reserveRatio(npc) { return this.profileOf(npc).reserve; }
@@ -195,9 +212,22 @@ export class NPCController {
   marketSignal(itemId) {
     const book = this._book(itemId);
     const fair = this.getFairPrice(itemId);
-    const shortage = book.sellQty === 0 || book.buyQty > book.sellQty * 1.5;
-    const surplus = book.sellQty >= 6 || (book.bestSell != null && fair > 0 && book.bestSell < fair * 0.85);
-    return { book, fair, shortage: shortage && !surplus, surplus };
+    const view = this.getSupplyView ? this.getSupplyView(itemId) : null;
+    let shortage = book.sellQty === 0 || book.buyQty > book.sellQty * 1.5;
+    let surplus = book.sellQty >= 6 || (book.bestSell != null && fair > 0 && book.bestSell < fair * 0.85);
+    if (view) {
+      // La ville manque de cet objet (stock < 1,5 jour de demande) ou en déborde
+      if (view.status === 'shortage') shortage = true;
+      if (view.status === 'surplus') surplus = true;
+      if (view.status === 'shortage' || view.status === 'tight') surplus = false;
+    }
+    return {
+      book, fair, view,
+      shortage: shortage && !surplus,
+      surplus,
+      anticipate: !!view?.anticipate,
+      playerFlow: view?.playerFlow || 0
+    };
   }
 
   _isRival(npc, ownerId) {
@@ -219,7 +249,8 @@ export class NPCController {
       state.mood = Math.max(-1, Math.min(1, state.mood * 0.72));
       state.trust = Math.max(-1, Math.min(1, state.trust * 0.97));
       if (state.capital < npc.capital * 0.12) state.mood = Math.max(-1, state.mood - 0.15);
-      this._consume(npc, state);
+      if (!this.externalConsumption) this._consume(npc, state);
+      this._repairOwnStock(npc, state);
       this._produce(npc, state);
       this._pickFocus(npc, state);
     });
@@ -245,22 +276,27 @@ export class NPCController {
   /** Fabrication / approvisionnement quand le stock est sous la cible (coût payé au Comptoir). */
   _produce(npc, state) {
     const profile = this.profileOf(npc);
+    const producer = this.isProducer(npc);
     const target = this.stockTarget(npc);
     const stock = this._stockQty(state);
-    if (stock >= target * 0.7) return 0;
-    const maxUnits = profile.producer ? 3 : 1;
-    const units = Math.min(maxUnits, target - stock);
     const pool = ITEMS.filter(i => npc.preferredCategories.includes(i.category));
-    if (!pool.length || units <= 0) return 0;
-    const weighted = pool.map(item => {
-      const sig = this.marketSignal(item.id);
-      return { item, w: (sig.shortage ? 3 : 1) * (sig.surplus ? 0.3 : 1) * (1 / Math.sqrt(item.basePrice)) };
+    if (!pool.length) return 0;
+    const signals = pool.map(item => ({ item, sig: this.marketSignal(item.id) }));
+    // Un producteur anticipe : il produit aussi quand une de ses spécialités manque à la ville
+    const cityNeeds = producer && signals.some(x => x.sig.shortage || x.sig.anticipate);
+    if (stock >= target * 0.7 && !(cityNeeds && stock < target * 1.3)) return 0;
+    const maxUnits = producer ? 3 : 1;
+    const units = Math.max(1, Math.min(maxUnits, Math.ceil(target * 1.3) - stock));
+    const weighted = signals.map(({ item, sig }) => {
+      const cov = sig.view?.coverage;
+      const covWeight = cov == null ? 1 : 1 / Math.max(0.5, Math.min(cov, 30)) * 8;
+      return { item, w: (sig.shortage ? 3 : 1) * (sig.anticipate ? 1.6 : 1) * (sig.surplus ? 0.2 : 1) * covWeight * (1 / Math.sqrt(item.basePrice)) };
     });
     const totalW = weighted.reduce((s, x) => s + x.w, 0);
     let r = Math.random() * totalW;
     let item = weighted[0].item;
     for (const x of weighted) { r -= x.w; if (r <= 0) { item = x.item; break; } }
-    const costRatio = profile.producer ? NPC_TUNING.producerCost : NPC_TUNING.productionCost;
+    const costRatio = producer ? NPC_TUNING.producerCost : NPC_TUNING.productionCost;
     const unitCost = round2(this.getFairPrice(item.id) * costRatio);
     const affordable = Math.floor((state.capital * (1 - profile.reserve)) / Math.max(0.01, unitCost));
     const qty = Math.min(units, affordable);
@@ -268,12 +304,38 @@ export class NPCController {
     const cost = round2(unitCost * qty);
     state.capital = round2(state.capital - cost);
     this.onNpcSpend(npc.id, cost, 'production');
-    const quality = Math.round(rand(40, profile.producer ? 88 : 75));
+    const quality = Math.round(rand(40, producer ? 88 : 75));
     const perfection = Math.round(rand(35, 80));
     this.giveItemToNpc(npc.id, item.id, qty, quality, perfection);
     state.produced = (state.produced || 0) + qty;
-    this._remember(state, `${profile.producer ? 'Fabrique' : 'Se réapprovisionne'} ${item.icon} ×${qty}`);
+    const sigItem = this.marketSignal(item.id);
+    this._remember(state, `${producer ? 'Fabrique' : 'Se réapprovisionne'} ${item.icon} ×${qty}${sigItem.shortage ? ' (pénurie)' : ''}`);
     return qty;
+  }
+
+  /** Réparateurs : remettent en état leurs objets abîmés (matériaux payés au Comptoir). */
+  _repairOwnStock(npc, state) {
+    if (!this.professionOf(npc).repairs) return 0;
+    let done = 0;
+    for (const slot of [...state.inventory]) {
+      if (done >= NPC_TUNING.repairsPerDay) break;
+      if ((slot.quality ?? 50) >= NPC_TUNING.damagedQuality || !isRepairable(slot.itemId)) continue;
+      const unitCost = round2(this.getFairPrice(slot.itemId) * NPC_TUNING.repairCostRatio);
+      const qty = Math.min(slot.quantity, NPC_TUNING.repairsPerDay - done);
+      const cost = round2(unitCost * qty);
+      if (state.capital * (1 - this.profileOf(npc).reserve) < cost) break;
+      state.capital = round2(state.capital - cost);
+      this.onNpcSpend(npc.id, cost, 'workshop');
+      slot.quantity -= qty;
+      const newQ = Math.round(rand(65, 85));
+      this.giveItemToNpc(npc.id, slot.itemId, qty, newQ, Math.min(90, (slot.perfection ?? 50) + 15));
+      done += qty;
+      const item = getItemById(slot.itemId);
+      this._remember(state, `Répare ${item?.icon || ''} ×${qty} (Q${slot.quality}→Q${newQ})`);
+    }
+    state.inventory = state.inventory.filter(s => s.quantity > 0);
+    state.repaired = (state.repaired || 0) + done;
+    return done;
   }
 
   _pickFocus(npc, state) {
@@ -377,6 +439,10 @@ export class NPCController {
     const target = this.stockTarget(npc);
     const cancel = this._tryCancelStale(npc, state, ownSells, ownBuys, now);
     if (cancel) return cancel;
+    if (this.professionOf(npc).arbitrage || npc.personality === 'opportuniste') {
+      const arb = this._tryArbitrage(npc, state);
+      if (arb) return arb;
+    }
     const scored = [];
     const tryPush = (type, score, fn) => { if (score > 0) scored.push({ type, score, fn }); };
     const roomToBuy = stockQty < target * 1.6;
@@ -401,7 +467,11 @@ export class NPCController {
 
   _bump(scored, type, add) { const row = scored.find(s => s.type === type); if (row) row.score += add; }
   _maxListings(npc) { return (npc.personality === 'épicier' || npc.personality === 'agressif') ? 4 : 3; }
-  _scoreSell(npc, state, stockQty) { return 0.28 + (stockQty > this.stockTarget(npc) ? 0.28 : 0) + (state.capital < 40 ? 0.2 : 0); }
+  _scoreSell(npc, state, stockQty) {
+    // Bonus quand il détient un objet absent des étals (il peut fixer le prix)
+    const gap = state.inventory.some(sl => sl.quantity > 0 && this._book(sl.itemId).sellQty === 0) ? 0.22 : 0;
+    return 0.28 + (stockQty > this.stockTarget(npc) ? 0.28 : 0) + (state.capital < 40 ? 0.2 : 0) + gap;
+  }
   _scoreRestock(npc, state, stockQty) { return 0.24 + (stockQty < 3 ? 0.22 : 0) + (state.focusItemId ? 0.1 : 0); }
   _timeLeftRatio(offer, now) {
     if (!offer.expiresAt) return 1;
@@ -624,6 +694,13 @@ export class NPCController {
       const preferred = this._isPreferred(npc, item);
       return { offer: o, item, ref, preferred, dealRatio: ref > 0 ? o.buyoutPrice / ref : 9, focused: o.itemId === state.focusItemId, cap: this.maxBuyRatio(npc, state, item) };
     }).filter(c => {
+      // Réparateur : un objet abîmé vaut la valeur qu'il aura une fois réparé
+      if (this.professionOf(npc).repairs && (c.offer.quality ?? 50) < NPC_TUNING.damagedQuality && isRepairable(c.offer.itemId)) {
+        const repaired = this.refPrice(c.offer.itemId, 75, Math.min(90, (c.offer.perfection ?? 50) + 15));
+        const cost = this.getFairPrice(c.offer.itemId) * NPC_TUNING.repairCostRatio;
+        c.repairDeal = c.offer.buyoutPrice + cost <= repaired * 0.8;
+        if (c.repairDeal) { c.dealRatio = (c.offer.buyoutPrice + cost) / repaired; return true; }
+      }
       if (c.dealRatio > c.cap) return false;
       if (stockQty >= target * 1.6 && c.dealRatio > 0.8) return false;
       if (npc.personality === 'collectionneur') return c.preferred || c.dealRatio < 0.9;
@@ -646,8 +723,54 @@ export class NPCController {
     const icon = pick.item?.icon || '';
     return {
       type: 'buyout', npcId: npc.id, offer, quantity: qty, total: totalCost,
-      intent: pick.dealRatio < 0.9 ? `Rafle ${icon} ×${qty} (bradé)` : `Achète ${icon} ×${qty}`,
-      reason: `Achat immédiat ${this._pctTxt(pick.dealRatio)}${pick.preferred ? ', dans sa spécialité' : ''}.`
+      intent: pick.repairDeal ? `Rachète ${icon} abîmé pour le réparer` : pick.dealRatio < 0.9 ? `Rafle ${icon} ×${qty} (bradé)` : `Achète ${icon} ×${qty}`,
+      reason: pick.repairDeal
+        ? `Une fois réparé, il vaudra bien plus que ${eur(pick.offer.buyoutPrice)} €.`
+        : `Achat immédiat ${this._pctTxt(pick.dealRatio)}${pick.preferred ? ', dans sa spécialité' : ''}.`
+    };
+  }
+
+  /**
+   * Arbitrage : achète une annonce (achat immédiat) moins chère qu'une offre d'achat existante
+   * et revend aussitôt à cette offre. Corrige les écarts entre hôtel de vente et hôtel d'achat.
+   */
+  _tryArbitrage(npc, state) {
+    const spendable = this._spendable(npc, state);
+    if (spendable < 10) return null;
+    const offers = this.getOffers();
+    const buys = offers.filter(o => o.type === 'buy' && o.status === 'active' && o.ownerId !== npc.id && o.quantity > 0);
+    if (!buys.length) return null;
+    let best = null;
+    for (const sell of offers) {
+      if (sell.type !== 'sell' || sell.status !== 'active' || sell.ownerId === npc.id || sell.buyoutPrice == null || sell.currentBid != null) continue;
+      for (const buy of buys) {
+        if (buy.itemId !== sell.itemId || buy.ownerId === sell.ownerId) continue;
+        if ((sell.quality ?? 50) < (buy.minQuality ?? 0) || (sell.perfection ?? 50) < (buy.minPerfection ?? 0)) continue;
+        const net = buy.price * (1 - 0.03); // taxe du Comptoir sur la revente
+        const margin = (net - sell.buyoutPrice) / sell.buyoutPrice;
+        if (margin < NPC_TUNING.arbitrageMargin) continue;
+        if (!best || margin > best.margin) best = { sell, buy, margin };
+      }
+    }
+    if (!best) return null;
+    const qty = Math.min(best.sell.quantity, best.buy.quantity, Math.floor(spendable / best.sell.buyoutPrice), 3);
+    if (qty < 1) return null;
+    const cost = round2(best.sell.buyoutPrice * qty);
+    state.capital = round2(state.capital - cost);
+    const bought = this.executeBuyout(best.sell, npc.id, qty);
+    if (!bought || !bought.success) { state.capital = round2(state.capital + cost); return null; }
+    const slot = state.inventory.find(s => s.itemId === best.sell.itemId && s.quality === best.sell.quality && s.perfection === best.sell.perfection);
+    const sold = slot ? this.executeFulfill(best.buy, npc.id, Math.min(qty, slot.quantity)) : null;
+    if (sold && sold.success && slot) {
+      slot.quantity -= Math.min(qty, slot.quantity);
+      state.inventory = state.inventory.filter(s => s.quantity > 0);
+    }
+    state.arbitrages = (state.arbitrages || 0) + 1;
+    const item = getItemById(best.sell.itemId);
+    return {
+      type: 'arbitrage', npcId: npc.id, offer: best.sell, quantity: qty,
+      intent: `Arbitrage ${item?.icon || ''} ${eur(best.sell.buyoutPrice)} → ${eur(best.buy.price)} €`,
+      reason: `Achète à l'hôtel de vente et revend aussitôt à une offre d'achat (+${Math.round(best.margin * 100)} %).`
     };
   }
 
@@ -661,7 +784,10 @@ export class NPCController {
     const range = (npc.personality === 'collectionneur' && preferred && profile.prefSellMarkup) ? profile.prefSellMarkup : profile.sellMarkup;
     let mult = rand(range[0], range[1]);
     const why = [];
-    if (sig.shortage) { mult += 0.06; why.push('rupture de stock sur le marché'); }
+    if (sig.shortage) { mult += 0.06; why.push(sig.view?.status === 'shortage' ? 'la ville en manque' : 'rupture de stock sur le marché'); }
+    else if (sig.anticipate) { mult += 0.03; why.push('anticipe une pénurie'); }
+    if (sig.playerFlow >= 2) { mult += Math.min(0.06, sig.playerFlow * 0.01); why.push('vous en achetez beaucoup'); }
+    if (sig.playerFlow <= -2) { mult -= Math.min(0.05, -sig.playerFlow * 0.01); why.push('vous en vendez beaucoup'); }
     if (sig.surplus) { mult -= 0.05; why.push('marché saturé'); }
     if (this._overstocked(npc, state)) { mult -= 0.05; why.push('stock trop plein'); }
     if (this.capitalState(npc, state).id === 'dry') { mult -= 0.05; why.push('besoin de liquidités'); }
@@ -699,7 +825,11 @@ export class NPCController {
       if (npc.personality === 'collectionneur' && preferred) dumpScore -= 2;
       if (npc.personality === 'épicier' && item?.category === 'Nourriture') dumpScore += 2;
       if (slot.quality < 40) dumpScore += 1;
-      if (sig.shortage) dumpScore += 1.2;
+      if ((slot.quality ?? 50) < NPC_TUNING.damagedQuality && this.professionOf(npc).repairs && isRepairable(slot.itemId)) dumpScore -= 3;
+      if (sig.shortage) dumpScore += sig.view?.status === 'shortage' ? 2 : 1.2;
+      // Personne ne vend cet objet : le premier à l'afficher fixe le prix (sauf collection personnelle)
+      if (sig.book.sellQty === 0 && !(npc.personality === 'collectionneur' && preferred)) dumpScore += 1.5;
+      else if (sig.anticipate && !this.professionOf(npc).arbitrage) dumpScore += 0.5;
       if (sig.surplus) dumpScore -= 0.8;
       if (sig.book.bestBuy != null) {
         const ref = this.refPrice(slot.itemId, slot.quality, slot.perfection);
@@ -758,6 +888,8 @@ export class NPCController {
       if (this._qtyOf(state, item.id) === 0) s += 0.25;
       if (sig.book.bestSell != null && sig.book.bestSell < sig.fair * 0.96) s += 0.3;
       if (sig.surplus) s += 0.15;
+      if (sig.anticipate || sig.shortage) s += this.professionOf(npc).arbitrage ? 0.45 : 0.2;
+      if (sig.playerFlow >= 3 && this.professionOf(npc).arbitrage) s += 0.3;
       return { item, s, sig };
     }).sort((a, b) => b.s - a.s);
     const { item, sig } = ranked[0];
@@ -765,6 +897,8 @@ export class NPCController {
     const cap = this.maxBuyRatio(npc, state, item);
     let mult = rand(profile.buyMarkdown[0], profile.buyMarkdown[1]);
     if (sig.surplus) mult -= 0.04;
+    if (sig.anticipate || sig.shortage) mult += 0.04;
+    if (sig.playerFlow <= -2) mult -= 0.04;
     let price = ref * Math.min(mult, cap);
     if (sig.book.bestBuy != null && sig.book.bestBuy + 0.01 <= ref * cap) price = Math.max(price, sig.book.bestBuy + 0.01);
     price = round2(Math.max(ref * 0.6, Math.min(ref * cap, price)));
@@ -782,7 +916,7 @@ export class NPCController {
     return {
       type: 'buy', npcId: npc.id, offer, locked: totalLocked,
       intent: `Cherche ${item.icon} ×${qty} à ${eur(price)} €`,
-      reason: `${lowStock ? 'Stock vide sur cet objet' : 'Réassort'} — offre ${this._pctTxt(price / ref)}.`
+      reason: `${sig.anticipate ? 'Achète avant la pénurie' : sig.shortage ? 'La ville en manque' : lowStock ? 'Stock vide sur cet objet' : 'Réassort'} — offre ${this._pctTxt(price / ref)}.`
     };
   }
 
@@ -821,6 +955,8 @@ export class NPCController {
       clanId: npc.clanId || null, clanName: clan?.name || null, clanIcon: clan?.icon || null, clanColor: clan?.color || null,
       trust: state.trust || 0,
       strategy: profile.label, strategyText: profile.text,
+      profession: this.professionOf(npc).label, professionIcon: this.professionOf(npc).icon, professionText: this.professionOf(npc).text,
+      repaired: state.repaired || 0, arbitrages: state.arbitrages || 0,
       capitalState: cap.id, capitalLabel: cap.label,
       stock, stockTarget: target,
       stockLabel: stock > target * 1.5 ? 'Stock trop plein' : stock < target * 0.5 ? 'Stock bas' : 'Stock correct',
@@ -831,8 +967,6 @@ export class NPCController {
   }
 
   _conditionPrice(price, quality = 50, perfection = 50) {
-    const qualityMod = 0.75 + (Number(quality) / 100) * 0.45;
-    const perfectionMod = 0.9 + (Number(perfection) / 100) * 0.25;
-    return Math.max(0.01, Math.round(price * qualityMod * perfectionMod * 100) / 100);
+    return Math.max(0.01, Math.round(price * conditionMultiplier(quality, perfection) * 100) / 100);
   }
 }

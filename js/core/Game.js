@@ -15,6 +15,7 @@ import { NPCController } from '../systems/NPCController.js';
 import { MarketReserve, RESERVE_ID, RESERVE_NAME, RESERVE_TUNING } from '../systems/MarketReserve.js';
 import { TimeManager } from './TimeManager.js';
 import { Economy } from './Economy.js';
+import { SupplyDemand, SD_TUNING } from './SupplyDemand.js';
 import { ITEMS, getItemById } from '../data/items.js';
 import { NPCS, getNpcById } from '../data/npcs.js';
 
@@ -33,6 +34,9 @@ export class Game {
     this.economy = new Economy();
     this._wireEconomyClock();
     this.reserve = new MarketReserve();
+    this.supplyDemand = new SupplyDemand();
+    /** Écouteurs des transactions (journal de trading, alertes…) */
+    this.tradeListeners = [];
     this.txCounter = 0;
     this._lastSnapshotTx = 0;
 
@@ -66,6 +70,9 @@ export class Game {
       },
       getAveragePrice: (itemId) => this.economy.getAveragePrice(itemId),
       getFairPrice: (itemId) => this.economy.getFairValue(itemId),
+      // Offre / demande : couverture du stock, pénuries, achats du joueur
+      getSupplyView: (itemId) => this.supplyDemand.getView(itemId, this.economy),
+      externalConsumption: true,
       // Frais d'annonce et coûts de fabrication des PNJ → trésorerie du Comptoir municipal
       onNpcSpend: (npcId, amount, reason) => this.reserve.deposit(amount, reason),
       executeCancel: (offer, npcId) => {
@@ -114,6 +121,8 @@ export class Game {
         this.currentDay = day;
         const now = this.timeManager?.now?.() ?? Date.now();
         this.economy.tickDaily(now);
+        // La ville consomme, la rareté des objets se met à jour, puis les PNJ réagissent
+        this.supplyDemand.update(this, day);
         this.npcController.onNewDay(day);
         this.reserve.dailyIntervene(this);
         this.recordEconomySnapshot(day);
@@ -128,6 +137,8 @@ export class Game {
         this._notifyUI();
       }
     });
+
+    this.supplyDemand.refresh(this);
 
     // Callbacks UI
     this.uiCallbacks = {
@@ -334,6 +345,10 @@ export class Game {
       this.reserve.deposit(tax, 'taxes');
     }
 
+    // Offre / demande : les PNJ remarquent quand le joueur achète ou vend beaucoup un objet
+    if (tx.buyerId === 'player') this.supplyDemand.notePlayerTrade(tx.itemId, tx.quantity, true);
+    else if (tx.sellerId === 'player') this.supplyDemand.notePlayerTrade(tx.itemId, tx.quantity, false);
+
     // Confiance PNJ ↔ joueur
     if (tx.sellerId === 'player' && tx.buyerId !== RESERVE_ID) {
       this.npcController.noteTradeWithPlayer?.(tx.buyerId, tx.priceDeltaPct, false);
@@ -383,6 +398,10 @@ export class Game {
         }
       }
     }
+
+    this.tradeListeners.forEach(fn => {
+      try { fn(tx); } catch (e) { /* un écouteur défaillant ne bloque pas le marché */ }
+    });
   }
 
   // ============================================
@@ -551,10 +570,12 @@ export class Game {
     const recentTx = this.transactions.filter(tx => tx.itemId === itemId && now - tx.timestamp <= dayMs);
 
     const explanation = this.economy.explainPrice(itemId);
+    const supply = this.getSupplyView(itemId);
 
     return {
       item,
       itemId,
+      supply,
       average,
       adjusted,
       fair: explanation.fair,
@@ -609,9 +630,15 @@ export class Game {
         sellCount: insight.sellCount,
         buyCount: insight.buyCount,
         fair: insight.fair,
-        explanation: insight.explanation
+        explanation: insight.explanation,
+        supply: insight.supply
       };
     });
+  }
+
+  /** Offre / demande d'un objet : stock, demande / jour, couverture, statut, explication. */
+  getSupplyView(itemId) {
+    return this.supplyDemand.getView(itemId, this.economy);
   }
 
   /** L'économie suit le temps de jeu (événements, expirations). */
@@ -737,7 +764,24 @@ export class Game {
       npcStock: this.getNpcStock(),
       txPerDay: txToday,
       events: this.economy.getActiveEvents(now).map(e => ({ name: e.name, description: e.description, remainingMs: e.remainingMs })),
+      market: this._supplySummary(),
       history: snaps.slice(-20).map(sn => sn.priceIndex)
+    };
+  }
+
+  /** Saison, population, pénuries et surplus (pour la carte « Saison & population »). */
+  _supplySummary() {
+    const sum = this.supplyDemand.getSummary(this.economy);
+    const names = (ids) => ids.map(id => getItemById(id)).filter(Boolean).map(i => ({ id: i.id, name: i.name, icon: i.icon }));
+    return {
+      season: { id: sum.season.id, label: sum.season.label, icon: sum.season.icon, text: sum.season.text },
+      seasonDaysLeft: sum.seasonDaysLeft,
+      nextSeason: { label: sum.nextSeason.label, icon: sum.nextSeason.icon },
+      population: sum.population,
+      shortages: names(sum.shortages),
+      surplus: names(sum.surplus),
+      avgShortageDays: sum.avgShortageDays,
+      shortageCoverage: SD_TUNING.shortageCoverage
     };
   }
 
@@ -1148,6 +1192,7 @@ export class Game {
       npcStates: this.npcController.npcStates,
       economy: this.economy.toJSON(),
       reserve: this.reserve.toJSON(),
+      supplyDemand: this.supplyDemand.toJSON(),
       completedGoals: [...this.completedGoals]
     };
     Storage.save(data);
@@ -1185,6 +1230,9 @@ export class Game {
       this._wireEconomyClock();
     }
     this.reserve = data.reserve ? MarketReserve.fromJSON(data.reserve) : new MarketReserve();
+    // Anciennes sauvegardes : pas d'offre / demande → on part d'une ville équilibrée
+    this.supplyDemand = SupplyDemand.fromJSON(data.supplyDemand || { day: this.currentDay });
+    this.supplyDemand.refresh(this);
     this.txCounter = 0;
     this._lastSnapshotTx = 0;
 

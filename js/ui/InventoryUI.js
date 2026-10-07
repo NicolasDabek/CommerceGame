@@ -3,6 +3,7 @@
  */
 
 import { ITEMS, getItemById } from '../data/items.js';
+import { conditionLabel, conditionMultiplier, isRepairable } from '../core/condition.js';
 import { formatMoney, insightCardHtml, marginHtml } from './TradeInsights.js';
 
 export class InventoryUI {
@@ -17,6 +18,8 @@ export class InventoryUI {
     this.slotsInfo = document.getElementById('inventory-slots');
     this.categoriesEl = document.getElementById('inventory-categories');
     this.detailEl = document.getElementById('inventory-detail');
+    this.getRepairQuote = options.getRepairQuote || null;
+    this.onOpenWorkshop = options.onOpenWorkshop || null;
     this.currentCategory = 'all';
     this.selectedKey = null;
 
@@ -131,9 +134,28 @@ export class InventoryUI {
       const pct = slot.avgBuyPrice > 0 ? Math.round((m / slot.avgBuyPrice) * 1000) / 10 : null;
       actionMargin = `<p>Marge si vente à la meilleure offre d'achat : ${marginHtml(m, pct)}</p>`;
     }
+    const cond = conditionLabel(slot.quality);
+    const mult = conditionMultiplier(slot.quality, slot.perfection);
+    const condLine = `<p class="cond-line" title="L'état (Q) et la finition (P) changent la valeur : Q10 ≈ −35 %, Q50 = normal, Q90 ≈ +20 %.">État : <span class="cond-chip cond-${cond.id}">${cond.label}</span> <span class="text-muted">· vaut ${Math.round(mult * 100)} % d'un objet standard</span></p>`;
+    let repairLine = '';
+    if (isRepairable(slot.itemId) && slot.quality < 90 && this.getRepairQuote) {
+      const quick = this.getRepairQuote(slot.itemId, slot.quality, slot.perfection, 'quick');
+      const refurb = this.getRepairQuote(slot.itemId, slot.quality, slot.perfection, 'refurbish');
+      const best = [quick, refurb].filter(q => q?.ok).sort((a, b) => b.profit - a.profit)[0];
+      if (best) {
+        const mat = best.materials ? ` + ${best.materials.qty} × ${best.materials.name}` : '';
+        repairLine = `<p class="repair-hint">🔧 ${best.mode === 'refurbish' ? 'Remise à neuf' : 'Réparation rapide'} → Q${best.toQuality} : ${formatMoney(best.supplies)} €${mat}, ${String(best.hours).replace('.', ',')} h · profit attendu <strong class="${best.profit >= 0 ? 'text-success' : 'text-danger'}">${best.profit >= 0 ? '+' : ''}${formatMoney(best.profit)} €</strong>${this.onOpenWorkshop ? ' <button class="btn btn-small btn-ghost" data-act="workshop">Atelier</button>' : ''}</p>`;
+      } else if (quick && !quick.ok) {
+        repairLine = `<p class="repair-hint text-muted">🔧 ${quick.error}</p>`;
+      }
+    } else if (!isRepairable(slot.itemId)) {
+      repairLine = '<p class="repair-hint text-muted">Ne se répare pas (nourriture, ressources, divers).</p>';
+    }
     this.detailEl.innerHTML = `
       <h3>${item?.icon || ''} ${item?.name || slot.itemId}</h3>
       <p class="text-muted">${item?.category || ''} · ${item?.rarity || ''} · Q${slot.quality} P${slot.perfection} · ×${slot.quantity}</p>
+      ${condLine}
+      ${repairLine}
       <p>${costLine}</p>
       ${actionMargin}
       ${insightCardHtml(insight, { compact: true })}
@@ -144,6 +166,7 @@ export class InventoryUI {
     `;
     this.detailEl.querySelector('[data-act="list"]')?.addEventListener('click', () => this.onList(slot));
     this.detailEl.querySelector('[data-act="sell"]')?.addEventListener('click', () => this.onSell(slot));
+    this.detailEl.querySelector('[data-act="workshop"]')?.addEventListener('click', () => this.onOpenWorkshop?.());
   }
 
   _rarityColor(rarity) {
@@ -161,7 +184,7 @@ export class InventoryUI {
     const lines = [
       item.name,
       `Catégorie : ${item.category} · ${item.rarity}`,
-      `Q${slot.quality} / P${slot.perfection} · ×${slot.quantity}`
+      `Q${slot.quality} / P${slot.perfection} (${conditionLabel(slot.quality).label}) · ×${slot.quantity}`
     ];
     if (slot.avgBuyPrice != null) lines.push(`Coût moyen : ${formatMoney(slot.avgBuyPrice)} €`);
     if (insight?.average != null) lines.push(`Prix moyen marché : ${formatMoney(insight.average)} €`);
