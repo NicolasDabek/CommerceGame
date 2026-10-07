@@ -2,7 +2,7 @@
 
 Jeu de commerce inspiré des hôtels de vente de Dofus / Wakfu / Albion Online (hôtel d’achat, matching, enchères, économie dynamique).
 
-Prototype solo avec PNJ. Interface 2D. Architecture prête pour un backend et un monde 3D.
+Prototype solo avec PNJ. Le jeu se déroule sur **La Place**, une place de marché en 3D pixelisée (Three.js) : on y marche, on entre dans les bâtiments, et les tableaux (hôtels, marché, atelier…) s'ouvrent à l'intérieur.
 
 ## Démarrage
 
@@ -26,6 +26,25 @@ npm test
 Le workflow GitHub Pages publie le site depuis `main`.
 À activer une fois : Settings → Pages → GitHub Actions.
 
+## Monde 3D — contrôles
+
+- **ZQSD** (AZERTY) / **WASD** (QWERTY) ou **flèches** : marcher (la caméra suit)
+- **Clic** sur un bâtiment, un marchand ou soi-même : fiche d'infos (bouton *Entrer*)
+- **E** (ou Entrée) près d'une porte, ou **double-clic** sur un bâtiment : entrer
+- **Échap** ou *Sortir dans la rue* : revenir sur la place
+- Souris : glisser pour tourner, clic droit pour déplacer, molette pour zoomer · **Recadrer** recentre sur le joueur
+
+| Bâtiment | Ouvre |
+|----------|-------|
+| Hôtel de vente | Annonces et enchères |
+| Hôtel d'achat | Offres d'achat |
+| Halle des prix | Marché (prix moyens, tendances) |
+| Atelier | Travail, établi, services PNJ |
+| Votre échoppe | Inventaire |
+| Maisons de clan (Circuit Nord, Forge Ouest, Halle Centrale, Atelier des rives) | Marchands et clans |
+
+Tout est en local, sans CDN : Three.js r170 (`lib/three.module.js`, résolu par l'import map d'`index.html`) et les polices Nunito / Fredoka (`assets/fonts/`). Le jeu marche hors ligne.
+
 ## Contrôles de temps
 
 - Pause, 1×, 10×, 60×
@@ -48,17 +67,19 @@ Reset sauvegarde : bouton **Reset** ou `localStorage.clear(); location.reload();
 ```
 .
 ├── index.html
-├── css/style.css
+├── css/style.css     # + fonts.css (polices locales), world-override.css (HUD du monde 3D)
 ├── js/
 │   ├── main.js
 │   ├── core/          # Game, Economy, TimeManager, EventBus, Goals
 │   ├── models/
 │   ├── systems/
 │   ├── ui/
+│   ├── world/         # TownWorld (place 3D) + mount (branchement sur index.html)
 │   ├── data/
 │   └── utils/storage.js
 ├── tests/
-└── lib/               # Scene3D + OrbitControls (Three.js en CDN)
+├── lib/               # Three.js r170, OrbitControls, Scene3D (voir lib/README.md)
+└── assets/fonts/      # Nunito + Fredoka (woff2, licence OFL)
 ```
 
 ## Licence

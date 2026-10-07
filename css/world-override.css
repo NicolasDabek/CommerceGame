@@ -15,3 +15,60 @@ body.world-mode .header,
 body.world-mode .footer {
   display: none !important;
 }
+
+/* ---------- HUD du monde 3D ---------- */
+.speed-controls {
+  display: flex;
+  gap: 4px;
+  background: rgba(20, 22, 32, 0.85);
+  padding: 4px;
+  border-radius: 999px;
+}
+.speed-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-main);
+  font-weight: 700;
+  font-size: 0.8rem;
+  min-width: 36px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.speed-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.speed-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+.dock-btn:hover {
+  background: var(--bg-hover);
+}
+
+/* Étiquettes de la place */
+.town-label.player {
+  background: var(--accent);
+}
+.town-label.near,
+.town-label.selected {
+  background: rgba(108, 92, 231, 0.92);
+  outline: 1px solid #fff;
+}
+
+/* Fiche d'inspection (bâtiment, marchand, joueur) */
+#town-inspect h3 {
+  margin: 0 0 4px;
+  font-family: var(--font-display);
+  font-size: 1rem;
+}
+#town-inspect p {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+#town-inspect .btn {
+  margin-top: 4px;
+}

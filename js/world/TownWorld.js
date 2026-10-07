@@ -8,6 +8,22 @@ import * as THREE from 'three';
 import { OrbitControls } from '../../lib/OrbitControls.js';
 import { NPCS, getClanById } from '../data/npcs.js';
 
+const UP = new THREE.Vector3(0, 1, 0);
+const PLAYER_SPEED = 4.2;
+const PLAYER_RADIUS = 0.35;
+const WORLD_LIMIT = 20;
+const ENTER_DISTANCE = 1.8;
+const CAMERA_OFFSET = new THREE.Vector3(22, 19.6, 22);
+const CLICK_TOLERANCE_PX = 6;
+
+/* Touches physiques (event.code) : ZQSD en AZERTY = WASD en QWERTY */
+const MOVE_KEYS = {
+  KeyW: [0, 1], ArrowUp: [0, 1],
+  KeyS: [0, -1], ArrowDown: [0, -1],
+  KeyA: [-1, 0], ArrowLeft: [-1, 0],
+  KeyD: [1, 0], ArrowRight: [1, 0]
+};
+
 const CLAN_HEX = {
   circuit: 0x3d8bfd,
   forge: 0xd97706,
@@ -63,6 +79,8 @@ export class TownWorld {
     this.game = game;
     this.onOpenPanel = options.onOpenPanel || (() => {});
     this.onInspect = options.onInspect || (() => {});
+    this.onStatus = options.onStatus || (() => {});
+    this.isInputBlocked = options.isInputBlocked || (() => false);
 
     this._running = false;
     this._agents = [];
@@ -70,6 +88,12 @@ export class TownWorld {
     this._clickables = [];
     this._lastSync = 0;
     this._hour = 12;
+    this._keys = new Set();
+    this._obstacles = [];
+    this._nearBuilding = null;
+    this._selectedId = null;
+    this._playerBob = 0;
+    this._pointerStart = null;
 
     const w = container.clientWidth || 800;
     const h = container.clientHeight || 520;
@@ -117,9 +141,26 @@ export class TownWorld {
     this._spawnPeople();
 
     this._onResize = () => this.resize();
-    this._onClick = (e) => this._handleClick(e);
+    this._onPointerDown = (e) => { this._pointerStart = { x: e.clientX, y: e.clientY }; };
+    this._onPointerUp = (e) => {
+      const start = this._pointerStart;
+      this._pointerStart = null;
+      if (!start) return;
+      // Un glisser (rotation / déplacement caméra) n'est pas un clic
+      if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > CLICK_TOLERANCE_PX) return;
+      this._handleClick(e);
+    };
+    this._onDblClick = (e) => this._handleDoubleClick(e);
+    this._onKeyDown = (e) => this._handleKeyDown(e);
+    this._onKeyUp = (e) => this._keys.delete(e.code);
+    this._onBlur = () => this.clearKeys();
     window.addEventListener('resize', this._onResize);
-    this.renderer.domElement.addEventListener('pointerdown', this._onClick);
+    window.addEventListener('keydown', this._onKeyDown);
+    window.addEventListener('keyup', this._onKeyUp);
+    window.addEventListener('blur', this._onBlur);
+    this.renderer.domElement.addEventListener('pointerdown', this._onPointerDown);
+    this.renderer.domElement.addEventListener('pointerup', this._onPointerUp);
+    this.renderer.domElement.addEventListener('dblclick', this._onDblClick);
   }
 
   _cssSize(w, h) {
@@ -169,6 +210,7 @@ export class TownWorld {
     group.add(boxMesh(0.35, 1.6, 0.35, 0xcbd5e1, 0, 1.4, 0));
     group.userData = { kind: 'decor', name: 'Fontaine de la place' };
     this.scene.add(group);
+    this._obstacles.push({ x: 0, z: 0, w: 2.4, d: 2.4 });
   }
 
   _addTrees() {
@@ -185,6 +227,7 @@ export class TownWorld {
       g.add(boxMesh(0.9, 0.8, 0.9, 0x1b4332, 0, 2.4, 0));
       g.position.set(x, 0, z);
       this.scene.add(g);
+      this._obstacles.push({ x, z, w: 0.8, d: 0.8 });
     });
   }
 
@@ -210,6 +253,7 @@ export class TownWorld {
     }
     this.scene.add(g);
     this._buildings.push({ ...def, group: g, mesh: body });
+    this._obstacles.push({ x: def.x, z: def.z, w: def.w + 0.5, d: def.d + 0.5 });
     this._clickables.push(body, roof);
   }
 
@@ -228,6 +272,7 @@ export class TownWorld {
       g.add(boxMesh(0.12, 1.1, 0.12, 0x5c4033, 0.85, 0.85, -0.5));
       this.scene.add(g);
       this.stalls.push(g);
+      this._obstacles.push({ x, z, w: 2.0, d: 1.4 });
     });
   }
 
@@ -347,24 +392,154 @@ export class TownWorld {
         agent.wait = 3 + Math.random() * 6;
       }
     });
-    const shop = this._buildingById('player');
-    if (shop && this.playerToken) {
-      const door = this._doorOf(shop);
-      this.playerToken.position.lerp(new THREE.Vector3(door.x + 1.0, 0, door.z + 0.4), 0.02);
+  }
+
+  /* ---------- Contrôles du joueur ---------- */
+
+  clearKeys() {
+    this._keys.clear();
+  }
+
+  _handleKeyDown(e) {
+    if (this.isInputBlocked(e)) return;
+    if (MOVE_KEYS[e.code]) {
+      this._keys.add(e.code);
+      if (e.code.startsWith('Arrow')) e.preventDefault();
+      return;
+    }
+    if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) {
+      e.preventDefault();
+      this.enterNearest();
     }
   }
 
-  _handleClick(event) {
+  _isBlocked(x, z) {
+    if (Math.abs(x) > WORLD_LIMIT || Math.abs(z) > WORLD_LIMIT) return true;
+    return this._obstacles.some((o) =>
+      Math.abs(x - o.x) < o.w / 2 + PLAYER_RADIUS && Math.abs(z - o.z) < o.d / 2 + PLAYER_RADIUS
+    );
+  }
+
+  _movePlayer(dt) {
+    const token = this.playerToken;
+    if (!token) return;
+    let ix = 0;
+    let iz = 0;
+    if (!this.isInputBlocked()) {
+      this._keys.forEach((code) => {
+        const dir = MOVE_KEYS[code];
+        if (dir) { ix += dir[0]; iz += dir[1]; }
+      });
+    }
+    if (!ix && !iz) {
+      token.position.y = 0;
+      return;
+    }
+    // Déplacement relatif à la caméra : « avancer » = vers le haut de l'écran
+    const forward = new THREE.Vector3();
+    this.camera.getWorldDirection(forward);
+    forward.y = 0;
+    forward.normalize();
+    const right = new THREE.Vector3().crossVectors(forward, UP).normalize();
+    const dir = forward.multiplyScalar(iz).add(right.multiplyScalar(ix));
+    if (dir.lengthSq() < 1e-6) return;
+    dir.normalize();
+
+    const pos = token.position;
+    const before = pos.clone();
+    const step = PLAYER_SPEED * dt;
+    // Axes séparés : le joueur glisse le long des murs au lieu de se bloquer
+    if (!this._isBlocked(pos.x + dir.x * step, pos.z)) pos.x += dir.x * step;
+    if (!this._isBlocked(pos.x, pos.z + dir.z * step)) pos.z += dir.z * step;
+    token.rotation.y = Math.atan2(dir.x, dir.z);
+    this._playerBob += dt * 12;
+    pos.y = Math.abs(Math.sin(this._playerBob)) * 0.08;
+
+    // La caméra suit le joueur sans changer d'angle
+    const delta = new THREE.Vector3(pos.x - before.x, 0, pos.z - before.z);
+    this.camera.position.add(delta);
+    this.controls.target.add(delta);
+  }
+
+  _distanceToBuilding(b, x, z) {
+    const dx = Math.max(Math.abs(x - b.x) - b.w / 2, 0);
+    const dz = Math.max(Math.abs(z - b.z) - b.d / 2, 0);
+    return Math.hypot(dx, dz);
+  }
+
+  _updateNearBuilding() {
+    const pos = this.playerToken?.position;
+    if (!pos) return;
+    let best = null;
+    let bestDist = ENTER_DISTANCE;
+    this._buildings.forEach((b) => {
+      const d = this._distanceToBuilding(b, pos.x, pos.z);
+      if (d < bestDist) { best = b; bestDist = d; }
+    });
+    // L'étiquette du bâtiment affiche « E pour entrer » tant qu'on est à portée
+    this._nearBuilding = best;
+  }
+
+  /** Entre dans le bâtiment le plus proche du joueur (touche E). */
+  enterNearest() {
+    const b = this._nearBuilding;
+    if (!b) {
+      this.onStatus("Approchez-vous d'un bâtiment pour entrer");
+      return null;
+    }
+    this.enterBuilding(b.id);
+    return b;
+  }
+
+  enterBuilding(id) {
+    const b = this._buildingById(id);
+    if (!b) return;
+    this.clearKeys();
+    this.onOpenPanel(b.panel);
+  }
+
+  clearSelection() {
+    this._selectedId = null;
+  }
+
+  /** Recadre la caméra sur le joueur avec l'angle et le zoom par défaut. */
+  recenter() {
+    const pos = this.playerToken ? this.playerToken.position : new THREE.Vector3();
+    this.controls.target.set(pos.x, 0.4, pos.z);
+    this.camera.position.copy(this.controls.target).add(CAMERA_OFFSET);
+    this.camera.zoom = 1;
+    this.camera.updateProjectionMatrix();
+    this.controls.update();
+  }
+
+  focusPlaza() {
+    this.recenter();
+  }
+
+  _pick(event) {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const hits = this.raycaster.intersectObjects(this._clickables, false);
-    if (!hits.length) return;
-    const data = hits[0].object.userData || {};
+    return hits.length ? hits[0].object.userData || {} : null;
+  }
+
+  _handleDoubleClick(event) {
+    const data = this._pick(event);
+    if (data?.kind === 'building' && data.panel) this.enterBuilding(data.id);
+  }
+
+  _handleClick(event) {
+    const data = this._pick(event);
+    if (!data) {
+      this._selectedId = null;
+      this.onInspect(null);
+      return;
+    }
+    this._selectedId = data.id || null;
     if (data.kind === 'building' && data.panel) {
-      this.onInspect({ type: 'building', id: data.id, name: data.name, panel: data.panel });
-      this.onOpenPanel(data.panel);
+      this.onInspect({ type: 'building', id: data.id, name: data.name, panel: data.panel, clan: data.clan });
     } else if (data.kind === 'npc') {
       const agent = this._agents.find((a) => a.npc.id === data.id);
       this.onInspect({
@@ -376,8 +551,7 @@ export class TownWorld {
         mood: agent?.mood
       });
     } else if (data.kind === 'player') {
-      this.onInspect({ type: 'player', name: 'Votre échoppe' });
-      this.onOpenPanel('inventory');
+      this.onInspect({ type: 'player', name: 'Vous', panel: 'inventory' });
     }
   }
 
@@ -391,6 +565,8 @@ export class TownWorld {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       this._tick(dt);
+      this._movePlayer(dt);
+      this._updateNearBuilding();
       this.controls.update();
       this.renderer.render(this.scene, this.camera);
       this._updateLabels();
@@ -439,8 +615,15 @@ export class TownWorld {
     this._buildings.forEach((b) => {
       const p = project(b.group, b.h + 0.8);
       if (p.x < 8 || p.y < 8 || p.x > w - 8 || p.y > h - 8) return;
-      bits.push(`<span class="town-label building" style="left:${p.x}px;top:${p.y}px">${b.name}</span>`);
+      const near = b === this._nearBuilding;
+      const cls = `town-label building${near ? ' near' : ''}${b.id === this._selectedId ? ' selected' : ''}`;
+      const hint = near ? '<i>E pour entrer</i>' : '';
+      bits.push(`<span class="${cls}" style="left:${p.x}px;top:${p.y}px">${b.name}${hint}</span>`);
     });
+    if (this.playerToken) {
+      const p = project(this.playerToken, 1.7);
+      bits.push(`<span class="town-label player" style="left:${p.x}px;top:${p.y}px">Vous</span>`);
+    }
     this._agents.forEach((agent) => {
       const p = project(agent.group, 1.6);
       if (p.x < 8 || p.y < 8 || p.x > w - 8 || p.y > h - 8) return;
@@ -471,7 +654,12 @@ export class TownWorld {
   dispose() {
     this.stop();
     window.removeEventListener('resize', this._onResize);
-    this.renderer.domElement.removeEventListener('pointerdown', this._onClick);
+    window.removeEventListener('keydown', this._onKeyDown);
+    window.removeEventListener('keyup', this._onKeyUp);
+    window.removeEventListener('blur', this._onBlur);
+    this.renderer.domElement.removeEventListener('pointerdown', this._onPointerDown);
+    this.renderer.domElement.removeEventListener('pointerup', this._onPointerUp);
+    this.renderer.domElement.removeEventListener('dblclick', this._onDblClick);
     this.controls.dispose();
     this.renderer.dispose();
     if (this.renderer.domElement.parentNode) {

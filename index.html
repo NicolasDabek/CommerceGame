@@ -4,18 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Commerce Tycoon — La Place</title>
+  <link rel="icon" href="data:," />
   <script type="importmap">
     {
       "imports": {
-        "three": "https://unpkg.com/three@0.170.0/build/three.module.js"
+        "three": "./lib/three.module.js"
       }
     }
   </script>
+  <link rel="stylesheet" href="css/fonts.css" />
   <link rel="stylesheet" href="css/style.css" />
   <link rel="stylesheet" href="css/world-override.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet" />
   <style>
     html, body, #app { height: 100%; margin: 0; overflow: hidden; }
     body.world-mode #app { max-width: none; }
@@ -49,7 +48,7 @@
         <div class="hud-left"><strong class="logo">La Place</strong><span class="version">monde 3D</span></div>
         <div class="hud-center">
           <span id="game-time">Jour 1 — 08:00</span>
-          <span id="status-message">ZQSD pour marcher · clic un bâtiment · E pour entrer · Échap pour sortir</span>
+          <span id="status-message">ZQSD / flèches pour marcher · clic : infos · E ou double-clic pour entrer · Échap pour sortir</span>
         </div>
         <div class="hud-right">
           <div class="speed-controls">
