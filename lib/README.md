@@ -6,12 +6,17 @@ Bibliothèques tierces pour Commerce Tycoon.
 
 | Fichier | Description |
 |---------|-------------|
-| `OrbitControls.js` | Contrôles caméra orbitaux (importe `three`) |
+| `three.module.js` | Three.js r170 (ES module), copie de `build/three.module.js` du paquet npm `three@0.170.0` |
+| `three.LICENSE` | Licence MIT de Three.js |
+| `OrbitControls.js` | Contrôles caméra orbitaux (`examples/jsm/controls/OrbitControls.js` de `three@0.170.0`, importe `three`) |
 | `Scene3D.js` | Helper pour initialiser une scène 3D rapidement |
 
-Three.js r170 n'est pas copié ici : il est chargé depuis le CDN via l'import map
-d'`index.html` (`"three": "https://unpkg.com/three@0.170.0/build/three.module.js"`).
-Les fichiers de `lib/` importent donc `'three'` (et non `./three.module.js`).
+Aucun CDN : tout est servi en local. L'import map d'`index.html` fait pointer
+`'three'` vers `./lib/three.module.js`, et les modules (`TownWorld`, `OrbitControls`,
+`Scene3D`) importent `'three'` : il n'y a qu'une seule instance de Three.js.
+
+Pour mettre à jour Three.js, remplacer `three.module.js` et `OrbitControls.js` par les
+fichiers de la même version du paquet npm (`npm pack three@<version>`), puis mettre à jour ce tableau.
 
 ## Utilisation
 

@@ -43,7 +43,7 @@ Le workflow GitHub Pages publie le site depuis `main`.
 | Votre échoppe | Inventaire |
 | Maisons de clan (Circuit Nord, Forge Ouest, Halle Centrale, Atelier des rives) | Marchands et clans |
 
-Three.js (r170) est chargé depuis le CDN unpkg via l'import map d'`index.html` : une connexion internet est nécessaire.
+Tout est en local, sans CDN : Three.js r170 (`lib/three.module.js`, résolu par l'import map d'`index.html`) et les polices Nunito / Fredoka (`assets/fonts/`). Le jeu marche hors ligne.
 
 ## Contrôles de temps
 
@@ -67,7 +67,7 @@ Reset sauvegarde : bouton **Reset** ou `localStorage.clear(); location.reload();
 ```
 .
 ├── index.html
-├── css/style.css     # + world-override.css (HUD du monde 3D)
+├── css/style.css     # + fonts.css (polices locales), world-override.css (HUD du monde 3D)
 ├── js/
 │   ├── main.js
 │   ├── core/          # Game, Economy, TimeManager, EventBus, Goals
@@ -78,7 +78,8 @@ Reset sauvegarde : bouton **Reset** ou `localStorage.clear(); location.reload();
 │   ├── data/
 │   └── utils/storage.js
 ├── tests/
-└── lib/               # Scene3D + OrbitControls (Three.js en CDN)
+├── lib/               # Three.js r170, OrbitControls, Scene3D (voir lib/README.md)
+└── assets/fonts/      # Nunito + Fredoka (woff2, licence OFL)
 ```
 
 ## Licence
