@@ -59,6 +59,86 @@ export function marginHtml(unitMargin, pct) {
   return `<span class="${cls}">${sign}${formatMoney(unitMargin)} €${pctBit}</span>`;
 }
 
+function escapeAttr(text) {
+  return String(text ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+/** Texte d'info-bulle listant les causes d'un prix (economy.explainPrice). */
+export function priceFactorsTitle(explanation) {
+  if (!explanation) return '';
+  const lines = [`Valeur normale : ${formatMoney(explanation.fair)} € (prix de base ${formatMoney(explanation.base)} €)`];
+  if (!explanation.factors.length) lines.push('Aucun facteur notable : prix proche de la normale.');
+  explanation.factors.forEach(f => lines.push(`• ${f.label} : ${f.pct > 0 ? '+' : ''}${f.pct.toFixed(1).replace('.', ',')} %`));
+  return escapeAttr(lines.join('\n'));
+}
+
+/**
+ * Petite pastille « pourquoi ce prix ? » : écart à la base + cause principale.
+ * Rien n'est affiché si le prix est à moins de 3 % de sa valeur de base.
+ */
+export function priceWhyChip(explanation) {
+  if (!explanation) return '';
+  const pct = (explanation.ratio - 1) * 100;
+  if (Math.abs(pct) < 3 || !explanation.factors.length) return '';
+  const top = explanation.factors[0];
+  const cls = pct > 0 ? 'up' : 'down';
+  const label = top.label.length > 26 ? `${top.label.slice(0, 24)}…` : top.label;
+  return `<small class="why-chip ${cls}" title="Pourquoi ce prix ?\n${priceFactorsTitle(explanation)}">${pct > 0 ? '+' : ''}${Math.round(pct)} % · ${label}</small>`;
+}
+
+const ECO_STATUS_ICON = { stable: '🟢', tendu: '🟠', surchauffe: '🔴', 'prix-bas': '🔵', deflation: '🔵' };
+
+/** Indice des prix lisible : 100 = normal. */
+export function priceIndexLabel(index) {
+  return Math.round((Number(index) || 1) * 100);
+}
+
+/** Pastille compacte pour la barre du haut. */
+export function economyChipHtml(health) {
+  if (!health) return '';
+  return `<span class="eco-dot">${ECO_STATUS_ICON[health.status] || '🟢'}</span><span class="eco-chip-text">Prix ${priceIndexLabel(health.priceIndex)}</span><span class="eco-chip-label">${health.label}</span>`;
+}
+
+/** Carte « Santé de l'économie » du panneau Marché. */
+export function economyHealthHtml(health) {
+  if (!health) return '';
+  const idx = priceIndexLabel(health.priceIndex);
+  const pc = health.priceChange7d * 100;
+  const mc = health.moneyChange7d * 100;
+  const fill = Math.min(100, Math.round((health.treasury / health.treasuryCap) * 100));
+  const last = (health.reserveActions || []).slice(-2).map(a => {
+    const verb = a.type === 'sell' ? 'revend' : a.type === 'procure' ? 'commande' : 'rachète';
+    return `${verb} ${a.icon} à ${formatMoney(a.price)} €`;
+  }).join(' · ');
+  return `
+    <div class="eco-health eco-${health.status}" data-eco-status="${health.status}">
+      <div class="eco-tile" title="Moyenne des prix de tous les objets comparée à leur valeur normale. 100 = normal, 110 = 10 % plus cher que d'habitude.">
+        <span class="eco-label">Niveau des prix</span>
+        <div class="eco-main"><strong>${idx}</strong><span class="eco-status-chip">${ECO_STATUS_ICON[health.status] || ''} ${health.label}</span></div>
+        <small class="text-muted">normal = 100 · 7 j : ${formatPct(pc)}</small>
+        <div class="eco-spark">${sparkline(health.history, { width: 120, height: 22 })}</div>
+      </div>
+      <div class="eco-tile" title="Argent total en circulation : vous, les marchands, les sommes bloquées dans les offres, le Comptoir municipal et la caisse des contrats.">
+        <span class="eco-label">Masse monétaire</span>
+        <div class="eco-main"><strong>${formatMoney(health.moneySupply)} €</strong></div>
+        <small class="text-muted">7 j : ${formatPct(mc)} · marchands ${formatMoney(health.npcCash)} €</small>
+      </div>
+      <div class="eco-tile" title="Le Comptoir municipal encaisse taxes et frais des marchands, revend son stock quand un objet manque ou devient trop cher (plafond ≈ 130 % de la valeur normale) et rachète quand un objet est bradé (plancher ≈ 75 %). Son excédent est reversé en commandes et en aides.">
+        <span class="eco-label">Comptoir municipal</span>
+        <div class="eco-main"><strong>${formatMoney(health.treasury)} €</strong><small class="text-muted"> · ${health.reserveStock} obj.</small></div>
+        <div class="eco-bar" aria-hidden="true"><span style="width:${fill}%"></span></div>
+        <small class="text-muted">${last || 'Aucune intervention aujourd\'hui'}</small>
+      </div>
+      <div class="eco-tile" title="Ventes conclues sur le dernier jour de jeu et stock total des marchands.">
+        <span class="eco-label">Activité</span>
+        <div class="eco-main"><strong>${health.txPerDay}</strong><small class="text-muted"> ventes / jour</small></div>
+        <small class="text-muted">stock marchands : ${health.npcStock} objets</small>
+      </div>
+      <p class="eco-explain">${health.explanation}</p>
+    </div>
+  `;
+}
+
 /**
  * Fiche HTML compacte pour un insight d'objet (modales, inventaire, détail).
  * @param {object} insight — retour de game.getItemInsight
@@ -82,6 +162,9 @@ export function insightCardHtml(insight, { compact = false } = {}) {
     last,
     owned
   ];
+  if (insight.explanation) {
+    rows.splice(1, 0, `<span title="${priceFactorsTitle(insight.explanation)}">Valeur normale : <strong>${formatMoney(insight.fair)} €</strong> · <span class="text-muted">${insight.explanation.summary}</span></span>`);
+  }
 
   if (insight.marginIfSellToBestBuy != null) {
     rows.push(`Marge si vous vendez à la meilleure offre d'achat : ${marginHtml(insight.marginIfSellToBestBuy, insight.marginIfSellToBestBuyPct)}`);

@@ -12,6 +12,7 @@ import { MatchingEngine } from '../systems/MatchingEngine.js';
 import { AuctionHouse } from '../systems/AuctionHouse.js';
 import { BuyHouse } from '../systems/BuyHouse.js';
 import { NPCController } from '../systems/NPCController.js';
+import { MarketReserve, RESERVE_ID, RESERVE_NAME, RESERVE_TUNING } from '../systems/MarketReserve.js';
 import { TimeManager } from './TimeManager.js';
 import { Economy } from './Economy.js';
 import { ITEMS, getItemById } from '../data/items.js';
@@ -30,6 +31,10 @@ export class Game {
     this.completedGoals = [];
 
     this.economy = new Economy();
+    this._wireEconomyClock();
+    this.reserve = new MarketReserve();
+    this.txCounter = 0;
+    this._lastSnapshotTx = 0;
 
     // Systèmes
     this.matchingEngine = new MatchingEngine({
@@ -60,8 +65,21 @@ export class Game {
         this.matchingEngine.match(offer, this.offers);
       },
       getAveragePrice: (itemId) => this.economy.getAveragePrice(itemId),
+      getFairPrice: (itemId) => this.economy.getFairValue(itemId),
+      // Frais d'annonce et coûts de fabrication des PNJ → trésorerie du Comptoir municipal
+      onNpcSpend: (npcId, amount, reason) => this.reserve.deposit(amount, reason),
+      executeCancel: (offer, npcId) => {
+        if (!offer || offer.ownerId !== npcId || offer.status !== 'active') return { success: false };
+        this.auctionHouse.releaseBid(offer);
+        offer.status = 'cancelled';
+        return { success: true };
+      },
+      executeBid: (offer, npcId, amount) => this.auctionHouse.placeBid(offer, npcId, amount),
       executeBuyout: (sellOffer, npcId, qty) => {
         // Capital déjà débité côté NPCController.
+        // L'enchérisseur éventuel est remboursé avant l'achat immédiat (sinon sa mise disparaît).
+        if (sellOffer && sellOffer.ownerId === npcId) return { success: false };
+        this.auctionHouse.releaseBid(sellOffer);
         // executeBuyout déclenche onTransaction → _handleTransaction
         const tx = this.matchingEngine.executeBuyout(sellOffer, npcId, qty);
         return tx ? { success: true, transaction: tx } : { success: false };
@@ -86,11 +104,19 @@ export class Game {
       }
     });
 
+    // Argent bloqué des enchères : joueur, PNJ ou Comptoir
+    this.auctionHouse.lockFunds = (id, amount) => this._debitParty(id, amount);
+    this.auctionHouse.unlockFunds = (id, amount) => this._creditParty(id, amount);
+
     this.timeManager = new TimeManager({
       startTimestamp: this.startTimestamp,
       onDayChange: (day) => {
         this.currentDay = day;
-        this.economy.tickDaily();
+        const now = this.timeManager?.now?.() ?? Date.now();
+        this.economy.tickDaily(now);
+        this.npcController.onNewDay(day);
+        this.reserve.dailyIntervene(this);
+        this.recordEconomySnapshot(day);
         const events = this.economy.getActiveEvents();
         if (events.length > 0) {
           // Notifie le dernier événement
@@ -287,17 +313,32 @@ export class Game {
     }
 
     this.transactions.unshift(tx);
+    this.txCounter += 1;
 
-    // Économie : met à jour le prix moyen
-    this.economy.recordTransaction(tx.itemId, tx.price, tx.timestamp);
+    // Économie : met à jour le prix moyen (prix ramené à qualité / conditions neutres)
+    this.economy.recordTransaction(tx.itemId, tx.price, tx.timestamp, {
+      quality: tx.quality, perfection: tx.perfection
+    });
 
     // Vendeur = joueur → reçoit l'argent + stats
     if (tx.sellerId === 'player') {
       this.addMoney(tx.total);
       this.player.recordSale(tx.total);
       this._checkGoals();
+    } else if (tx.sellerId === RESERVE_ID) {
+      this.reserve.deposit(tx.total, 'sold');
     } else {
-      this.npcController.creditNpc(tx.sellerId, tx.total);
+      // Taxe sur les ventes des PNJ → Comptoir municipal (puits d'argent)
+      const tax = Math.round(tx.total * RESERVE_TUNING.npcSalesTax * 100) / 100;
+      this.npcController.creditNpc(tx.sellerId, Math.round((tx.total - tax) * 100) / 100);
+      this.reserve.deposit(tax, 'taxes');
+    }
+
+    // Confiance PNJ ↔ joueur
+    if (tx.sellerId === 'player' && tx.buyerId !== RESERVE_ID) {
+      this.npcController.noteTradeWithPlayer?.(tx.buyerId, tx.priceDeltaPct, false);
+    } else if (tx.buyerId === 'player' && tx.sellerId !== RESERVE_ID) {
+      this.npcController.noteTradeWithPlayer?.(tx.sellerId, tx.priceDeltaPct, true);
     }
 
     // Acheteur = joueur → reçoit les objets + surplus éventuel + stats
@@ -310,6 +351,17 @@ export class Game {
         const buyOffer = this.offers.find(o => o.id === tx.buyOfferId);
         if (buyOffer) {
           this.buyHouse.refundSurplus(buyOffer, tx.price, tx.quantity);
+        }
+      }
+    } else if (tx.buyerId === RESERVE_ID) {
+      this.reserve.addStock(tx.itemId, tx.quantity);
+      const reserveOffer = tx.buyOfferId ? this.offers.find(o => o.id === tx.buyOfferId) : null;
+      const statKey = reserveOffer?.procurement ? 'procurement' : 'bought';
+      this.reserve.stats[statKey] = Math.round(((this.reserve.stats[statKey] || 0) + tx.total) * 100) / 100;
+      if (tx.type === 'matching' && tx.buyOfferId) {
+        const buyOffer = this.offers.find(o => o.id === tx.buyOfferId);
+        if (buyOffer && buyOffer.price > tx.price) {
+          this.reserve.deposit(Math.round((buyOffer.price - tx.price) * tx.quantity * 100) / 100, 'refund');
         }
       }
     } else {
@@ -366,6 +418,8 @@ export class Game {
           // Personne n'a enchéri → rend les objets au vendeur
           if (offer.ownerId === 'player') {
             this.player.inventory.add(offer.itemId, offer.quantity, offer.quality, offer.perfection);
+          } else if (offer.ownerId === RESERVE_ID) {
+            this.reserve.addStock(offer.itemId, offer.quantity);
           } else {
             this.npcController.giveItemToNpc(
               offer.ownerId, offer.itemId, offer.quantity, offer.quality, offer.perfection
@@ -376,6 +430,8 @@ export class Game {
         // Rembourse le capital bloqué restant
         if (offer.ownerId === 'player') {
           this.buyHouse.refundRemaining(offer);
+        } else if (offer.ownerId === RESERVE_ID) {
+          if (offer.quantity > 0) this.reserve.deposit(Math.round(offer.price * offer.quantity * 100) / 100, 'refund');
         } else if (offer.quantity > 0) {
           const refund = Math.round(offer.price * offer.quantity * 100) / 100;
           this.npcController.creditNpc(offer.ownerId, refund);
@@ -494,11 +550,15 @@ export class Game {
     const dayMs = this.timeManager?.msPerGameDay || (24 * 60 * 60 * 1000);
     const recentTx = this.transactions.filter(tx => tx.itemId === itemId && now - tx.timestamp <= dayMs);
 
+    const explanation = this.economy.explainPrice(itemId);
+
     return {
       item,
       itemId,
       average,
       adjusted,
+      fair: explanation.fair,
+      explanation,
       bestSell,
       bestGoing,
       bestBuy,
@@ -547,9 +607,138 @@ export class Game {
         discountIfBuyBestSell: insight.discountIfBuyBestSell,
         discountIfBuyBestSellPct: insight.discountIfBuyBestSellPct,
         sellCount: insight.sellCount,
-        buyCount: insight.buyCount
+        buyCount: insight.buyCount,
+        fair: insight.fair,
+        explanation: insight.explanation
       };
     });
+  }
+
+  /** L'économie suit le temps de jeu (événements, expirations). */
+  _wireEconomyClock() {
+    this.economy.clock = () => (this.timeManager ? this.timeManager.now() : Date.now());
+    Object.defineProperty(this.economy, 'msPerGameDay', {
+      configurable: true,
+      get: () => this.timeManager?.msPerGameDay || 24 * 60 * 60 * 1000
+    });
+  }
+
+  // ============================================
+  // Argent des différents acteurs (joueur / PNJ / Comptoir)
+  // ============================================
+  _debitParty(id, amount) {
+    if (id === 'player') return this.removeMoney(amount);
+    if (id === RESERVE_ID) {
+      if (this.reserve.treasury < amount) return false;
+      this.reserve.withdraw(amount);
+      return true;
+    }
+    return this.npcController.debitNpc(id, amount);
+  }
+
+  _creditParty(id, amount) {
+    if (id === 'player') this.addMoney(amount);
+    else if (id === RESERVE_ID) this.reserve.deposit(amount, 'refund');
+    else this.npcController.creditNpc(id, amount);
+  }
+
+  // ============================================
+  // Santé de l'économie
+  // ============================================
+  /** Argent total en circulation (joueur + PNJ + sommes bloquées + Comptoir + caisse des contrats). */
+  getMoneySupply() {
+    const npcCash = Object.values(this.npcController.npcStates).reduce((s, st) => s + (st.capital || 0), 0);
+    let locked = 0;
+    this.offers.forEach(o => {
+      if (o.status !== 'active') return;
+      if (o.type === 'buy') locked += o.price * o.quantity;
+      if (o.type === 'sell' && o.currentBid != null && o.currentBidderId) locked += o.currentBid * o.quantity;
+    });
+    const total = this.player.money + npcCash + locked + this.reserve.treasury + (this.jobBoard?.feeVault || 0);
+    return { total: Math.round(total * 100) / 100, npcCash: Math.round(npcCash * 100) / 100, locked: Math.round(locked * 100) / 100 };
+  }
+
+  /** Objets détenus par les PNJ (stock + annonces en cours). */
+  getNpcStock() {
+    let stock = 0;
+    Object.values(this.npcController.npcStates).forEach(st => {
+      (st.inventory || []).forEach(sl => { stock += sl.quantity; });
+    });
+    this.offers.forEach(o => {
+      if (o.status === 'active' && o.type === 'sell' && o.ownerId !== 'player' && o.ownerId !== RESERVE_ID) stock += o.quantity;
+    });
+    return stock;
+  }
+
+  recordEconomySnapshot(day = this.currentDay) {
+    const money = this.getMoneySupply();
+    const tx = Math.max(0, this.txCounter - this._lastSnapshotTx);
+    this._lastSnapshotTx = this.txCounter;
+    this.economy.recordSnapshot({
+      day,
+      priceIndex: Math.round(this.economy.getPriceLevel() * 1000) / 1000,
+      money: money.total,
+      npcCash: money.npcCash,
+      treasury: this.reserve.treasury,
+      stock: this.getNpcStock(),
+      tx
+    });
+  }
+
+  /**
+   * Résumé lisible de l'économie pour l'interface.
+   * status : stable | tendu | surchauffe | prix-bas | deflation
+   */
+  getEconomyHealth() {
+    const priceIndex = this.economy.getPriceLevel();
+    const snaps = this.economy.snapshots;
+    const ref7 = snaps.length ? snaps[Math.max(0, snaps.length - 7)] : null;
+    const money = this.getMoneySupply();
+    const priceChange7d = ref7 && ref7.priceIndex > 0 ? (priceIndex - ref7.priceIndex) / ref7.priceIndex : 0;
+    const moneyChange7d = ref7 && ref7.money > 0 ? (money.total - ref7.money) / ref7.money : 0;
+    let status = 'stable';
+    let label = 'Stable';
+    let explanation = 'Les prix restent proches de leur valeur normale.';
+    if (priceIndex > 1.25) {
+      status = 'surchauffe'; label = 'Surchauffe';
+      explanation = 'Les prix sont nettement au-dessus de la normale : bon moment pour vendre, prudence à l\'achat.';
+    } else if (priceIndex > 1.1) {
+      status = 'tendu'; label = 'Prix élevés';
+      explanation = 'Les prix montent : la demande dépasse l\'offre. Le Comptoir municipal revend son stock pour calmer le marché.';
+    } else if (priceIndex < 0.8) {
+      status = 'deflation'; label = 'Déflation';
+      explanation = 'Les prix sont très bas : bon moment pour acheter, le Comptoir rachète pour soutenir les cours.';
+    } else if (priceIndex < 0.92) {
+      status = 'prix-bas'; label = 'Prix bas';
+      explanation = 'Le marché est un peu bradé : les achats sont intéressants.';
+    }
+    const now = this.timeManager?.now?.() ?? Date.now();
+    // Ventes par jour : moyenne des 3 derniers jours (instantanés), sinon ventes depuis le début de la journée
+    const recent = snaps.slice(-3);
+    const txToday = recent.length
+      ? Math.round(recent.reduce((sum, sn) => sum + (sn.tx || 0), 0) / recent.length)
+      : Math.max(0, this.txCounter - this._lastSnapshotTx);
+    const reserveStock = this.reserve.stockTotal();
+    return {
+      priceIndex: Math.round(priceIndex * 1000) / 1000,
+      priceChange7d: Math.round(priceChange7d * 1000) / 1000,
+      status,
+      label,
+      explanation,
+      inflation: Math.round(this.economy.globalInflation * 1000) / 1000,
+      moneySupply: money.total,
+      npcCash: money.npcCash,
+      moneyChange7d: Math.round(moneyChange7d * 1000) / 1000,
+      treasury: this.reserve.treasury,
+      treasuryCap: RESERVE_TUNING.treasuryCap,
+      reserveStock,
+      reserveStats: { ...this.reserve.stats },
+      reserveActions: this.reserve.lastActions || [],
+      npcStock: this.getNpcStock(),
+      txPerDay: txToday,
+      events: this.economy.getActiveEvents(now).map(e => ({ name: e.name, description: e.description, remainingMs: e.remainingMs })),
+      history: snaps.slice(-20).map(sn => sn.priceIndex)
+    };
   }
 
   getNpcProfiles() {
@@ -942,6 +1131,7 @@ export class Game {
 
   getNpcName(id) {
     if (id === 'player') return 'Vous';
+    if (id === RESERVE_ID) return RESERVE_NAME;
     return this.npcController.getNpcName(id);
   }
 
@@ -957,6 +1147,7 @@ export class Game {
       startTimestamp: this.startTimestamp,
       npcStates: this.npcController.npcStates,
       economy: this.economy.toJSON(),
+      reserve: this.reserve.toJSON(),
       completedGoals: [...this.completedGoals]
     };
     Storage.save(data);
@@ -991,7 +1182,11 @@ export class Game {
 
     if (data.economy) {
       this.economy = Economy.fromJSON(data.economy);
+      this._wireEconomyClock();
     }
+    this.reserve = data.reserve ? MarketReserve.fromJSON(data.reserve) : new MarketReserve();
+    this.txCounter = 0;
+    this._lastSnapshotTx = 0;
 
     this.completedGoals = data.completedGoals || [];
 

@@ -50,6 +50,17 @@ export function run() {
       const sell = new Offer({ type: 'sell', itemId: 'item_001', quantity: 1, price: 10, ownerId: 'a', durationDays: 1, createdAt: 3 });
       engine.match(sell, [sell, newBuy, oldBuy]);
       assertEqual(txs[0].buyerId, 'b');
+    }],
+    ['annonce avec enchère en cours : pas vendue à une offre d\'achat', () => {
+      const txs = [];
+      const engine = new MatchingEngine({ onTransaction: tx => txs.push(tx) });
+      const sell = new Offer({ type: 'sell', itemId: 'item_001', quantity: 1, price: 10, ownerId: 'a', durationDays: 1 });
+      sell.currentBid = 11;
+      sell.currentBidderId = 'player';
+      const buy = new Offer({ type: 'buy', itemId: 'item_001', quantity: 1, price: 20, ownerId: 'b', durationDays: 1 });
+      engine.match(buy, [sell, buy]);
+      assertEqual(txs.length, 0, 'l\'enchérisseur garde sa chance');
+      assertEqual(sell.status, 'active');
     }]
   ]);
 }

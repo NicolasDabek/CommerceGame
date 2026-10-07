@@ -7,14 +7,8 @@ export function enhanceGame(game) {
   if (!game || game.__enhanced) return game;
   game.__enhanced = true;
 
-  game.auctionHouse.lockFunds = (id, amount) => {
-    if (id === 'player') return game.removeMoney(amount);
-    return game.npcController.debitNpc(id, amount);
-  };
-  game.auctionHouse.unlockFunds = (id, amount) => {
-    if (id === 'player') game.addMoney(amount);
-    else game.npcController.creditNpc(id, amount);
-  };
+  game.auctionHouse.lockFunds = (id, amount) => game._debitParty(id, amount);
+  game.auctionHouse.unlockFunds = (id, amount) => game._creditParty(id, amount);
 
   if (game.timeManager && !game.timeManager.gameTimeMs && game.currentDay > 1) {
     game.timeManager.gameTimeMs = (game.currentDay - 1) * game.timeManager.msPerGameDay;
@@ -31,10 +25,7 @@ export function enhanceGame(game) {
     game.npcController.executeBid = (offer, npcId, amount) => game.auctionHouse.placeBid(offer, npcId, amount);
     game.npcController.executeCancel = (offer, npcId) => {
       if (!offer || offer.ownerId !== npcId || offer.status !== 'active') return { success: false };
-      if (offer.currentBidderId && offer.currentBid != null) {
-        const refund = Math.round(offer.currentBid * offer.quantity * 100) / 100;
-        if (game.auctionHouse.unlockFunds) game.auctionHouse.unlockFunds(offer.currentBidderId, refund);
-      }
+      game.auctionHouse.releaseBid(offer);
       offer.status = 'cancelled';
       return { success: true };
     };
@@ -118,10 +109,8 @@ export function enhanceGame(game) {
     const snapshot = game.offers.map(o => `${o.id}:${o.currentBid}:${o.status}:${o.quantity}`).join('|');
     origTick();
     if (game.timeManager.getCurrentDay() !== dayBefore) {
+      // Les PNJ (production, consommation) et le Comptoir sont déjà gérés dans Game.onDayChange
       game.jobBoard.onNewDay();
-      if (game.npcController && typeof game.npcController.onNewDay === 'function') {
-        game.npcController.onNewDay(game.timeManager.getCurrentDay());
-      }
       game.save();
     } else {
       game.jobBoard.ensureContracts();
@@ -203,6 +192,18 @@ export function enhanceGame(game) {
         clanIcon: ai.clanIcon || null,
         clanColor: ai.clanColor || null,
         trust: ai.trust ?? 0,
+        lastReason: ai.lastReason || null,
+        strategy: ai.strategy || null,
+        strategyText: ai.strategyText || null,
+        capitalState: ai.capitalState || null,
+        capitalLabel: ai.capitalLabel || null,
+        stock: ai.stock ?? null,
+        stockTarget: ai.stockTarget ?? null,
+        stockLabel: ai.stockLabel || null,
+        needs: ai.needs || [],
+        journal: ai.journal || [],
+        actionsToday: ai.actionsToday ?? 0,
+        actionBudget: ai.actionBudget ?? null,
         allied: game.player.allianceClanId && game.player.allianceClanId === (ai.clanId || p.clanId)
       };
     });

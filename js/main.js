@@ -11,7 +11,7 @@ import { NpcUI } from './ui/NpcUI.js';
 import { GoalsUI } from './ui/GoalsUI.js';
 import { JobsUI } from './ui/JobsUI.js';
 import { getItemById } from './data/items.js';
-import { formatMoney as fmtMoney, insightCardHtml, qtyQuickButtons, wireQtyQuick } from './ui/TradeInsights.js';
+import { formatMoney as fmtMoney, insightCardHtml, qtyQuickButtons, wireQtyQuick, economyChipHtml } from './ui/TradeInsights.js';
 import { Offer } from './models/Offer.js';
 
 const game = new Game();
@@ -378,7 +378,12 @@ function initUI() {
     onList: (slot) => openCreateSellModalForSlot(slot),
     onSell: (slot) => sellSlotToBestBuy(slot)
   });
-  marketUI = new MarketUI({ getMarketRows: () => game.getMarketRows(), getEvents: () => game.economy.getActiveEvents() });
+  marketUI = new MarketUI({
+    getMarketRows: () => game.getMarketRows(),
+    getEvents: () => game.economy.getActiveEvents(),
+    getEconomyHealth: () => game.getEconomyHealth(),
+    getMsPerGameDay: () => game.timeManager.msPerGameDay
+  });
   npcUI = new NpcUI({ getProfiles: () => game.getNpcProfiles(), resolveName });
   goalsUI = new GoalsUI({ getGoals: () => game.getGoals(), getSummary: () => game.getProgressSummary() });
   jobsUI = new JobsUI({
@@ -432,8 +437,18 @@ function initUI() {
   });
 }
 
+function updateEconomyChip() {
+  const el = document.getElementById('eco-chip');
+  if (!el || !game.getEconomyHealth) return;
+  const health = game.getEconomyHealth();
+  el.innerHTML = economyChipHtml(health);
+  el.dataset.status = health.status;
+  el.title = `Santé de l'économie : ${health.label}. ${health.explanation} Cliquez pour ouvrir le marché.`;
+}
+
 function refreshAllUI() {
   updateMoneyDisplay();
+  updateEconomyChip();
   historyUI?.render(); auctionUI?.render(); buyUI?.render(); inventoryUI?.render();
   marketUI?.render(); npcUI?.render(); goalsUI?.render(); jobsUI?.render();
 }
@@ -449,7 +464,9 @@ function init() {
     game.tick();
     if (game.offers.length !== offersBefore || game.transactions.length > 0) refreshAllUI();
     else game.timeManager.updateUI();
+    updateEconomyChip();
   }, 8000);
+  document.getElementById('eco-chip')?.addEventListener('click', () => window.showWorldPanel?.('market'));
   game.timeManager.updateUI();
   window.game = game;
   window.Modal = Modal;

@@ -6,6 +6,7 @@
   "description": "Prototype de jeu de commerce (hôtel de vente / hôtel d'achat)",
   "scripts": {
     "start": "npx --yes serve . -p 8080",
-    "test": "node tests/run.mjs"
+    "test": "node tests/run.mjs",
+    "sim": "node scripts/sim.mjs"
   }
 }

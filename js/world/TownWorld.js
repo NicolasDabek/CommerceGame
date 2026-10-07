@@ -386,6 +386,8 @@ export class TownWorld {
     this._agents.forEach((agent) => {
       const profile = byId[agent.npc.id];
       agent.intent = profile?.lastIntent || null;
+      agent.reason = profile?.lastReason || null;
+      agent.strategy = profile?.strategy || null;
       agent.mood = profile?.mood ?? 0;
       if (agent.wait <= 0) {
         agent.target.copy(this._routineTarget(agent.npc));
@@ -548,6 +550,8 @@ export class TownWorld {
         name: data.name,
         clan: data.clan,
         intent: agent?.intent,
+        reason: agent?.reason,
+        strategy: agent?.strategy,
         mood: agent?.mood
       });
     } else if (data.kind === 'player') {
