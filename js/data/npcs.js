@@ -50,9 +50,39 @@ export function getClanById(id) {
   return CLANS.find(c => c.id === id) || null;
 }
 
+/**
+ * Métiers des PNJ : ils orientent ce que chacun fabrique, rachète ou répare.
+ */
+export const NPC_PROFESSIONS = {
+  producteur: {
+    id: 'producteur', label: 'Producteur', icon: '🏭',
+    text: 'Fabrique en priorité ce qui manque sur le marché (stock bas face à la demande).',
+    produces: true
+  },
+  negociant: {
+    id: 'negociant', label: 'Négociant', icon: '⚖️',
+    text: 'Fait de l\'arbitrage entre hôtel de vente et hôtel d\'achat, et achète avant les pénuries.',
+    arbitrage: true
+  },
+  reparateur: {
+    id: 'reparateur', label: 'Réparateur', icon: '🔧',
+    text: 'Rachète les objets abîmés, les remet en état et les revend.',
+    repairs: true
+  },
+  collectionneur: {
+    id: 'collectionneur', label: 'Collectionneur', icon: '💎',
+    text: 'Garde les pièces rares de sa spécialité et paie plus cher pour les compléter.'
+  }
+};
+
+export function getNpcProfession(npc) {
+  return NPC_PROFESSIONS[npc?.profession] || NPC_PROFESSIONS.negociant;
+}
+
 export const NPCS = [
   {
     id: 'npc_01',
+    profession: 'reparateur',
     name: 'Léa Martin',
     personality: 'prudent',
     preferredCategories: ['Électronique', 'Divers'],
@@ -63,6 +93,7 @@ export const NPCS = [
   },
   {
     id: 'npc_02',
+    profession: 'negociant',
     name: 'Karim Benali',
     personality: 'agressif',
     preferredCategories: ['Ressources', 'Outils'],
@@ -73,6 +104,7 @@ export const NPCS = [
   },
   {
     id: 'npc_03',
+    profession: 'producteur',
     name: 'Sophie Dubois',
     personality: 'artisan',
     preferredCategories: ['Outils', 'Ressources'],
@@ -83,6 +115,7 @@ export const NPCS = [
   },
   {
     id: 'npc_04',
+    profession: 'collectionneur',
     name: 'Thomas Leroy',
     personality: 'collectionneur',
     preferredCategories: ['Électronique', 'Vêtements'],
@@ -93,6 +126,7 @@ export const NPCS = [
   },
   {
     id: 'npc_05',
+    profession: 'producteur',
     name: 'Fatima Zahra',
     personality: 'épicier',
     preferredCategories: ['Nourriture'],
@@ -103,6 +137,7 @@ export const NPCS = [
   },
   {
     id: 'npc_06',
+    profession: 'negociant',
     name: 'Nicolas Petit',
     personality: 'opportuniste',
     preferredCategories: ['Électronique', 'Divers'],
@@ -113,6 +148,7 @@ export const NPCS = [
   },
   {
     id: 'npc_07',
+    profession: 'reparateur',
     name: 'Camille Rousseau',
     personality: 'prudent',
     preferredCategories: ['Vêtements', 'Divers'],
@@ -123,6 +159,7 @@ export const NPCS = [
   },
   {
     id: 'npc_08',
+    profession: 'producteur',
     name: 'Mehdi Saïd',
     personality: 'agressif',
     preferredCategories: ['Ressources', 'Électronique'],
@@ -133,6 +170,7 @@ export const NPCS = [
   },
   {
     id: 'npc_09',
+    profession: 'producteur',
     name: 'Emma Bernard',
     personality: 'artisan',
     preferredCategories: ['Outils', 'Ressources'],
@@ -143,6 +181,7 @@ export const NPCS = [
   },
   {
     id: 'npc_10',
+    profession: 'collectionneur',
     name: 'Lucas Moreau',
     personality: 'collectionneur',
     preferredCategories: ['Électronique'],
@@ -153,6 +192,7 @@ export const NPCS = [
   },
   {
     id: 'npc_11',
+    profession: 'producteur',
     name: 'Amina Khelifi',
     personality: 'épicier',
     preferredCategories: ['Nourriture', 'Divers'],
@@ -163,6 +203,7 @@ export const NPCS = [
   },
   {
     id: 'npc_12',
+    profession: 'reparateur',
     name: 'Julien Garcia',
     personality: 'opportuniste',
     preferredCategories: ['Vêtements', 'Électronique'],
@@ -173,6 +214,7 @@ export const NPCS = [
   },
   {
     id: 'npc_13',
+    profession: 'producteur',
     name: 'Chloé Lefebvre',
     personality: 'prudent',
     preferredCategories: ['Divers', 'Nourriture'],
@@ -183,6 +225,7 @@ export const NPCS = [
   },
   {
     id: 'npc_14',
+    profession: 'negociant',
     name: 'Hugo Fontaine',
     personality: 'agressif',
     preferredCategories: ['Outils', 'Ressources'],
@@ -193,6 +236,7 @@ export const NPCS = [
   },
   {
     id: 'npc_15',
+    profession: 'collectionneur',
     name: 'Sarah Cohen',
     personality: 'collectionneur',
     preferredCategories: ['Vêtements', 'Divers'],

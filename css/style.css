@@ -1162,3 +1162,126 @@ tr.row-deal td:first-child {
 .mini-chip.chip-good { border-color: rgba(0, 184, 148, 0.45); }
 .mini-chip.chip-warn { border-color: rgba(253, 203, 110, 0.6); color: var(--warning); }
 .mini-chip.chip-bad { border-color: rgba(225, 112, 85, 0.7); color: var(--danger); }
+
+/* ============================================
+   Offre / demande, métiers, établi, suivi (PR offre-demande-métiers)
+   ============================================ */
+.sd-chip {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  cursor: help;
+}
+.sd-shortage { background: rgba(225, 112, 85, 0.18); color: #ff9f84; border-color: rgba(225, 112, 85, 0.55); }
+.sd-tight { background: rgba(253, 203, 110, 0.15); color: var(--warning); border-color: rgba(253, 203, 110, 0.45); }
+.sd-balanced { background: rgba(0, 184, 148, 0.12); color: #55efc4; border-color: rgba(0, 184, 148, 0.4); }
+.sd-surplus { background: rgba(116, 185, 255, 0.14); color: #74b9ff; border-color: rgba(116, 185, 255, 0.45); }
+.sd-cell { display: flex; flex-direction: column; gap: 3px; min-width: 110px; cursor: help; }
+.sd-cell small { font-size: 0.72rem; }
+.sd-bar { height: 4px; background: var(--bg-input); border-radius: 4px; overflow: hidden; border: 0; }
+.sd-bar span { display: block; height: 100%; background: currentColor; border-radius: 4px; }
+.sd-bar.sd-shortage span { background: var(--danger); }
+.sd-bar.sd-tight span { background: var(--warning); }
+.sd-bar.sd-balanced span { background: var(--success); }
+.sd-bar.sd-surplus span { background: #74b9ff; }
+
+.watch-star {
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  font-size: 1rem; padding: 0 4px 0 0; line-height: 1;
+}
+.watch-star.on, .watch-star:hover { color: var(--warning); }
+
+.dock-badge {
+  display: inline-block; min-width: 16px; padding: 0 5px; margin-left: 3px;
+  border-radius: 999px; background: var(--danger); color: #fff;
+  font-size: 0.68rem; font-weight: 800; line-height: 16px; text-align: center;
+}
+.dock-badge[hidden] { display: none; }
+
+/* Atelier */
+.jobs-root {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+.jobs-root > .tabs { grid-column: 1 / -1; margin-bottom: 0; }
+.jobs-section { grid-column: 1 / -1; margin: 8px 0 0; font-family: var(--font-display); font-size: 1.02rem; }
+.jobs-hint { grid-column: 1 / -1; margin: -6px 0 0; font-size: 0.82rem; color: var(--text-secondary); }
+.job-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.job-card h3 { font-family: var(--font-display); font-size: 0.95rem; line-height: 1.2; }
+.job-card p { font-size: 0.85rem; color: var(--text-secondary); margin: 0; }
+.job-card .goal-foot { margin-top: auto; }
+.job-card.completed { opacity: 0.6; }
+.job-card.scavenge-card { border-color: rgba(108, 92, 231, 0.5); }
+.jobs-small { font-size: 0.78rem !important; opacity: 0.9; }
+.prof-card { border-color: rgba(253, 203, 110, 0.35); }
+.prof-level { font-weight: 800; color: var(--warning); }
+.prof-bar { height: 6px; border-radius: 6px; background: var(--bg-input); overflow: hidden; }
+.prof-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--warning)); }
+.prof-perks { margin: 0; padding-left: 16px; font-size: 0.8rem; color: var(--text-secondary); }
+.bench-card { border-color: rgba(0, 184, 148, 0.45); }
+.bench-bar span { background: linear-gradient(90deg, var(--success), #55efc4); }
+.bench-empty { border-style: dashed; justify-content: center; }
+.repair-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.repair-opt {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 7px; display: flex; flex-direction: column; gap: 3px; font-size: 0.78rem; cursor: help;
+}
+.repair-opt small { color: var(--text-secondary); }
+.repair-opt.locked { opacity: 0.6; }
+.repair-opt .btn { margin-top: 4px; }
+.deal-card { border-color: rgba(253, 203, 110, 0.45); }
+.cond-chip { font-weight: 800; padding: 0 6px; border-radius: 999px; font-size: 0.78rem; }
+.cond-damaged { background: rgba(225, 112, 85, 0.2); color: #ff9f84; }
+.cond-worn { background: rgba(253, 203, 110, 0.15); color: var(--warning); }
+.cond-good { background: rgba(0, 184, 148, 0.15); color: #55efc4; }
+.cond-mint { background: rgba(116, 185, 255, 0.15); color: #74b9ff; }
+.repair-hint { font-size: 0.82rem; }
+.npc-profession { color: var(--warning) !important; }
+
+/* Suivi & ordres */
+.trading-root { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.trading-add { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.trading-add label { display: flex; flex-direction: column; gap: 3px; font-size: 0.78rem; color: var(--text-secondary); }
+.input-xs { width: 84px; padding: 3px 6px; }
+.trading-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 12px; align-items: start; }
+.alert-inputs { display: flex; flex-direction: column; gap: 4px; }
+.alert-inputs label { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap; }
+.alert-log { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; }
+.alert-log h3 { font-family: var(--font-display); font-size: 0.95rem; }
+.alert-log ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 0.8rem; }
+.alert-item { padding: 5px 7px; border-radius: 6px; background: var(--bg-card); border-left: 3px solid var(--border); }
+.alert-item.unread { border-left-color: var(--warning); font-weight: 700; }
+.alert-item.alert-below { border-left-color: var(--success); }
+.alert-item.alert-shortage { border-left-color: var(--danger); }
+.nowrap { white-space: nowrap; }
+.journal-tiles { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.journal-bars { width: 100%; height: 48px; }
+.journal-bars .bar-up { fill: var(--success); }
+.journal-bars .bar-down { fill: var(--danger); }
+.journal-bars .bar-axis { stroke: var(--border); stroke-width: 1; }
+.history-summary {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 6px 10px; margin-bottom: 10px; font-size: 0.85rem;
+}
+.history-summary:empty { display: none; }
+.eco-season strong { white-space: nowrap; }
+@media (max-width: 900px) {
+  .trading-layout { grid-template-columns: 1fr; }
+  .repair-opts { grid-template-columns: 1fr; }
+}

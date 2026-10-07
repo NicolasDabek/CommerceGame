@@ -10,6 +10,7 @@ import { MarketUI } from './ui/MarketUI.js';
 import { NpcUI } from './ui/NpcUI.js';
 import { GoalsUI } from './ui/GoalsUI.js';
 import { JobsUI } from './ui/JobsUI.js';
+import { TradingUI } from './ui/TradingUI.js';
 import { getItemById } from './data/items.js';
 import { formatMoney as fmtMoney, insightCardHtml, qtyQuickButtons, wireQtyQuick, economyChipHtml } from './ui/TradeInsights.js';
 import { Offer } from './models/Offer.js';
@@ -341,7 +342,25 @@ function openFulfillModal(offerId, maxQty) {
   }, 0);
 }
 
-let historyUI, auctionUI, buyUI, inventoryUI, marketUI, npcUI, goalsUI, jobsUI;
+let historyUI, auctionUI, buyUI, inventoryUI, marketUI, npcUI, goalsUI, jobsUI, tradingUI;
+
+function act(result, okMsg) {
+  if (result?.success) setStatus(okMsg);
+  else setStatus(result?.error || 'Action impossible');
+  refreshAllUI();
+}
+
+function renderHistorySummary() {
+  const el = document.getElementById('history-summary');
+  if (!el || !game.getTradingView) return;
+  const j = game.getTradingView().journal;
+  const s = (n) => `<strong class="${n >= 0 ? 'text-success' : 'text-danger'}">${n >= 0 ? '+' : ''}${formatMoney(n)} €</strong>`;
+  el.innerHTML = `<span>Bilan : marge réalisée ${s(j.realized)} · contrats &amp; services ${s(j.jobRealized)} · atelier ${s(-j.workshop)} · frais ${s(-j.fees)} · <span title="Marge réalisée + contrats − atelier − frais">net ${s(j.net)}</span> · latent ${s(j.unrealized)}</span> <button class="btn btn-small btn-ghost" id="btn-open-journal">Bilan détaillé</button>`;
+  el.querySelector('#btn-open-journal')?.addEventListener('click', () => {
+    if (tradingUI) tradingUI.tab = 'journal';
+    window.showWorldPanel?.('trading');
+  });
+}
 
 function initUI() {
   const resolveName = (id) => game.getNpcName(id);
@@ -376,17 +395,50 @@ function initUI() {
       setStatus(`${item?.name || slot.itemId} — ×${slot.quantity} | Q${slot.quality} P${slot.perfection}${avg}`);
     },
     onList: (slot) => openCreateSellModalForSlot(slot),
-    onSell: (slot) => sellSlotToBestBuy(slot)
+    onSell: (slot) => sellSlotToBestBuy(slot),
+    getRepairQuote: (id, q, p, mode) => (game.getRepairQuote ? game.getRepairQuote(id, q, p, mode) : null),
+    onOpenWorkshop: () => { if (jobsUI) jobsUI.tab = 'workshop'; window.showWorldPanel?.('jobs'); }
   });
   marketUI = new MarketUI({
     getMarketRows: () => game.getMarketRows(),
     getEvents: () => game.economy.getActiveEvents(),
     getEconomyHealth: () => game.getEconomyHealth(),
-    getMsPerGameDay: () => game.timeManager.msPerGameDay
+    getMsPerGameDay: () => game.timeManager.msPerGameDay,
+    isWatched: (itemId) => !!game.tradingDesk?.isWatched(itemId),
+    onToggleWatch: (itemId) => {
+      if (!game.toggleWatch) return;
+      const r = game.toggleWatch(itemId);
+      act(r, r.watched ? 'Ajouté à la liste de suivi (onglet Suivi)' : 'Retiré de la liste de suivi');
+    }
   });
   npcUI = new NpcUI({ getProfiles: () => game.getNpcProfiles(), resolveName });
   goalsUI = new GoalsUI({ getGoals: () => game.getGoals(), getSummary: () => game.getProgressSummary() });
+  tradingUI = new TradingUI({
+    getView: () => (game.getTradingView ? game.getTradingView() : null),
+    getFair: (itemId) => game.economy.getFairValue(itemId),
+    actions: {
+      toggleWatch: (itemId) => { const r = game.toggleWatch(itemId); act(r, r.watched ? 'Objet suivi' : 'Objet retiré du suivi'); },
+      setAlert: (itemId, below, above) => act(game.setPriceAlert(itemId, below, above), 'Alertes enregistrées'),
+      markRead: () => { game.markAlertsRead(); refreshAllUI(); },
+      addOrder: (params) => act(game.addStandingOrder(params), 'Ordre permanent créé — offre du jour placée'),
+      toggleOrder: (id) => act(game.toggleStandingOrder(id), 'Ordre mis à jour'),
+      removeOrder: (id) => act(game.removeStandingOrder(id), 'Ordre supprimé')
+    }
+  });
   jobsUI = new JobsUI({
+    getMsPerGameDay: () => game.timeManager.msPerGameDay,
+    onRepair: (itemId, quality, perfection, mode) => {
+      const result = game.startRepair ? game.startRepair(itemId, quality, perfection, mode) : { success: false, error: 'Indisponible' };
+      act(result, result.success ? `Sur l'établi : ${result.name} → Q${result.quote.toQuality} dans ${String(result.hours).replace('.', ',')} h` : '');
+    },
+    onNpcOrder: (id) => {
+      const result = game.deliverNpcOrder ? game.deliverNpcOrder(id) : { success: false, error: 'Indisponible' };
+      act(result, result.success ? `Commande livrée à ${result.npcName} : +${formatMoney(result.payout)} €` : '');
+    },
+    onBuyDeal: (offerId) => {
+      const result = game.buyout(offerId, 1);
+      act(result, 'Acheté — posez-le sur l\'établi pour le réparer');
+    },
     getView: () => game.getJobsView ? game.getJobsView() : { contracts: [], recipes: [], stallItems: [], stats: {}, feeVault: 0, scavengeUsedToday: 0, maxScavengePerDay: 4, maxStallPerDay: 3 },
     onScavenge: () => {
       const result = game.scavenge ? game.scavenge() : { success: false, error: 'Indisponible' };
@@ -451,6 +503,7 @@ function refreshAllUI() {
   updateEconomyChip();
   historyUI?.render(); auctionUI?.render(); buyUI?.render(); inventoryUI?.render();
   marketUI?.render(); npcUI?.render(); goalsUI?.render(); jobsUI?.render();
+  tradingUI?.render(); renderHistorySummary();
 }
 window.addEventListener('panel-changed', () => { if (historyUI) refreshAllUI(); });
 
@@ -459,11 +512,14 @@ function init() {
   if (loaded) setStatus('Sauvegarde chargée');
   else { game.giveStarterItems(); setStatus('Nouvelle partie — objets de départ ajoutés'); }
   initNavigation(); Modal.init(); initUI(); refreshAllUI();
+  if (!game.uiCallbacks.onStatus) game.uiCallbacks.onStatus = (msg) => setStatus(msg);
   setInterval(() => {
     const offersBefore = game.offers.length;
     game.tick();
-    if (game.offers.length !== offersBefore || game.transactions.length > 0) refreshAllUI();
-    else game.timeManager.updateUI();
+    const panelOpen = document.getElementById('interior-overlay')?.classList.contains('open');
+    if (panelOpen || game.offers.length !== offersBefore) refreshAllUI();
+    else tradingUI?.updateBadge();
+    game.timeManager.updateUI();
     updateEconomyChip();
   }, 8000);
   document.getElementById('eco-chip')?.addEventListener('click', () => window.showWorldPanel?.('market'));

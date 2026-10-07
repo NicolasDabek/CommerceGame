@@ -86,6 +86,48 @@ export function priceWhyChip(explanation) {
   return `<small class="why-chip ${cls}" title="Pourquoi ce prix ?\n${priceFactorsTitle(explanation)}">${pct > 0 ? '+' : ''}${Math.round(pct)} % · ${label}</small>`;
 }
 
+const SD_TREND = { falling: '↘ le stock baisse', rising: '↗ le stock remonte', stable: '→ stable' };
+
+function dec1(n) {
+  return n == null ? '—' : (Math.round(Number(n) * 10) / 10).toLocaleString('fr-FR');
+}
+
+/** Info-bulle offre / demande : stock, demande, couverture, raisons. */
+export function supplyTitle(view) {
+  if (!view) return '';
+  const lines = [
+    `${view.label} — ${dec1(view.coverage)} jour(s) de stock`,
+    `Stock disponible : ${view.supply ?? '—'} unités en état d'usage (marchands, annonces, Comptoir)`,
+    `Demande de la ville : ${dec1(view.demand)} / jour`,
+    `Tendance : ${SD_TREND[view.trend] || SD_TREND.stable}`
+  ];
+  if (view.scarcity && Math.abs(view.scarcity - 1) >= 0.01) {
+    lines.push(`Effet sur le prix : ${view.scarcity > 1 ? '+' : ''}${Math.round((view.scarcity - 1) * 100)} %`);
+  }
+  if (view.why) lines.push(`Pourquoi : ${view.why}`);
+  lines.push('Pénurie < 2 jours · Tendu < 5 jours · Surplus > 30 jours');
+  return escapeAttr(lines.join('\n'));
+}
+
+/** Pastille compacte « Pénurie / Tendu / Équilibré / Surplus ». */
+export function supplyChipHtml(view) {
+  if (!view) return '<span class="text-muted">—</span>';
+  const arrow = view.trend === 'falling' ? ' ↘' : view.trend === 'rising' ? ' ↗' : '';
+  return `<span class="sd-chip sd-${view.status}" title="${supplyTitle(view)}">${view.label}${arrow}</span>`;
+}
+
+/** Cellule de la Halle des prix : pastille + stock / demande + jauge de couverture. */
+export function supplyCellHtml(view) {
+  if (!view) return '<span class="text-muted">—</span>';
+  const pct = Math.max(4, Math.min(100, Math.round(((view.coverage ?? 0) / 30) * 100)));
+  return `
+    <div class="sd-cell" title="${supplyTitle(view)}">
+      ${supplyChipHtml(view)}
+      <small class="text-muted">${view.supply ?? '—'} en stock · ${dec1(view.demand)}/j</small>
+      <div class="sd-bar sd-${view.status}" aria-hidden="true"><span style="width:${pct}%"></span></div>
+    </div>`;
+}
+
 const ECO_STATUS_ICON = { stable: '🟢', tendu: '🟠', surchauffe: '🔴', 'prix-bas': '🔵', deflation: '🔵' };
 
 /** Indice des prix lisible : 100 = normal. */
@@ -134,9 +176,27 @@ export function economyHealthHtml(health) {
         <div class="eco-main"><strong>${health.txPerDay}</strong><small class="text-muted"> ventes / jour</small></div>
         <small class="text-muted">stock marchands : ${health.npcStock} objets</small>
       </div>
+      ${marketTileHtml(health.market)}
       <p class="eco-explain">${health.explanation}</p>
     </div>
   `;
+}
+
+/** Tuile « Saison & population » : ce qui pilote la demande. */
+function marketTileHtml(market) {
+  if (!market) return '';
+  const list = (arr) => arr.slice(0, 4).map(i => i.icon).join(' ');
+  const shortTxt = market.shortages.length
+    ? `Pénurie : ${list(market.shortages)}${market.shortages.length > 4 ? '…' : ''}`
+    : 'Aucune pénurie';
+  const resolve = market.avgShortageDays != null ? ` · résolue en ~${dec1(market.avgShortageDays)} j` : '';
+  return `
+      <div class="eco-tile eco-season" title="${escapeAttr(`${market.season.text}\nLa demande dépend de la population et de la saison. Les objets en pénurie (moins de ${market.shortageCoverage} jours de stock) coûtent plus cher ; les surplus moins cher.\nSaison suivante : ${market.nextSeason.label} dans ${market.seasonDaysLeft} jour(s).`)}">
+        <span class="eco-label">Saison &amp; population</span>
+        <div class="eco-main"><strong>${market.season.icon} ${market.season.label}</strong><small class="text-muted"> · ${Math.round(market.population)} hab.</small></div>
+        <small class="text-muted">${shortTxt}${resolve}</small>
+        <small class="text-muted">${market.nextSeason.icon} ${market.nextSeason.label} dans ${market.seasonDaysLeft} j${market.surplus.length ? ` · surplus : ${list(market.surplus)}` : ''}</small>
+      </div>`;
 }
 
 /**
@@ -162,6 +222,10 @@ export function insightCardHtml(insight, { compact = false } = {}) {
     last,
     owned
   ];
+  if (insight.supply) {
+    const v = insight.supply;
+    rows.splice(1, 0, `Offre / demande : ${supplyChipHtml(v)} <span class="text-muted">${v.supply ?? '—'} en stock · ${dec1(v.demand)} / jour · ${dec1(v.coverage)} j de stock${v.why ? ` · ${v.why}` : ''}</span>`);
+  }
   if (insight.explanation) {
     rows.splice(1, 0, `<span title="${priceFactorsTitle(insight.explanation)}">Valeur normale : <strong>${formatMoney(insight.fair)} €</strong> · <span class="text-muted">${insight.explanation.summary}</span></span>`);
   }

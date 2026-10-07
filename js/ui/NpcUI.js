@@ -82,6 +82,7 @@ export class NpcUI {
             <h3>${profile.name}</h3>
             <p>${profile.personality} · ${(profile.aggressiveness * 100).toFixed(0)}% · ${clan?.icon || ''} ${clan?.name || ''}</p>
             ${profile.strategy ? `<p class="npc-strategy" title="${profile.strategyText || ''}">🎯 ${profile.strategy}</p>` : ''}
+            ${profile.profession ? `<p class="npc-strategy npc-profession" title="${profile.professionText || ''}">${profile.professionIcon || ''} ${profile.profession}${profile.repaired ? ` · ${profile.repaired} réparé(s)` : ''}${profile.arbitrages ? ` · ${profile.arbitrages} arbitrage(s)` : ''}</p>` : ''}
           </div>
           <strong class="text-money">${this._formatMoney(profile.capital)} €</strong>
         </div>

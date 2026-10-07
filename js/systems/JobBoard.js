@@ -1,5 +1,37 @@
 import { ITEMS, getItemById } from '../data/items.js';
 import { NPCS } from '../data/npcs.js';
+import { isRepairable, repairMaterials, conditionLabel } from '../core/condition.js';
+
+/** Paliers d'expérience des métiers du joueur (niveaux 1 à 5). */
+export const PROFESSION_LEVELS = [0, 40, 120, 250, 450];
+
+export const PLAYER_PROFESSIONS = {
+  repair: { id: 'repair', label: 'Réparateur', icon: '🔧', text: 'Remet en état les objets abîmés sur l\'établi.' },
+  craft: { id: 'craft', label: 'Artisan', icon: '🛠️', text: 'Fabrique des objets à partir de matériaux.' },
+  trade: { id: 'trade', label: 'Négociant', icon: '📦', text: 'Livre les contrats et les commandes des marchands.' }
+};
+
+export function professionLevel(xp = 0) {
+  let level = 1;
+  PROFESSION_LEVELS.forEach((min, i) => { if (xp >= min) level = i + 1; });
+  return level;
+}
+
+/** Réglages de l'établi de réparation. */
+export const REPAIR_TUNING = {
+  quickRestore: 15,            // points d'état gagnés par une réparation rapide
+  quickHours: 4,               // durée (heures de jeu)
+  refurbishBase: 85,           // état visé par une remise à neuf (+2 par niveau)
+  refurbishHours: 10,
+  suppliesBase: 2,             // fournitures : 2 € + état restauré × prix de base × 0,15 %
+  suppliesRate: 0.0015,
+  discountPerLevel: 0.06,      // −6 % de fournitures par niveau
+  speedPerLevel: 0.1,          // −10 % de temps par niveau
+  rareLevel: 2,                // niveau requis pour les objets rares
+  epicLevel: 3                 // … et épiques
+};
+
+const RARITY_LEVEL = { 'Commun': 1, 'Rare': REPAIR_TUNING.rareLevel, 'Épique': REPAIR_TUNING.epicLevel };
 
 const VAULT_DAILY_CAP = 300;
 
@@ -91,24 +123,6 @@ function clamp(n, min, max) {
   return Math.max(min, Math.min(max, Math.round(n)));
 }
 
-function repairPartFor(itemId) {
-  const item = getItemById(itemId);
-  if (!item) return null;
-  switch (item.category) {
-    case 'Électronique':
-      return { itemId: 'item_011', name: 'Composants électroniques', icon: '🔌' };
-    case 'Outils':
-      return { itemId: 'item_010', name: 'Cuivre recyclé (lingot)', icon: '🟠' };
-    case 'Ressources':
-      if (itemId === 'item_012') {
-        return { itemId: 'item_012', name: 'Bois de palette traité', icon: '🪵' };
-      }
-      return null;
-    default:
-      return null;
-  }
-}
-
 function canSalvage(itemId) {
   const item = getItemById(itemId);
   if (!item) return false;
@@ -155,13 +169,103 @@ export class JobBoard {
     this.stats = saved.stats || { scavenges: 0, contracts: 0, crafts: 0, stalls: 0, repairs: 0, services: 0, salvages: 0, earned: 0 };
     this.lastLoot = saved.lastLoot || null;
     this.lastCraft = saved.lastCraft || null;
+    // Métiers : anciennes sauvegardes → expérience reconstituée depuis les statistiques
+    this.professions = saved.professions || {
+      repair: { xp: (this.stats.repairs || 0) * 10 },
+      craft: { xp: (this.stats.crafts || 0) * 12 },
+      trade: { xp: (this.stats.contracts || 0) * 15 }
+    };
+    ['repair', 'craft', 'trade'].forEach(k => { if (!this.professions[k]) this.professions[k] = { xp: 0 }; });
+    /** Objets en cours de réparation sur l'établi */
+    this.bench = saved.bench || [];
+    /** Commandes des marchands (PNJ) */
+    this.npcOrders = saved.npcOrders || [];
+    this.lastLevelUp = saved.lastLevelUp || null;
   }
 
+  // ============================================
+  // Métiers
+  // ============================================
+  level(prof) {
+    return professionLevel(this.professions[prof]?.xp || 0);
+  }
+
+  /** Ancien « niveau d'atelier » = niveau du métier Artisan (recettes). */
   workshopLevel() {
-    const n = this.stats.crafts || 0;
-    if (n >= 12) return 3;
-    if (n >= 5) return 2;
-    return 1;
+    return this.level('craft');
+  }
+
+  gainXp(prof, amount) {
+    const before = this.level(prof);
+    this.professions[prof].xp = (this.professions[prof].xp || 0) + amount;
+    const after = this.level(prof);
+    if (after > before) {
+      this.lastLevelUp = { prof, level: after, day: this._day() };
+      const label = PLAYER_PROFESSIONS[prof]?.label || prof;
+      this.game.uiCallbacks?.onStatus?.(`${PLAYER_PROFESSIONS[prof]?.icon || ''} ${label} : niveau ${after} atteint !`);
+    }
+    return after > before;
+  }
+
+  benchSlots() {
+    const lvl = this.level('repair');
+    return 1 + (lvl >= 3 ? 1 : 0) + (lvl >= 5 ? 1 : 0);
+  }
+
+  maxRepairsToday() {
+    return this.maxRepairsPerDay + this.level('repair') - 1;
+  }
+
+  contractPremium() {
+    return (this.level('trade') - 1) * 0.04;
+  }
+
+  /** Avantages lisibles de chaque métier, pour l'interface. */
+  perks(prof, level = this.level(prof)) {
+    const e = (n) => `${Math.round(n * 100)} %`;
+    if (prof === 'repair') {
+      return [
+        `Fournitures −${e((level - 1) * REPAIR_TUNING.discountPerLevel)}, temps −${e((level - 1) * REPAIR_TUNING.speedPerLevel)}`,
+        `${this.benchSlots()} place(s) sur l'établi · ${this.maxRepairsToday()} réparations / jour`,
+        `Remise à neuf jusqu'à Q${Math.min(95, REPAIR_TUNING.refurbishBase + 2 * level)}`,
+        level >= REPAIR_TUNING.epicLevel ? 'Répare les objets épiques' : level >= REPAIR_TUNING.rareLevel ? `Rares OK · épiques au niv. ${REPAIR_TUNING.epicLevel}` : `Objets rares au niv. ${REPAIR_TUNING.rareLevel}`
+      ];
+    }
+    if (prof === 'craft') {
+      return [
+        `Qualité des fabrications +${(level - 1) * 3}`,
+        level >= 3 ? 'Toutes les recettes débloquées' : `Nouvelles recettes au niv. ${level + 1}`
+      ];
+    }
+    return [
+      `Prime des contrats +${e(this.contractPremium())}`,
+      `${this.contractCount()} contrats / jour · ${this.standingOrderSlots()} ordres permanents`
+    ];
+  }
+
+  contractCount() {
+    return 3 + (this.level('trade') >= 3 ? 1 : 0);
+  }
+
+  standingOrderSlots() {
+    return 2 + Math.floor(this.level('trade') / 2);
+  }
+
+  getProfessionsView() {
+    return Object.values(PLAYER_PROFESSIONS).map(def => {
+      const xp = this.professions[def.id]?.xp || 0;
+      const level = professionLevel(xp);
+      const cur = PROFESSION_LEVELS[level - 1];
+      const next = PROFESSION_LEVELS[level] ?? null;
+      return {
+        ...def,
+        xp,
+        level,
+        nextXp: next,
+        progress: next == null ? 1 : (xp - cur) / (next - cur),
+        perks: this.perks(def.id, level)
+      };
+    });
   }
 
   depositFee(amount) {
@@ -203,8 +307,9 @@ export class JobBoard {
     this.repairsUsedToday = 0;
     this.salvageUsedToday = 0;
     this.servicesUsedToday = 0;
-    this.contracts = this._roll(3, day);
+    this.contracts = this._roll(this.contractCount(), day);
     this.services = this._rollServices(day);
+    this._rollNpcOrders(day);
   }
 
   onNewDay() {
@@ -224,32 +329,135 @@ export class JobBoard {
     }
   }
 
+  _supplyView(itemId) {
+    return this.game.getSupplyView ? this.game.getSupplyView(itemId) : null;
+  }
+
+  _fair(itemId) {
+    return this.game.economy.getFairValue ? this.game.economy.getFairValue(itemId) : this.game.economy.getAveragePrice(itemId);
+  }
+
+  /**
+   * Contrats municipaux : la ville commande en priorité les objets en pénurie
+   * (2 contrats sur les stocks les plus bas + 1 commande courante).
+   * Payés par la trésorerie du Comptoir ; les objets livrés rejoignent son stock.
+   */
   _roll(count, day) {
-    const pool = ITEMS.filter(i => i.rarity !== 'Épique').map(i => i.id);
-    const picked = [];
-    for (let i = 0; i < count && pool.length; i++) {
-      const idx = Math.floor(Math.random() * pool.length);
-      const itemId = pool.splice(idx, 1)[0];
-      const item = getItemById(itemId);
-      const rush = i === 0;
+    const pool = ITEMS.filter(i => i.rarity !== 'Épique');
+    const ranked = pool.map(item => ({ item, view: this._supplyView(item.id) }))
+      .sort((a, b) => (a.view?.coverage ?? 99) - (b.view?.coverage ?? 99));
+    const chosen = [];
+    ranked.slice(0, Math.max(1, count - 1)).forEach(x => chosen.push(x));
+    const rest = ranked.filter(x => !chosen.includes(x));
+    while (chosen.length < count && rest.length) {
+      chosen.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
+    }
+    return chosen.map(({ item, view }, i) => {
+      const status = view?.status || 'balanced';
+      const lowStock = i < count - 1 && status === 'balanced';
       const qty = item.rarity === 'Rare' ? 1 + (day % 2) : 2 + (day % 3);
-      const unit = this.game.economy.getAveragePrice(itemId);
-      const mult = rush ? 1.28 : 1.12;
-      const reward = Math.round(unit * qty * mult * 100) / 100;
-      picked.push({
-        id: `job_${day}_${itemId}_${i}`,
-        itemId,
+      const scarcityPremium = status === 'shortage' ? 0.18 : status === 'tight' ? 0.1 : lowStock ? 0.04 : 0;
+      const rush = i === 0 && status === 'shortage';
+      const mult = 1.12 + scarcityPremium + this.contractPremium();
+      const unit = this._fair(item.id);
+      const reward = moneyRound(unit * qty * mult);
+      const cov = view?.coverage;
+      const covTxt = cov == null ? '' : `${String(Math.round(cov * 10) / 10).replace('.', ',')} jour(s) de stock`;
+      const unmetTxt = view?.unmet > 0 ? ` · ${view.unmet} client(s) non servi(s) hier` : '';
+      const reason = status === 'shortage' ? `Pénurie : ${covTxt}${unmetTxt}`
+        : status === 'tight' ? `Stock tendu : ${covTxt}`
+          : lowStock ? `Stock le plus bas du marché : ${covTxt}`
+            : 'Commande courante du Comptoir';
+      return {
+        id: `job_${day}_${item.id}_${i}`,
+        itemId: item.id,
         quantity: qty,
         reward,
         rush,
         status: 'open',
-        title: `${rush ? 'Rush · ' : ''}Livraison : ${item?.name || itemId}`,
-        hint: rush
-          ? `Urgent : ${qty} × ${item?.name || itemId} (prime +28 %)`
-          : `Fournir ${qty} × ${item?.name || itemId}`
+        shortage: lowStock ? 'low' : status,
+        reason,
+        premiumPct: Math.round((mult - 1) * 100),
+        title: `${rush ? 'Rush · ' : ''}Livraison : ${item.name}`,
+        hint: `Fournir ${qty} × ${item.name} (prime +${Math.round((mult - 1) * 100)} %)`
+      };
+    });
+  }
+
+  /** Commandes des marchands : un PNJ à court de stock paie la livraison avec son propre argent. */
+  _rollNpcOrders(day) {
+    this.npcOrders = (this.npcOrders || []).filter(o => o.status === 'open' && o.deadlineDay >= day);
+    let guard = 0;
+    while (this.npcOrders.length < 3 && guard < 20) {
+      guard += 1;
+      const npc = NPCS[Math.floor(Math.random() * NPCS.length)];
+      if (this.npcOrders.some(o => o.npcId === npc.id)) continue;
+      const state = this._npcState(npc.id);
+      if (!state) continue;
+      const items = ITEMS.filter(i => npc.preferredCategories.includes(i.category) && i.rarity !== 'Épique');
+      if (!items.length) continue;
+      const scored = items.map(i => ({ i, cov: this._supplyView(i.id)?.coverage ?? 10 })).sort((a, b) => a.cov - b.cov);
+      const free = scored.filter(x => !this.npcOrders.some(o => o.itemId === x.i.id));
+      if (!free.length) continue;
+      const item = free[0].i;
+      const qty = item.basePrice > 150 ? 1 : item.basePrice > 40 ? 2 : 3;
+      const trust = state.trust || 0;
+      const pay = moneyRound(this._fair(item.id) * qty * (1.1 + Math.max(0, trust) * 0.01));
+      if ((state.capital || 0) < pay * 1.5) continue;
+      this.npcOrders.push({
+        id: `npco_${day}_${npc.id}`,
+        npcId: npc.id,
+        itemId: item.id,
+        quantity: qty,
+        minQuality: 40,
+        pay,
+        deadlineDay: day + 2,
+        status: 'open'
       });
     }
-    return picked;
+  }
+
+  deliverNpcOrder(orderId) {
+    const order = (this.npcOrders || []).find(o => o.id === orderId);
+    if (!order || order.status !== 'open') return { success: false, error: 'Commande indisponible' };
+    if (order.deadlineDay < this._day()) return { success: false, error: 'Commande expirée' };
+    const inv = this.game.player.inventory;
+    const stacks = inv.getStacks(order.itemId).filter(s => s.quality >= order.minQuality)
+      .sort((a, b) => a.quality - b.quality);
+    const have = stacks.reduce((t, s) => t + s.quantity, 0);
+    if (have < order.quantity) return { success: false, error: `Il faut ${order.quantity} × état Q${order.minQuality}+ (vous en avez ${have})` };
+    const npcName = this._npcName(order.npcId);
+    if (!this.game.npcController.debitNpc(order.npcId, order.pay)) {
+      return { success: false, error: `${npcName} n'a plus assez d'argent` };
+    }
+    let left = order.quantity;
+    let costBasis = 0;
+    for (const st of stacks) {
+      if (left <= 0) break;
+      const take = Math.min(left, st.quantity);
+      inv.remove(order.itemId, take, st.quality, st.perfection);
+      this._giveNpcItem(order.npcId, order.itemId, take, st.quality, st.perfection);
+      if (st.avgBuyPrice != null) costBasis += st.avgBuyPrice * take;
+      left -= take;
+    }
+    this.game.addMoney(order.pay);
+    this.game.npcController.noteTradeWithPlayer?.(order.npcId, 0, false);
+    order.status = 'done';
+    this.stats.npcOrders = (this.stats.npcOrders || 0) + 1;
+    this.stats.earned = moneyRound((this.stats.earned || 0) + order.pay);
+    this.gainXp('trade', 10);
+    this.game.player.addXp(10);
+    this.game.player.addReputation(1);
+    this._markActive();
+    this._emitJobIncome('npcOrder', order.itemId, order.quantity, order.pay, costBasis);
+    this.game.save();
+    this.game._notifyUI();
+    return { success: true, payout: order.pay, npcName };
+  }
+
+  /** Prévient le journal de trading d'un revenu d'atelier / de contrat. */
+  _emitJobIncome(kind, itemId, qty, amount, costBasis = null) {
+    this.game.tradingDesk?.recordJob?.({ kind, itemId, quantity: qty, amount, costBasis });
   }
 
   _npcState(npcId) {
@@ -308,10 +516,10 @@ export class JobBoard {
       const inv = (state?.inventory || []).filter(s => s.quantity > 0);
       const wantRepair = Math.random() < 0.55;
       if (wantRepair) {
-        const damaged = inv.filter(s => Number(s.quality) < 88 && getItemById(s.itemId)?.category !== 'Nourriture');
+        const damaged = inv.filter(s => Number(s.quality) < 88 && isRepairable(s.itemId));
         let slot = damaged[Math.floor(Math.random() * damaged.length)];
         if (!slot) {
-          const preferred = ITEMS.filter(i => npc.preferredCategories.includes(i.category) && i.category !== 'Nourriture' && i.category !== 'Ressources');
+          const preferred = ITEMS.filter(i => npc.preferredCategories.includes(i.category) && isRepairable(i.id));
           const fallback = ITEMS.filter(i => i.category === 'Électronique' || i.category === 'Outils');
           const poolItems = preferred.length ? preferred : fallback;
           const item = poolItems[Math.floor(Math.random() * poolItems.length)] || ITEMS.find(i => i.category === 'Électronique');
@@ -529,6 +737,8 @@ export class JobBoard {
     inv.add(recipe.output.itemId, recipe.output.qty, quality, perfection, fee);
     this.stats.crafts += 1;
     this.craftsUsedToday += 1;
+    this.gainXp('craft', focus ? 16 : 12);
+    this.game.tradingDesk?.recordWorkshopCost?.(fee);
     this.game.player.addXp(focus ? 14 : 10);
     this._markActive();
     const out = getItemById(recipe.output.itemId);
@@ -547,61 +757,203 @@ export class JobBoard {
     };
   }
 
+  /** Compatibilité : « Réparer » lance une réparation rapide sur l'établi. */
   polish(itemId, quality, perfection) {
-    this.ensureContracts();
-    if (this.repairsUsedToday >= this.maxRepairsPerDay) {
-      return { success: false, error: "Plus de réparations aujourd'hui" };
-    }
+    return this.startRepair(itemId, quality, perfection, 'quick');
+  }
+
+  _hourMs() {
+    return (this.game.timeManager?.msPerGameDay || 24 * 3600 * 1000) / 24;
+  }
+
+  _now() {
+    return this.game.timeManager?.now?.() ?? Date.now();
+  }
+
+  /**
+   * Devis de réparation : état visé, matériaux, fournitures, durée, valeur avant / après, profit attendu.
+   * mode : 'quick' (réparation rapide) | 'refurbish' (remise à neuf, niveau 2 requis)
+   */
+  repairQuote(itemId, quality, perfection, mode = 'quick') {
+    const item = getItemById(itemId);
     const q = Number(quality);
     const p = Number(perfection);
-    if (q >= 90) return { success: false, error: 'Déjà en excellent état' };
-    const part = repairPartFor(itemId);
-    const cost = Math.round((4 + (90 - q) * 0.12) * 100) / 100;
-    if (!this.game.player.canAfford(cost)) {
-      return { success: false, error: `Il faut ${cost.toFixed(2)} €` };
+    const lvl = this.level('repair');
+    const t = REPAIR_TUNING;
+    const base = { itemId, item, quality: q, perfection: p, mode, ok: false };
+    if (!item) return { ...base, error: 'Objet inconnu' };
+    if (!isRepairable(itemId)) return { ...base, error: `${item.category} : ne se répare pas` };
+    const needLvl = RARITY_LEVEL[item.rarity] || 1;
+    if (lvl < needLvl) return { ...base, locked: true, error: `Réparateur niv. ${needLvl} requis (objet ${item.rarity.toLowerCase()})` };
+    if (mode === 'refurbish' && lvl < 2) return { ...base, locked: true, error: 'Remise à neuf : Réparateur niv. 2 requis' };
+    const toQuality = mode === 'refurbish'
+      ? Math.max(q + 5, Math.min(95, t.refurbishBase + 2 * lvl))
+      : Math.min(96, q + t.quickRestore + lvl);
+    const toPerfection = Math.min(92, p + (mode === 'refurbish' ? 15 : 8));
+    const restore = toQuality - q;
+    if (q >= 90 || restore <= 0) return { ...base, error: 'Déjà en excellent état' };
+    const mat = repairMaterials(itemId, restore, mode);
+    const inv = this.game.player.inventory;
+    const materials = mat ? {
+      ...mat,
+      owned: inv.count(mat.itemId),
+      value: moneyRound(this._fair(mat.itemId) * mat.qty)
+    } : null;
+    const discount = 1 - t.discountPerLevel * (lvl - 1);
+    const supplies = moneyRound((t.suppliesBase + restore * item.basePrice * t.suppliesRate) * discount * (mode === 'refurbish' ? 1.3 : 1));
+    const hours = (mode === 'refurbish' ? t.refurbishHours : t.quickHours) * (1 - t.speedPerLevel * (lvl - 1));
+    const valueBefore = this.game.getAdjustedMarketPrice(itemId, q, p);
+    const valueAfter = this.game.getAdjustedMarketPrice(itemId, toQuality, toPerfection);
+    const totalCost = moneyRound(supplies + (materials?.value || 0));
+    const gain = moneyRound(valueAfter - valueBefore);
+    return {
+      ...base,
+      ok: true,
+      toQuality,
+      toPerfection,
+      restore,
+      labelBefore: conditionLabel(q).label,
+      labelAfter: conditionLabel(toQuality).label,
+      materials,
+      hasMaterials: !materials || materials.owned >= materials.qty,
+      supplies,
+      totalCost,
+      hours: Math.round(hours * 10) / 10,
+      durationMs: Math.round(hours * this._hourMs()),
+      valueBefore,
+      valueAfter,
+      gain,
+      profit: moneyRound(gain - totalCost)
+    };
+  }
+
+  /** Pose un objet sur l'établi : il quitte l'inventaire et revient réparé après le délai. */
+  startRepair(itemId, quality, perfection, mode = 'quick') {
+    this.ensureContracts();
+    this.collectReady();
+    const quote = this.repairQuote(itemId, quality, perfection, mode);
+    if (!quote.ok) return { success: false, error: quote.error };
+    if (this.bench.length >= this.benchSlots()) {
+      return { success: false, error: `Établi plein (${this.benchSlots()} place${this.benchSlots() > 1 ? 's' : ''})` };
+    }
+    if (this.repairsUsedToday >= this.maxRepairsToday()) {
+      return { success: false, error: `Plus de réparations aujourd'hui (max ${this.maxRepairsToday()})` };
+    }
+    if (!quote.hasMaterials) {
+      return { success: false, error: `Il faut ${quote.materials.qty} × ${quote.materials.name}` };
+    }
+    if (!this.game.player.canAfford(quote.supplies)) {
+      return { success: false, error: `Il faut ${quote.supplies.toFixed(2).replace('.', ',')} € de fournitures` };
     }
     const inv = this.game.player.inventory;
-    if (part) {
-      const reserved = part.itemId === itemId ? 1 : 0;
-      if (inv.count(part.itemId) - reserved < 1) {
-        return { success: false, error: `Il faut 1 × ${part.name}` };
-      }
-    }
+    const q = Number(quality);
+    const p = Number(perfection);
+    const stack = inv.getStacks(itemId).find(s => Number(s.quality) === q && Number(s.perfection) === p);
+    const avgBuy = stack?.avgBuyPrice ?? null;
     const removed = inv.remove(itemId, 1, q, p);
     if (removed < 1) return { success: false, error: 'Objet introuvable' };
-    let usedPart = false;
-    if (part) {
-      const took = inv.remove(part.itemId, 1);
-      if (took < 1) {
-        inv.add(itemId, 1, q, p);
-        return { success: false, error: `Il faut 1 × ${part.name}` };
+    if (quote.materials) {
+      const took = inv.remove(quote.materials.itemId, quote.materials.qty);
+      if (took < quote.materials.qty) {
+        if (took > 0) inv.add(quote.materials.itemId, took);
+        inv.add(itemId, 1, q, p, avgBuy);
+        return { success: false, error: `Il faut ${quote.materials.qty} × ${quote.materials.name}` };
       }
-      usedPart = true;
     }
-    const nq = clamp(q + 10 + (usedPart ? 4 : 0) + this.workshopLevel(), 1, 96);
-    const np = clamp(p + 8 + (usedPart ? 3 : 0), 1, 96);
-    if (!inv.add(itemId, 1, nq, np)) {
-      inv.add(itemId, 1, q, p);
-      if (usedPart) inv.add(part.itemId, 1);
-      return { success: false, error: 'Inventaire plein' };
-    }
-    this.game.removeMoney(cost);
-    this.depositFee(cost);
+    this.game.removeMoney(quote.supplies);
+    // Les fournitures sont achetées au Comptoir municipal : l'argent sort du circuit des joueurs (puits)
+    if (this.game.reserve) this.game.reserve.deposit(quote.supplies, 'workshop');
+    else this.depositFee(quote.supplies);
+    const now = this._now();
+    const entry = {
+      id: `bench_${now}_${Math.floor(Math.random() * 1e6)}`,
+      itemId,
+      quality: q,
+      perfection: p,
+      toQuality: quote.toQuality,
+      toPerfection: quote.toPerfection,
+      mode,
+      startedAt: now,
+      readyAt: now + quote.durationMs,
+      costBasis: avgBuy != null ? moneyRound(avgBuy + quote.totalCost) : null,
+      spent: quote.totalCost
+    };
+    this.bench.push(entry);
     this.repairsUsedToday += 1;
-    this.stats.repairs = (this.stats.repairs || 0) + 1;
-    this.game.player.addXp(5);
     this._markActive();
-    const item = getItemById(itemId);
+    this.game.tradingDesk?.recordWorkshopCost?.(quote.totalCost);
     this.game.save();
     this.game._notifyUI();
-    return {
-      success: true,
-      name: item?.name || itemId,
-      quality: nq,
-      perfection: np,
-      cost,
-      partName: usedPart ? part.name : null
-    };
+    return { success: true, name: quote.item.name, quote, readyAt: entry.readyAt, hours: quote.hours, cost: quote.supplies };
+  }
+
+  /** Récupère les objets dont la réparation est terminée (si l'inventaire a de la place). */
+  collectReady() {
+    if (!this.bench?.length) return [];
+    const now = this._now();
+    const inv = this.game.player.inventory;
+    const done = [];
+    this.bench = this.bench.filter(entry => {
+      if (entry.readyAt > now) return true;
+      if (!inv.add(entry.itemId, 1, entry.toQuality, entry.toPerfection, entry.costBasis)) return true;
+      done.push(entry);
+      return false;
+    });
+    done.forEach(entry => {
+      this.stats.repairs = (this.stats.repairs || 0) + 1;
+      const item = getItemById(entry.itemId);
+      const rarityXp = item?.rarity === 'Épique' ? 8 : item?.rarity === 'Rare' ? 4 : 0;
+      this.gainXp('repair', (entry.mode === 'refurbish' ? 14 : 8) + rarityXp);
+      this.game.player.addXp(5);
+      this.lastRepair = { name: item?.name, icon: item?.icon, quality: entry.toQuality };
+      this.game.uiCallbacks?.onStatus?.(`🔧 ${item?.name || 'Objet'} réparé : état Q${entry.quality} → Q${entry.toQuality}`);
+    });
+    if (done.length) {
+      this.game.save();
+      this.game._notifyUI();
+    }
+    return done;
+  }
+
+  /** Bonnes affaires à retaper : annonces d'objets abîmés dont la réparation est rentable. */
+  getRefurbishDeals(limit = 5) {
+    const mode = this.level('repair') >= 2 ? 'refurbish' : 'quick';
+    const deals = [];
+    (this.game.offers || []).forEach(o => {
+      if (o.type !== 'sell' || o.status !== 'active' || o.ownerId === 'player' || o.buyoutPrice == null) return;
+      if ((o.quality ?? 50) >= 60 || !isRepairable(o.itemId)) return;
+      const quote = this.repairQuote(o.itemId, o.quality, o.perfection, mode);
+      if (!quote.ok) return;
+      const profit = moneyRound(quote.valueAfter - o.buyoutPrice - quote.totalCost);
+      if (profit <= 0) return;
+      deals.push({
+        offerId: o.id,
+        itemId: o.itemId,
+        item: quote.item,
+        quality: o.quality,
+        perfection: o.perfection,
+        price: o.buyoutPrice,
+        sellerName: this._npcName(o.ownerId),
+        mode,
+        toQuality: quote.toQuality,
+        totalCost: quote.totalCost,
+        materials: quote.materials,
+        valueAfter: quote.valueAfter,
+        hours: quote.hours,
+        profit,
+        roi: Math.round(profit / (o.buyoutPrice + quote.totalCost) * 100),
+        canAfford: this.game.player.canAfford(o.buyoutPrice)
+      });
+    });
+    return deals.sort((a, b) => b.profit - a.profit).slice(0, limit);
+  }
+
+  _servicePart(job) {
+    return repairMaterials(job.itemId, this._serviceNextQuality(job) - job.quality, 'quick');
+  }
+
+  _serviceNextQuality(job) {
+    return clamp(job.quality + 12 + this.level('repair'), 1, 96);
   }
 
   salvageOwn(itemId, quality, perfection) {
@@ -647,29 +999,30 @@ export class JobBoard {
       return { success: false, error: `${npcName} n'a plus assez d'argent` };
     }
     if (job.kind === 'repair') {
-      const part = repairPartFor(job.itemId);
+      const part = this._servicePart(job);
       const inv = this.game.player.inventory;
-      if (part && inv.count(part.itemId) < 1) {
-        return { success: false, error: `Il faut 1 × ${part.name}` };
+      if (part && inv.count(part.itemId) < part.qty) {
+        return { success: false, error: `Il faut ${part.qty} × ${part.name}` };
       }
       if (!job.virtual) {
         const took = this._takeNpcItem(job.npcId, job.itemId, job.quality, job.perfection, 1);
         if (took < 1) return { success: false, error: "L'objet n'est plus chez le client" };
       }
       if (part) {
-        const tookPart = inv.remove(part.itemId, 1);
-        if (tookPart < 1) {
+        const tookPart = inv.remove(part.itemId, part.qty);
+        if (tookPart < part.qty) {
+          if (tookPart > 0) inv.add(part.itemId, tookPart);
           if (!job.virtual) this._giveNpcItem(job.npcId, job.itemId, 1, job.quality, job.perfection);
-          return { success: false, error: `Il faut 1 × ${part.name}` };
+          return { success: false, error: `Il faut ${part.qty} × ${part.name}` };
         }
       }
-      const nq = clamp(job.quality + 12 + this.workshopLevel(), 1, 96);
+      const nq = this._serviceNextQuality(job);
       const np = clamp(job.perfection + 10, 1, 96);
       this._giveNpcItem(job.npcId, job.itemId, 1, nq, np);
       if (!this.game.npcController.debitNpc(job.npcId, job.pay)) {
         this._takeNpcItem(job.npcId, job.itemId, nq, np, 1);
         if (!job.virtual) this._giveNpcItem(job.npcId, job.itemId, 1, job.quality, job.perfection);
-        if (part) inv.add(part.itemId, 1);
+        if (part) inv.add(part.itemId, part.qty);
         return { success: false, error: `${npcName} n'a plus assez d'argent` };
       }
       this.game.addMoney(job.pay);
@@ -679,6 +1032,8 @@ export class JobBoard {
       this.stats.services = (this.stats.services || 0) + 1;
       this.stats.repairs = (this.stats.repairs || 0) + 1;
       this.stats.earned = moneyRound((this.stats.earned || 0) + job.pay);
+      this.gainXp('repair', 8);
+      this._emitJobIncome('service', job.itemId, 1, job.pay, part ? moneyRound(this._fair(part.itemId) * part.qty) : 0);
       this.game.player.addXp(7);
       this.game.player.addReputation(1);
       this._markActive();
@@ -724,12 +1079,34 @@ export class JobBoard {
     if (owned < job.quantity) {
       return { success: false, error: `Il manque ${job.quantity - owned} objet(s)` };
     }
-    const removed = this.game.player.inventory.remove(job.itemId, job.quantity);
-    if (removed < job.quantity) return { success: false, error: 'Impossible de livrer' };
-    const bonus = this.takeFromVault(Math.round(job.reward * (job.rush ? 0.2 : 0.12) * 100) / 100);
+    const inv = this.game.player.inventory;
+    const stacks = inv.getStacks(job.itemId).slice().sort((a, b) => a.quality - b.quality);
+    let costBasis = 0;
+    let left = job.quantity;
+    stacks.forEach(st => {
+      if (left <= 0) return;
+      const take = Math.min(left, st.quantity);
+      if (st.avgBuyPrice != null) costBasis += st.avgBuyPrice * take;
+      left -= take;
+    });
+    const removed = inv.remove(job.itemId, job.quantity);
+    if (removed < job.quantity) {
+      if (removed > 0) inv.add(job.itemId, removed);
+      return { success: false, error: 'Impossible de livrer' };
+    }
+    const bonus = this.takeFromVault(Math.round(job.reward * (job.rush ? 0.08 : 0.04) * 100) / 100);
     const streakBonus = Math.round(Math.min(8, this.streak * 1.5) * 100) / 100;
     const payout = Math.round((job.reward + bonus + streakBonus) * 100) / 100;
+    // La récompense vient de la trésorerie du Comptoir (sans la vider sous 200 €), le reste est créé
+    const reserve = this.game.reserve;
+    if (reserve) {
+      const fromReserve = Math.min(job.reward, Math.max(0, reserve.treasury - 200));
+      reserve.withdraw(fromReserve, 'contracts');
+      reserve.addStock(job.itemId, job.quantity);
+    }
     this.game.addMoney(payout);
+    this.gainXp('trade', job.rush ? 20 : 15);
+    this._emitJobIncome('contract', job.itemId, job.quantity, payout, costBasis);
     this.game.player.addXp(job.rush ? 18 : 12);
     this.game.player.addReputation(job.rush ? 2 : 1);
     job.status = 'done';
@@ -747,7 +1124,40 @@ export class JobBoard {
     const level = this.workshopLevel();
     const crafts = this.stats.crafts || 0;
     const nextAt = level === 1 ? 5 : level === 2 ? 12 : null;
+    this.collectReady();
+    const now = this._now();
+    const day = this._day();
     return {
+      professions: this.getProfessionsView(),
+      lastLevelUp: this.lastLevelUp,
+      bench: this.bench.map(e => {
+        const item = getItemById(e.itemId);
+        const total = Math.max(1, e.readyAt - e.startedAt);
+        return {
+          ...e,
+          item,
+          remainingMs: Math.max(0, e.readyAt - now),
+          progress: Math.min(1, (now - e.startedAt) / total),
+          valueAfter: this.game.getAdjustedMarketPrice(e.itemId, e.toQuality, e.toPerfection)
+        };
+      }),
+      benchSlots: this.benchSlots(),
+      maxRepairsToday: this.maxRepairsToday(),
+      refurbishDeals: this.getRefurbishDeals(),
+      npcOrders: (this.npcOrders || []).filter(o => o.status === 'open' || o.status === 'done').map(o => {
+        const item = getItemById(o.itemId);
+        const owned = inv.getStacks(o.itemId).filter(s => s.quality >= o.minQuality).reduce((t, s) => t + s.quantity, 0);
+        const value = moneyRound(this._fair(o.itemId) * o.quantity);
+        return {
+          ...o,
+          item,
+          npcName: this._npcName(o.npcId),
+          owned,
+          daysLeft: o.deadlineDay - day,
+          premium: moneyRound(o.pay - value),
+          canDeliver: o.status === 'open' && owned >= o.quantity && o.deadlineDay >= day
+        };
+      }),
       feeVault: this.feeVault,
       scavengeUsedToday: this.scavengeUsedToday,
       stallUsedToday: this.stallUsedToday,
@@ -765,7 +1175,17 @@ export class JobBoard {
       contracts: this.contracts.map(c => {
         const item = getItemById(c.itemId);
         const owned = inv.count(c.itemId);
-        return { ...c, item, owned, canComplete: c.status === 'open' && owned >= c.quantity };
+        const view = this._supplyView(c.itemId);
+        return {
+          ...c,
+          item,
+          owned,
+          coverage: view?.coverage ?? null,
+          shortage: c.shortage || view?.status || 'balanced',
+          reason: c.reason || 'Commande courante du Comptoir',
+          value: moneyRound(this._fair(c.itemId) * c.quantity),
+          canComplete: c.status === 'open' && owned >= c.quantity
+        };
       }),
       recipes: RECIPES.map(r => {
         const preview = this._previewQuality(r, false);
@@ -795,8 +1215,8 @@ export class JobBoard {
       }),
       services: (this.services || []).map(s => {
         const item = getItemById(s.itemId);
-        const part = s.kind === 'repair' ? repairPartFor(s.itemId) : null;
-        const hasPart = s.kind !== 'repair' || !part || inv.count(part.itemId) >= 1;
+        const part = s.kind === 'repair' ? this._servicePart(s) : null;
+        const hasPart = s.kind !== 'repair' || !part || inv.count(part.itemId) >= part.qty;
         const npcCap = this._npcState(s.npcId)?.capital ?? 0;
         const outputs = s.kind === 'salvage' ? (s.outputs || salvageOutputs(s.itemId, s.quality)) : [];
         return {
@@ -810,7 +1230,8 @@ export class JobBoard {
             && npcCap >= s.pay
             && hasPart,
           outputs,
-          nextQuality: s.kind === 'repair' ? clamp(s.quality + 12 + this.workshopLevel(), 1, 96) : null
+          nextQuality: s.kind === 'repair' ? this._serviceNextQuality(s) : null,
+          partCost: part ? moneyRound(this._fair(part.itemId) * part.qty) : 0
         };
       }),
       salvageItems: inv.items.filter(s => canSalvage(s.itemId)).slice(0, 8).map(slot => ({
@@ -825,22 +1246,23 @@ export class JobBoard {
       servicesUsedToday: this.servicesUsedToday,
       maxSalvagePerDay: this.maxSalvagePerDay,
       maxServicesPerDay: this.maxServicesPerDay,
-      repairItems: inv.items.filter(s => s.quality < 90).slice(0, 6).map(slot => {
-        const part = repairPartFor(slot.itemId);
-        const reserved = part && part.itemId === slot.itemId ? 1 : 0;
-        const partOwned = part ? inv.count(part.itemId) : 0;
-        const hasPart = !part || partOwned - reserved >= 1;
+      repairItems: inv.items.filter(s => s.quality < 90 && isRepairable(s.itemId)).slice(0, 8).map(slot => {
+        const quick = this.repairQuote(slot.itemId, slot.quality, slot.perfection, 'quick');
+        const refurbish = this.repairQuote(slot.itemId, slot.quality, slot.perfection, 'refurbish');
         return {
           itemId: slot.itemId,
           quality: slot.quality,
           perfection: slot.perfection,
           quantity: slot.quantity,
           item: getItemById(slot.itemId),
-          cost: Math.round((4 + (90 - slot.quality) * 0.12) * 100) / 100,
-          nextQuality: clamp(slot.quality + 10 + (hasPart && part ? 4 : 0) + this.workshopLevel(), 1, 96),
-          part,
-          hasPart,
-          partOwned
+          condition: conditionLabel(slot.quality).label,
+          quick,
+          refurbish,
+          // Compatibilité avec l'ancienne interface
+          cost: quick.supplies ?? null,
+          nextQuality: quick.toQuality ?? null,
+          part: quick.materials || null,
+          hasPart: quick.hasMaterials ?? false
         };
       }),
       stallItems: inv.items.slice(0, 8).map((slot, index) => ({
@@ -872,7 +1294,11 @@ export class JobBoard {
       lastActiveDay: this.lastActiveDay,
       stats: this.stats,
       lastLoot: this.lastLoot,
-      lastCraft: this.lastCraft
+      lastCraft: this.lastCraft,
+      professions: this.professions,
+      bench: this.bench,
+      npcOrders: this.npcOrders,
+      lastLevelUp: this.lastLevelUp
     };
   }
 }

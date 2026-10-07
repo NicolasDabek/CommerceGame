@@ -1,4 +1,5 @@
 import { ITEMS, getItemById } from '../data/items.js';
+import { conditionMultiplier } from './condition.js';
 
 const MAX_HISTORY = 80;
 const MAX_SNAPSHOTS = 60;
@@ -42,6 +43,8 @@ export class Economy {
     this.priceHistory = {};
     this.activeEvents = [];
     this.snapshots = [];
+    /** Rareté par objet (offre / demande), calculée chaque jour par SupplyDemand. 1 = équilibré. */
+    this.scarcity = {};
     /** Horloge du jeu (remplacée par Game pour utiliser le temps de jeu). */
     this.clock = () => Date.now();
     this.msPerGameDay = 24 * 60 * 60 * 1000;
@@ -69,13 +72,12 @@ export class Economy {
   macroModifier(itemId, now = this.clock()) {
     const item = getItemById(itemId);
     const catMod = item ? (this.categoryModifiers[item.category] ?? 1.0) : 1.0;
-    return catMod * this.globalInflation * (item ? this.eventMultiplier(item.category, now) : 1);
+    const scarcity = this.scarcity[itemId] ?? 1;
+    return catMod * this.globalInflation * scarcity * (item ? this.eventMultiplier(item.category, now) : 1);
   }
 
   conditionModifier(quality = 50, perfection = 50) {
-    const qualityMod = 0.75 + (Number(quality) / 100) * 0.45;
-    const perfectionMod = 0.9 + (Number(perfection) / 100) * 0.25;
-    return qualityMod * perfectionMod;
+    return conditionMultiplier(quality, perfection);
   }
 
   /** Prix moyen affiché (Q/P neutres) = moyenne « de base » × conditions de marché. */
@@ -221,6 +223,14 @@ export class Economy {
         factors.push({ label: `Tendance ${item.category}`, pct: pct(catMod), kind: 'category' });
       }
     }
+    const scarcity = this.scarcity[itemId] ?? 1;
+    if (Math.abs(scarcity - 1) >= 0.02) {
+      factors.push({
+        label: scarcity > 1 ? 'Stock rare face à la demande' : 'Stock abondant',
+        pct: pct(scarcity),
+        kind: 'scarcity'
+      });
+    }
     if (Math.abs(this.globalInflation - 1) >= 0.02) {
       factors.push({ label: 'Inflation générale', pct: pct(this.globalInflation), kind: 'inflation' });
     }
@@ -265,7 +275,8 @@ export class Economy {
       globalInflation: this.globalInflation,
       priceHistory: this.priceHistory,
       activeEvents: this.activeEvents,
-      snapshots: this.snapshots
+      snapshots: this.snapshots,
+      scarcity: { ...this.scarcity }
     };
   }
 
@@ -282,6 +293,7 @@ export class Economy {
     }
     if (data.activeEvents) eco.activeEvents = data.activeEvents;
     if (Array.isArray(data.snapshots)) eco.snapshots = data.snapshots.slice(-MAX_SNAPSHOTS);
+    if (data.scarcity && typeof data.scarcity === 'object') eco.scarcity = { ...data.scarcity };
 
     if ((data.version || 1) < 2) {
       // Anciennes sauvegardes : les événements étaient « cuits » dans les tendances → on les retire.

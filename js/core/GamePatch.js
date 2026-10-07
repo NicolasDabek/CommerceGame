@@ -1,4 +1,5 @@
 import { JobBoard } from '../systems/JobBoard.js';
+import { TradingDesk } from '../systems/TradingDesk.js';
 import { Storage } from '../utils/storage.js';
 import { Offer } from '../models/Offer.js';
 import { CLANS, getClanById } from '../data/npcs.js';
@@ -37,9 +38,11 @@ export function enhanceGame(game) {
     };
   }
 
-  const savedJobs = (Storage.load() || {}).jobs || {};
-  game.jobBoard = new JobBoard(game, savedJobs);
+  const savedData = Storage.load() || {};
+  game.jobBoard = new JobBoard(game, savedData.jobs || {});
   game.jobBoard.ensureContracts();
+  // Suivi, alertes, ordres permanents et journal (anciennes sauvegardes : vide)
+  game.tradingDesk = new TradingDesk(game, savedData.trading || {});
 
   if (!Offer.__repFees) {
     Offer.__repFees = true;
@@ -99,6 +102,7 @@ export function enhanceGame(game) {
     const data = Storage.load();
     if (data) {
       data.jobs = game.jobBoard.toJSON();
+      if (game.tradingDesk) data.trading = game.tradingDesk.toJSON();
       Storage.save(data);
     }
   };
@@ -108,6 +112,8 @@ export function enhanceGame(game) {
     const dayBefore = game.timeManager.getCurrentDay();
     const snapshot = game.offers.map(o => `${o.id}:${o.currentBid}:${o.status}:${o.quantity}`).join('|');
     origTick();
+    game.jobBoard.collectReady();
+    game.tradingDesk?.tick?.();
     if (game.timeManager.getCurrentDay() !== dayBefore) {
       // Les PNJ (production, consommation) et le Comptoir sont déjà gérés dans Game.onDayChange
       game.jobBoard.onNewDay();
@@ -132,7 +138,7 @@ export function enhanceGame(game) {
     });
     if (!result.success) return result;
     result.offer.expiresAt = result.offer.createdAt + result.offer.durationDays * result.offer.msPerGameDay;
-    if (result.fee) game.jobBoard.depositFee(result.fee);
+    if (result.fee) { game.jobBoard.depositFee(result.fee); game.tradingDesk?.recordFee(result.fee); }
     game.offers.push(result.offer);
     result.matched = 0;
     result.soldQty = 0;
@@ -155,7 +161,7 @@ export function enhanceGame(game) {
     });
     if (!result.success) return result;
     result.offer.expiresAt = result.offer.createdAt + result.offer.durationDays * result.offer.msPerGameDay;
-    if (result.fee) game.jobBoard.depositFee(result.fee);
+    if (result.fee) { game.jobBoard.depositFee(result.fee); game.tradingDesk?.recordFee(result.fee); }
     game.offers.push(result.offer);
     result.matched = 0;
     if (params.autoMatch === true) {
@@ -175,6 +181,16 @@ export function enhanceGame(game) {
   game.fulfillNpcService = (id) => game.jobBoard.fulfillService(id);
   game.salvageItem = (itemId, quality, perfection) => game.jobBoard.salvageOwn(itemId, quality, perfection);
   game.getJobsView = () => game.jobBoard.getView();
+  game.startRepair = (itemId, quality, perfection, mode) => game.jobBoard.startRepair(itemId, quality, perfection, mode);
+  game.getRepairQuote = (itemId, quality, perfection, mode) => game.jobBoard.repairQuote(itemId, quality, perfection, mode);
+  game.deliverNpcOrder = (id) => game.jobBoard.deliverNpcOrder(id);
+  game.getTradingView = () => game.tradingDesk.getView();
+  game.toggleWatch = (itemId) => { const r = game.tradingDesk.toggleWatch(itemId); game._notifyUI(); return r; };
+  game.setPriceAlert = (itemId, below, above) => { const r = game.tradingDesk.setAlert(itemId, below, above); game._notifyUI(); return r; };
+  game.addStandingOrder = (params) => { const r = game.tradingDesk.addStandingOrder(params); game._notifyUI(); return r; };
+  game.toggleStandingOrder = (id) => { const r = game.tradingDesk.toggleStandingOrder(id); game._notifyUI(); return r; };
+  game.removeStandingOrder = (id) => { const r = game.tradingDesk.removeStandingOrder(id); game._notifyUI(); return r; };
+  game.markAlertsRead = () => { game.tradingDesk.markAlertsRead(); game._notifyUI(); };
   game.getGameNow = () => game.timeManager.now();
 
   const origProfiles = game.getNpcProfiles.bind(game);
@@ -195,6 +211,11 @@ export function enhanceGame(game) {
         lastReason: ai.lastReason || null,
         strategy: ai.strategy || null,
         strategyText: ai.strategyText || null,
+        profession: ai.profession || null,
+        professionIcon: ai.professionIcon || null,
+        professionText: ai.professionText || null,
+        repaired: ai.repaired ?? 0,
+        arbitrages: ai.arbitrages ?? 0,
         capitalState: ai.capitalState || null,
         capitalLabel: ai.capitalLabel || null,
         stock: ai.stock ?? null,
