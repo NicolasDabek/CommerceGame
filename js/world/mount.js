@@ -1,5 +1,6 @@
 import { TownWorld } from './TownWorld.js';
 import { enhanceGame } from '../core/GamePatch.js';
+import { getClanById } from '../data/npcs.js';
 
 function hideLegacyPanels() {
   document.querySelectorAll('.panel').forEach((p) => {
@@ -9,17 +10,49 @@ function hideLegacyPanels() {
   document.getElementById('interior-overlay')?.classList.remove('open');
 }
 
+function setStatus(text) {
+  const status = document.getElementById('status-message');
+  if (status) status.textContent = text;
+}
+
+/* Clavier du monde inactif si un panneau, une modale ou un champ de saisie a le focus */
+function isInputBlocked() {
+  if (document.getElementById('interior-overlay')?.classList.contains('open')) return true;
+  const modal = document.getElementById('modal-overlay');
+  if (modal && !modal.classList.contains('hidden')) return true;
+  const el = document.activeElement;
+  return !!el && (el.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName));
+}
+
 function inspect(info) {
   const el = document.getElementById('town-inspect');
-  const status = document.getElementById('status-message');
-  if (!el || !info) return;
-  el.hidden = false;
-  if (info.type === 'npc') {
-    el.innerHTML = `<h3>${info.name}</h3><p>Clan ${info.clan || '?'}</p><p>${info.intent || 'En ville'}</p>`;
-  } else {
-    el.innerHTML = `<h3>${info.name || 'Lieu'}</h3><p>${info.type === 'building' ? 'Porte ouverte.' : "C'est chez vous."}</p>`;
+  if (!el) return;
+  if (!info) {
+    el.hidden = true;
+    return;
   }
-  if (status) status.textContent = info.name || '';
+  el.hidden = false;
+  let html = `<h3>${info.name || 'Lieu'}</h3>`;
+  if (info.type === 'npc') {
+    const clan = getClanById(info.clan);
+    html += `<p>${clan ? `${clan.icon} ${clan.name}` : 'Sans clan'}</p><p>${info.intent || 'En ville'}</p>`;
+  } else if (info.type === 'building') {
+    html += '<p>Porte ouverte. Double-clic ou E à proximité pour entrer.</p>';
+  } else {
+    html += "<p>C'est vous. ZQSD pour marcher.</p>";
+  }
+  if (info.panel) {
+    const label = info.type === 'player' ? 'Ouvrir le sac' : 'Entrer';
+    html += `<button class="btn btn-primary btn-small" data-enter-panel="${info.panel}">${label}</button>`;
+  }
+  html += ' <button class="btn btn-ghost btn-small" data-close-inspect>Fermer</button>';
+  el.innerHTML = html;
+  el.querySelector('[data-enter-panel]')?.addEventListener('click', () => window.showWorldPanel?.(info.panel));
+  el.querySelector('[data-close-inspect]')?.addEventListener('click', () => {
+    el.hidden = true;
+    window.townWorld?.clearSelection();
+  });
+  setStatus(info.name || '');
 }
 
 function wireHud(game, world) {
@@ -27,7 +60,7 @@ function wireHud(game, world) {
     btn.addEventListener('click', () => window.showWorldPanel?.(btn.dataset.panel));
   });
   document.getElementById('btn-exit-interior')?.addEventListener('click', () => window.showWorldPanel?.('town'));
-  document.getElementById('btn-town-recenter')?.addEventListener('click', () => world.focusPlaza?.());
+  document.getElementById('btn-town-recenter')?.addEventListener('click', () => world.recenter());
   document.querySelectorAll('.speed-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       game.timeManager.setSpeed(Number(btn.dataset.speed));
@@ -62,7 +95,9 @@ function mount() {
   enhanceGame(window.game);
   const world = new TownWorld(host, window.game, {
     onOpenPanel: (panel) => window.showWorldPanel?.(panel),
-    onInspect: inspect
+    onInspect: inspect,
+    onStatus: setStatus,
+    isInputBlocked
   });
   world.start();
   requestAnimationFrame(() => world.resize());
@@ -74,6 +109,8 @@ function mount() {
     if (ev.detail?.panel === 'town') {
       hideLegacyPanels();
       requestAnimationFrame(() => world.resize());
+    } else {
+      world.clearKeys();
     }
   });
 }
