@@ -74,7 +74,6 @@ export class NpcUI {
     }).join('');
 
     const trust = typeof profile.trust === 'number' ? profile.trust : 0;
-    const trustLabel = trust > 0.3 ? 'vous fait confiance' : trust < -0.3 ? 'méfiant' : 'neutre';
 
     return `
       <article class="npc-card">
@@ -82,11 +81,14 @@ export class NpcUI {
           <div>
             <h3>${profile.name}</h3>
             <p>${profile.personality} · ${(profile.aggressiveness * 100).toFixed(0)}% · ${clan?.icon || ''} ${clan?.name || ''}</p>
+            ${profile.strategy ? `<p class="npc-strategy" title="${profile.strategyText || ''}">🎯 ${profile.strategy}</p>` : ''}
           </div>
           <strong class="text-money">${this._formatMoney(profile.capital)} €</strong>
         </div>
         <p class="npc-description">${profile.description}</p>
-        ${this._aiLine(profile, allied, trustLabel)}
+        ${this._intentBox(profile)}
+        ${this._statusChips(profile, trust)}
+        ${this._aiLine(profile, allied)}
         <div class="npc-tags">
           ${profile.preferredCategories.map(cat => `<span class="mini-chip">${cat}</span>`).join('')}
         </div>
@@ -126,15 +128,51 @@ export class NpcUI {
     }).join('');
   }
 
-  _aiLine(profile, allied, trustLabel) {
+  /** Ce que fait le marchand et pourquoi (phrase courte). */
+  _intentBox(profile) {
+    if (!profile.lastIntent) {
+      return '<div class="npc-intent"><span class="text-muted">Observe le marché…</span></div>';
+    }
+    const journal = (profile.journal || []).slice(0, -1).slice(-3).reverse();
+    const title = journal.length ? `Avant : ${journal.join(' · ')}` : '';
+    return `
+      <div class="npc-intent" title="${title}">
+        <strong>${profile.lastIntent}</strong>
+        ${profile.lastReason ? `<small>${profile.lastReason}</small>` : ''}
+      </div>
+    `;
+  }
+
+  /** Trésorerie, stock vs cible, besoins, confiance — lisibles d'un coup d'œil. */
+  _statusChips(profile, trust) {
+    const chips = [];
+    if (profile.capitalLabel) {
+      const cls = profile.capitalState === 'dry' ? 'chip-bad' : profile.capitalState === 'tight' ? 'chip-warn' : 'chip-good';
+      chips.push(`<span class="mini-chip ${cls}" title="Argent disponible par rapport à son capital de départ">💰 ${profile.capitalLabel}</span>`);
+    }
+    if (profile.stockTarget != null) {
+      const cls = profile.stockLabel === 'Stock bas' ? 'chip-warn' : profile.stockLabel === 'Stock trop plein' ? 'chip-warn' : 'chip-good';
+      chips.push(`<span class="mini-chip ${cls}" title="Il fabrique ou rachète sous sa cible, il brade au-dessus">📦 ${profile.stock}/${profile.stockTarget} · ${profile.stockLabel}</span>`);
+    }
+    if (profile.needs && profile.needs.length) {
+      chips.push(`<span class="mini-chip" title="Objets de sa spécialité qu'il n'a plus : il les paiera un peu plus cher">Cherche ${profile.needs.map(n => n.icon).join(' ')}</span>`);
+    }
+    const pct = Math.round(Math.max(-1, Math.min(1, trust)) * 100);
+    const trustWord = trust > 0.3 ? ' · vous fait confiance' : trust < -0.3 ? ' · méfiant' : '';
+    chips.push(`<span class="mini-chip trust-chip" title="Monte quand vous commercez avec lui à prix correct. Plus elle est haute, plus il accepte vos offres facilement.">🤝 Confiance ${pct > 0 ? '+' : ''}${pct}${trustWord}</span>`);
+    if (profile.actionBudget) {
+      chips.push(`<span class="mini-chip" title="Nombre d'actions de marché aujourd'hui / maximum">⏱ ${profile.actionsToday}/${profile.actionBudget} actions</span>`);
+    }
+    return `<div class="npc-tags npc-status">${chips.join('')}</div>`;
+  }
+
+  _aiLine(profile, allied) {
     const bits = [];
-    if (profile.lastIntent) bits.push(`Dernière action : ${profile.lastIntent}`);
     if (profile.focusName) bits.push(`Focus : ${profile.focusName}`);
     if (typeof profile.mood === 'number') {
       const mood = profile.mood > 0.35 ? 'confiant' : profile.mood < -0.35 ? 'tendu' : 'calme';
       bits.push(`Humeur : ${mood}`);
     }
-    bits.push(`Confiance : ${trustLabel}`);
     if (profile.rivalry > 0.45) bits.push('Rivalise avec vous');
     if (allied) bits.push('Clan allié');
     if (!bits.length) return '';

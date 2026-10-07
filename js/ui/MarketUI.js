@@ -3,12 +3,15 @@
  */
 
 import { ITEMS, getItemById } from '../data/items.js';
-import { formatMoney, formatPct, sparkline, marginHtml, dealBadge } from './TradeInsights.js';
+import { formatMoney, formatPct, sparkline, marginHtml, dealBadge, priceWhyChip, economyHealthHtml } from './TradeInsights.js';
 
 export class MarketUI {
   constructor(options = {}) {
     this.getMarketRows = options.getMarketRows || (() => []);
     this.getEvents = options.getEvents || (() => []);
+    this.getEconomyHealth = options.getEconomyHealth || null;
+    this.getMsPerGameDay = options.getMsPerGameDay || (() => 24 * 60 * 60 * 1000);
+    this.healthEl = document.getElementById('economy-health');
     this.tbody = document.getElementById('market-body');
     this.eventsEl = document.getElementById('market-events');
     this.categorySelect = document.getElementById('market-category');
@@ -55,6 +58,7 @@ export class MarketUI {
       });
 
     rows = this._sortRows(rows);
+    this._renderHealth();
     this._renderEvents();
 
     if (rows.length === 0) {
@@ -85,6 +89,11 @@ export class MarketUI {
     }
   }
 
+  _renderHealth() {
+    if (!this.healthEl || !this.getEconomyHealth) return;
+    this.healthEl.innerHTML = economyHealthHtml(this.getEconomyHealth());
+  }
+
   _renderEvents() {
     if (!this.eventsEl) return;
     const events = this.getEvents();
@@ -95,13 +104,15 @@ export class MarketUI {
     }
 
     this.eventsEl.innerHTML = events.map(event => {
-      const target = event.global ? 'Global' : event.category || (event.categories || []).join(', ');
+      const target = event.global ? 'Tous les objets' : event.category || (event.categories || []).join(', ');
+      const pct = Math.round((Number(event.modifier) - 1) * 100);
+      const cls = pct >= 0 ? 'up' : 'down';
       return `
-        <div class="event-pill" title="${event.description || ''}">
+        <div class="event-pill" title="${event.description || ''} Effet temporaire sur les prix affichés, sans effet durable.">
           <strong>${event.name}</strong>
           <span>${target}</span>
-          <span>×${Number(event.modifier).toFixed(2)}</span>
-          <span>${this._formatDuration(event.remainingMs)}</span>
+          <span class="ev-effect ${cls}">${pct > 0 ? '+' : ''}${pct} %</span>
+          <span>encore ${this._formatDuration(event.remainingMs)}</span>
         </div>
       `;
     }).join('');
@@ -139,7 +150,7 @@ export class MarketUI {
     return `
       <tr class="${dealClass}">
         <td>${item?.icon || ''} ${item?.name || row.item.id}<br><small class="text-muted">${row.item.category} · ${row.item.rarity}</small></td>
-        <td class="text-money">${formatMoney(row.average)} €</td>
+        <td class="text-money">${formatMoney(row.average)} €${row.explanation ? `<br>${priceWhyChip(row.explanation)}` : ''}</td>
         <td class="text-muted">${hiLo}</td>
         <td>${bestSell}${row.sellCount ? `<br><small class="text-muted">${row.sellCount} ann.</small>` : ''}</td>
         <td>${bestBuy}${row.buyCount ? `<br><small class="text-muted">${row.buyCount} off.</small>` : ''}</td>
@@ -152,10 +163,13 @@ export class MarketUI {
     `;
   }
 
+  /** Durée restante en temps de jeu (jours / heures de jeu). */
   _formatDuration(ms) {
-    const hours = Math.max(0, Math.floor(ms / (60 * 60 * 1000)));
-    const minutes = Math.max(0, Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000)));
-    if (hours > 0) return `${hours}h ${minutes}min`;
-    return `${minutes}min`;
+    const dayMs = this.getMsPerGameDay() || 24 * 60 * 60 * 1000;
+    const totalHours = Math.max(0, Math.round((ms / dayMs) * 24));
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    if (days > 0) return `${days} j ${hours} h`;
+    return `${Math.max(1, hours)} h`;
   }
 }

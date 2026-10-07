@@ -1056,3 +1056,109 @@ tr.row-deal td:first-child {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ============================================
+   Économie : santé, causes des prix, Comptoir
+   ============================================ */
+.eco-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(36, 40, 54, 0.92);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font: 700 0.82rem var(--font-main);
+  cursor: pointer;
+}
+.eco-chip:hover { border-color: var(--accent); }
+.eco-chip .eco-chip-label { color: var(--text-secondary); font-weight: 600; }
+.eco-chip[data-status="tendu"] { border-color: rgba(253, 203, 110, 0.6); }
+.eco-chip[data-status="surchauffe"] { border-color: rgba(225, 112, 85, 0.7); }
+.eco-chip[data-status="prix-bas"],
+.eco-chip[data-status="deflation"] { border-color: rgba(116, 185, 255, 0.6); }
+
+.eco-health {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+.eco-tile {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  cursor: help;
+}
+.eco-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  font-weight: 800;
+}
+.eco-main { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.eco-main strong { font: 700 1.15rem var(--font-display); color: var(--text-primary); }
+.eco-status-chip {
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 184, 148, 0.15);
+  color: var(--success);
+}
+.eco-tendu .eco-status-chip { background: rgba(253, 203, 110, 0.15); color: var(--warning); }
+.eco-surchauffe .eco-status-chip { background: rgba(225, 112, 85, 0.18); color: var(--danger); }
+.eco-prix-bas .eco-status-chip,
+.eco-deflation .eco-status-chip { background: rgba(116, 185, 255, 0.15); color: var(--info); }
+.eco-spark .sparkline { width: 120px; height: 22px; }
+.eco-bar { height: 5px; border-radius: 3px; background: var(--bg-input); overflow: hidden; }
+.eco-bar span { display: block; height: 100%; background: var(--money); }
+.eco-explain {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.why-chip {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: help;
+}
+.why-chip.up { background: rgba(253, 203, 110, 0.14); color: var(--warning); }
+.why-chip.down { background: rgba(116, 185, 255, 0.14); color: var(--info); }
+.ev-effect.up { color: var(--warning); }
+.ev-effect.down { color: var(--info); }
+
+/* Marchands : intention et état */
+.npc-strategy { margin: 2px 0 0; font-size: 0.8rem; color: var(--text-secondary); cursor: help; }
+.npc-intent {
+  margin: 8px 0 4px;
+  padding: 6px 9px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85rem;
+}
+.npc-intent small { color: var(--text-secondary); }
+.npc-status .mini-chip { font-size: 0.74rem; padding: 3px 7px; cursor: help; }
+.mini-chip.chip-good { border-color: rgba(0, 184, 148, 0.45); }
+.mini-chip.chip-warn { border-color: rgba(253, 203, 110, 0.6); color: var(--warning); }
+.mini-chip.chip-bad { border-color: rgba(225, 112, 85, 0.7); color: var(--danger); }

@@ -35,7 +35,8 @@ function inspect(info) {
   let html = `<h3>${info.name || 'Lieu'}</h3>`;
   if (info.type === 'npc') {
     const clan = getClanById(info.clan);
-    html += `<p>${clan ? `${clan.icon} ${clan.name}` : 'Sans clan'}</p><p>${info.intent || 'En ville'}</p>`;
+    html += `<p>${clan ? `${clan.icon} ${clan.name}` : 'Sans clan'}${info.strategy ? ` · 🎯 ${info.strategy}` : ''}</p><p>${info.intent || 'En ville'}</p>`;
+    if (info.reason) html += `<p class="text-muted" style="font-size:0.8rem">${info.reason}</p>`;
   } else if (info.type === 'building') {
     html += '<p>Porte ouverte. Double-clic ou E à proximité pour entrer.</p>';
   } else {

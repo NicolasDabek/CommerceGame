@@ -1,6 +1,8 @@
 import { ITEMS, getItemById } from '../data/items.js';
 import { NPCS } from '../data/npcs.js';
 
+const VAULT_DAILY_CAP = 300;
+
 const SCAVENGE_TABLE = [
   { itemId: 'item_012', w: 22 },
   { itemId: 'item_010', w: 20 },
@@ -207,12 +209,19 @@ export class JobBoard {
 
   onNewDay() {
     this.ensureContracts();
-    this.feeVault = Math.round((this.feeVault + 35) * 100) / 100;
-    const states = this.game.npcController?.npcStates || {};
-    Object.keys(states).forEach(id => {
-      const cap = states[id].capital ?? 0;
-      if (cap < 180) this.game.npcController.creditNpc(id, 12);
-    });
+    // La caisse des contrats est réalimentée chaque jour, mais plafonnée (évite de créer de l'argent sans fin)
+    if (this.feeVault < VAULT_DAILY_CAP) {
+      this.feeVault = Math.round(Math.min(VAULT_DAILY_CAP, this.feeVault + 35) * 100) / 100;
+    }
+    // Les PNJ à sec sont aidés par le Comptoir municipal (argent prélevé sur sa trésorerie).
+    // Sans Comptoir (anciens tests), on garde l'aide historique.
+    if (!this.game.reserve) {
+      const states = this.game.npcController?.npcStates || {};
+      Object.keys(states).forEach(id => {
+        const cap = states[id].capital ?? 0;
+        if (cap < 180) this.game.npcController.creditNpc(id, 12);
+      });
+    }
   }
 
   _roll(count, day) {

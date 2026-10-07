@@ -82,6 +82,7 @@ export class MatchingEngine {
       .filter(o =>
         o.type === 'sell' &&
         o.status === 'active' &&
+        o.currentBid == null && // enchère en cours : elle se termine à l'échéance (sinon l'enchérisseur perdrait sa mise)
         o.itemId === buyOffer.itemId &&
         o.price <= buyOffer.price &&
         o.ownerId !== buyOffer.ownerId &&

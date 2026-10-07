@@ -57,6 +57,7 @@
             <button class="speed-btn active" data-speed="10">10×</button>
             <button class="speed-btn" data-speed="60">60×</button>
           </div>
+          <button class="eco-chip" id="eco-chip" type="button" title="Santé de l'économie — cliquez pour ouvrir le marché">Prix 100</button>
           <button class="btn btn-small btn-ghost" id="btn-reset-save">Reset</button>
           <div class="money-display" id="money-display"><span class="money-icon">€</span><span class="money-value" id="money-value">1 250,00</span></div>
         </div>
@@ -175,8 +176,9 @@
             </select>
           </div>
         </div>
+        <div id="economy-health"></div>
         <div class="market-events" id="market-events"></div>
-        <p class="trade-hint text-muted">Haut/bas et graphique = historique local · Marge = si vous vendez à la meilleure offre d'achat</p>
+        <p class="trade-hint text-muted">Haut/bas et graphique = historique local · Marge = si vous vendez à la meilleure offre d'achat · Survolez la pastille sous le prix moyen pour savoir pourquoi il a bougé</p>
         <div class="table-container">
           <table class="data-table" id="market-table">
             <thead><tr>

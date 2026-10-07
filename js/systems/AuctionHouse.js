@@ -52,15 +52,25 @@ export class AuctionHouse {
     if (sellOffer.ownerId === buyerId) return { success: false, error: 'Vous ne pouvez pas acheter votre propre annonce' };
     const totalCost = sellOffer.buyoutPrice * quantity;
     if (buyerId === 'player' && this.getPlayerMoney() < totalCost) return { success: false, error: 'Fonds insuffisants' };
-    if (sellOffer.currentBidderId && sellOffer.currentBid != null) {
-      const refund = Math.round(sellOffer.currentBid * sellOffer.quantity * 100) / 100;
-      if (this.unlockFunds) this.unlockFunds(sellOffer.currentBidderId, refund);
-      else if (sellOffer.currentBidderId === 'player') this.addPlayerMoney(refund);
-    }
+    this.releaseBid(sellOffer);
     const tx = this.matchingEngine.executeBuyout(sellOffer, buyerId, quantity);
     if (!tx) return { success: false, error: 'Echec de la transaction' };
     if (buyerId === 'player') this.removePlayerMoney(totalCost);
     return { success: true, transaction: tx };
+  }
+
+  /**
+   * Rembourse l'enchérisseur en cours et efface l'enchère (achat immédiat, annulation).
+   * Sans l'effacement, l'enchérisseur remboursé recevrait l'objet gratuitement à l'échéance.
+   */
+  releaseBid(sellOffer) {
+    if (!sellOffer?.currentBidderId || sellOffer.currentBid == null) return 0;
+    const refund = Math.round(sellOffer.currentBid * sellOffer.quantity * 100) / 100;
+    if (this.unlockFunds) this.unlockFunds(sellOffer.currentBidderId, refund);
+    else if (sellOffer.currentBidderId === 'player') this.addPlayerMoney(refund);
+    sellOffer.currentBid = null;
+    sellOffer.currentBidderId = null;
+    return refund;
   }
 
   placeBid(sellOffer, bidderId, bidAmount) {
@@ -105,11 +115,7 @@ export class AuctionHouse {
 
   cancel(offer) {
     if (!offer || offer.type !== 'sell' || offer.status !== 'active') return { success: false, error: 'Annonce invalide ou déjà terminée' };
-    if (offer.currentBidderId && offer.currentBid != null) {
-      const refund = Math.round(offer.currentBid * offer.quantity * 100) / 100;
-      if (this.unlockFunds) this.unlockFunds(offer.currentBidderId, refund);
-      else if (offer.currentBidderId === 'player') this.addPlayerMoney(refund);
-    }
+    this.releaseBid(offer);
     offer.status = 'cancelled';
     if (offer.ownerId === 'player') {
       const inventory = this.getPlayerInventory();
