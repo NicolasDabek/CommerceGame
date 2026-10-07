@@ -935,3 +935,124 @@ body {
     font-size: 1.2rem;
   }
 }
+
+/* ========== COMMERCE — analyse & filtres ========== */
+.trade-filters {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.trade-filters .input,
+.trade-filters .select {
+  min-width: 160px;
+  flex: 1;
+}
+.check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.trade-hint {
+  font-size: 0.8rem;
+  margin: -6px 0 12px;
+  flex-shrink: 0;
+}
+.deal-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+.deal-good {
+  background: rgba(0, 184, 148, 0.2);
+  color: var(--success);
+}
+.deal-bad {
+  background: rgba(225, 112, 85, 0.2);
+  color: var(--danger);
+}
+.deal-fair {
+  background: rgba(164, 176, 190, 0.15);
+  color: var(--text-secondary);
+}
+tr.row-deal td:first-child {
+  box-shadow: inset 3px 0 0 var(--success);
+}
+.insight-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  margin: 8px 0 12px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+.insight-card.compact {
+  margin: 6px 0 10px;
+}
+.insight-grid {
+  display: grid;
+  gap: 4px;
+}
+.insight-spark {
+  margin-top: 8px;
+}
+.sparkline polyline.up { stroke: var(--success); }
+.sparkline polyline.down { stroke: var(--danger); }
+.qty-quick {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.inventory-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(240px, 0.9fr);
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.inventory-layout .inventory-grid {
+  overflow-y: auto;
+  max-height: 100%;
+}
+.inventory-detail {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  overflow-y: auto;
+}
+.inventory-detail h3 {
+  font-family: var(--font-display);
+  margin: 0 0 4px;
+}
+.inventory-slot.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(108, 92, 231, 0.35);
+}
+.slot-margin {
+  font-size: 0.65rem;
+  font-weight: 800;
+  margin-top: 2px;
+}
+.slot-margin.up { color: var(--success); }
+.slot-margin.down { color: var(--danger); }
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+@media (max-width: 900px) {
+  .inventory-layout {
+    grid-template-columns: 1fr;
+  }
+}

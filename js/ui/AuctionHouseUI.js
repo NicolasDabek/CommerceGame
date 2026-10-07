@@ -1,8 +1,10 @@
 /**
  * Interface — Hôtel de vente
+ * Filtres, contexte marché et badges d'opportunité.
  */
 
 import { ITEMS, getItemById } from '../data/items.js';
+import { formatMoney, dealBadge, marginHtml } from './TradeInsights.js';
 
 function gameNow() {
   return (typeof window !== 'undefined' && window.game?.timeManager)
@@ -14,10 +16,16 @@ function effectivePrice(offer) {
   return offer.currentBid != null ? offer.currentBid : offer.price;
 }
 
+function askPrice(offer) {
+  return offer.buyoutPrice != null ? offer.buyoutPrice : effectivePrice(offer);
+}
+
 export class AuctionHouseUI {
   constructor(options = {}) {
     this.getActiveSellOffers = options.getActiveSellOffers || (() => []);
     this.getPlayerSellOffers = options.getPlayerSellOffers || (() => []);
+    this.getInsight = options.getInsight || (() => null);
+    this.getMoney = options.getMoney || (() => 0);
     this.onBuyout = options.onBuyout || (() => {});
     this.onCancel = options.onCancel || (() => {});
     this.onCreateSell = options.onCreateSell || (() => {});
@@ -85,9 +93,7 @@ export class AuctionHouseUI {
     if (!this.query) return true;
     const seller = this.resolveName(offer.ownerId) || '';
     const bidder = offer.currentBidderId ? (this.resolveName(offer.currentBidderId) || '') : '';
-    const hay = [
-      item?.name, item?.icon, item?.category, offer.itemId, seller, bidder
-    ].join(' ').toLowerCase();
+    const hay = [item?.name, item?.icon, item?.category, offer.itemId, seller, bidder].join(' ').toLowerCase();
     return hay.includes(this.query);
   }
 
@@ -101,8 +107,8 @@ export class AuctionHouseUI {
         best.set(key, offer);
         return;
       }
-      const pNew = effectivePrice(offer);
-      const pOld = effectivePrice(prev);
+      const pNew = askPrice(offer);
+      const pOld = askPrice(prev);
       if (pNew < pOld || (pNew === pOld && offer.quantity > prev.quantity)) {
         best.set(key, offer);
       }
@@ -127,7 +133,7 @@ export class AuctionHouseUI {
       return;
     }
 
-    const sorted = [...filtered].sort((a, b) => effectivePrice(a) - effectivePrice(b));
+    const sorted = [...filtered].sort((a, b) => askPrice(a) - askPrice(b));
     this.tbody.innerHTML = sorted.map(offer => this._renderRow(offer)).join('');
 
     this.tbody.querySelectorAll('[data-action]').forEach(btn => {
@@ -147,17 +153,32 @@ export class AuctionHouseUI {
     const seller = this.resolveName(offer.ownerId);
     const remaining = offer.getRemainingText(gameNow());
     const going = effectivePrice(offer);
+    const insight = this.getInsight(offer.itemId, offer.quality, offer.perfection);
+    const avg = insight?.average ?? null;
+    const comparePrice = offer.buyoutPrice ?? going;
+    const money = this.getMoney();
 
-    let bidCell = `<span class="text-muted">—</span>`;
+    let bidCell = `<span class="text-money">${formatMoney(going)} €</span>`;
     if (offer.currentBid != null) {
       const bidder = this.resolveName(offer.currentBidderId);
       const count = Array.isArray(offer.bids) ? offer.bids.length : 1;
-      bidCell = `<span class="text-warning">${this._formatMoney(offer.currentBid)} €</span><br><small>${bidder} · ${count} ench.</small>`;
+      bidCell += `<br><small class="text-muted">départ ${formatMoney(offer.price)} € · ${bidder} · ${count} ench.</small>`;
     }
 
     const buyoutCell = offer.buyoutPrice
-      ? `<span class="text-money">${this._formatMoney(offer.buyoutPrice)} €</span>`
+      ? `<span class="text-money">${formatMoney(offer.buyoutPrice)} €</span>`
       : `<span class="text-muted">—</span>`;
+
+    const vsAvg = avg != null
+      ? `${dealBadge(comparePrice, avg)}<br><small class="text-muted">moy. ${formatMoney(avg)} €</small>`
+      : '<span class="text-muted">—</span>';
+
+    let ownedBit = '';
+    if (insight?.ownedQty > 0) {
+      ownedBit = `<br><small>sac ×${insight.ownedQty}`;
+      if (insight.avgCost != null) ownedBit += ` · coût ${formatMoney(insight.avgCost)} €`;
+      ownedBit += '</small>';
+    }
 
     let actions = '';
     if (offer.ownerId === 'player') {
@@ -168,29 +189,29 @@ export class AuctionHouseUI {
         buttons.push(`<button class="btn btn-small btn-warning" data-action="bid" data-offer-id="${offer.id}">Enchérir</button>`);
       }
       if (offer.buyoutPrice) {
-        buttons.push(`<button class="btn btn-small btn-primary" data-action="buyout" data-offer-id="${offer.id}" data-qty="${offer.quantity}">Acheter</button>`);
+        const total = Math.round(offer.buyoutPrice * offer.quantity * 100) / 100;
+        const canPay = money >= total;
+        const title = canPay
+          ? `Total ${formatMoney(total)} €`
+          : `Il manque ${formatMoney(total - money)} €`;
+        buttons.push(`<button class="btn btn-small ${canPay ? 'btn-primary' : 'btn-ghost'}" data-action="buyout" data-offer-id="${offer.id}" data-qty="${offer.quantity}" ${canPay ? '' : 'disabled'} title="${title}">Acheter</button>`);
       }
       actions = buttons.join(' ') || `<span class="text-muted">Votre enchère</span>`;
     }
 
+    const rowClass = offer.buyoutPrice != null && avg != null && offer.buyoutPrice < avg * 0.95 ? 'row-deal' : '';
+
     return `
-      <tr>
-        <td>${itemName}<br><small class="text-muted">Q${offer.quality} P${offer.perfection}</small></td>
+      <tr class="${rowClass}">
+        <td>${itemName}<br><small class="text-muted">Q${offer.quality} P${offer.perfection}</small>${ownedBit}</td>
         <td>${offer.quantity}</td>
-        <td><span class="text-money">${this._formatMoney(going)} €</span>${offer.currentBid != null ? `<br><small class="text-muted">départ ${this._formatMoney(offer.price)} €</small>` : ''}</td>
         <td>${bidCell}</td>
         <td>${buyoutCell}</td>
+        <td>${vsAvg}</td>
         <td>${seller}</td>
         <td class="text-muted">${remaining}</td>
         <td>${actions}</td>
       </tr>
     `;
-  }
-
-  _formatMoney(amount) {
-    return Number(amount).toLocaleString('fr-FR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
   }
 }

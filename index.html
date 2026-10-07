@@ -74,11 +74,118 @@
         <button class="btn btn-primary" id="btn-exit-interior">Sortir dans la rue</button>
       </div>
       <div class="interior-body">
-      <section class="panel" id="panel-history"><div class="panel-header"><h2>Historique</h2></div><div class="table-container"><table class="data-table" id="history-table"><thead><tr><th>Date</th><th>Objet</th><th>Qte</th><th>Prix</th><th>Total</th><th>Vendeur</th><th>Acheteur</th><th>Type</th><th>Lecture</th></tr></thead><tbody id="history-body"></tbody></table></div></section>
-      <section class="panel" id="panel-auction"><div class="panel-header"><h2>Hotel de vente</h2><button class="btn btn-primary" id="btn-new-sell">+ Vendre</button></div><div class="tabs"><button class="tab active" data-tab="active-sells">Annonces</button><button class="tab" data-tab="my-sells">Mes annonces</button></div><div class="table-container"><table class="data-table" id="auction-table"><thead><tr><th>Objet</th><th>Qte</th><th>Prix</th><th>Achat imm.</th><th>Vendeur</th><th>Expire</th><th>Actions</th></tr></thead><tbody id="auction-body"></tbody></table></div></section>
-      <section class="panel" id="panel-buyhouse"><div class="panel-header"><h2>Hotel d'achat</h2><button class="btn btn-primary" id="btn-new-buy">+ Offre d'achat</button></div><div class="tabs"><button class="tab active" data-tab="active-buys">Offres</button><button class="tab" data-tab="my-buys">Mes offres</button></div><div class="table-container"><table class="data-table" id="buyhouse-table"><thead><tr><th>Objet</th><th>Qte</th><th>Prix</th><th>Acheteur</th><th>Expire</th><th>Actions</th></tr></thead><tbody id="buyhouse-body"></tbody></table></div></section>
-      <section class="panel" id="panel-inventory"><div class="panel-header"><h2>Inventaire</h2><span id="inventory-slots"></span></div><div class="inventory-categories" id="inventory-categories"><button class="category-btn active" data-category="all">Tout</button></div><div class="inventory-grid" id="inventory-grid"></div></section>
-      <section class="panel" id="panel-market"><div class="panel-header"><h2>Marche</h2><select id="market-category" class="select"><option value="all">Tout</option></select></div><div class="market-events" id="market-events"></div><div class="table-container"><table class="data-table" id="market-table"><thead><tr><th>Objet</th><th>Prix moyen</th><th>Vente</th><th>Achat</th><th>Spread</th><th>Volume</th><th>Tendance</th><th>Graphique</th></tr></thead><tbody id="market-body"></tbody></table></div></section>
+      <section class="panel" id="panel-history">
+        <div class="panel-header">
+          <h2>Historique</h2>
+        </div>
+        <div class="filters-bar trade-filters">
+          <select id="filter-type" class="select">
+            <option value="all">Tous les types</option>
+            <option value="matching">Matching</option>
+            <option value="buyout">Achat immédiat</option>
+            <option value="auction_end">Fin d'enchère</option>
+          </select>
+          <input type="search" id="filter-item" class="input" placeholder="Filtrer par objet…" />
+          <button class="btn btn-small btn-ghost" id="btn-clear-filters">Effacer</button>
+        </div>
+        <div class="table-container">
+          <table class="data-table" id="history-table">
+            <thead><tr>
+              <th>Date</th><th>Objet</th><th>Qté</th><th>Prix</th><th>Total</th><th>Vendeur</th><th>Acheteur</th><th>Type</th><th>Lecture</th>
+            </tr></thead>
+            <tbody id="history-body"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="panel" id="panel-auction">
+        <div class="panel-header">
+          <h2>Hôtel de vente</h2>
+          <button class="btn btn-primary" id="btn-new-sell">+ Vendre</button>
+        </div>
+        <div class="tabs">
+          <button class="tab active" data-tab="active-sells">Annonces</button>
+          <button class="tab" data-tab="my-sells">Mes annonces</button>
+        </div>
+        <div class="filters-bar trade-filters">
+          <input type="search" id="auction-search" class="input" placeholder="Rechercher un objet, vendeur…" />
+          <select id="auction-category" class="select"><option value="all">Toutes catégories</option></select>
+          <label class="check-label" title="Une seule annonce par objet : la moins chère"><input type="checkbox" id="auction-best-only" checked /> Meilleures offres</label>
+        </div>
+        <p class="trade-hint text-muted">Comparez au prix moyen · la marge s'affiche si l'objet est dans votre sac · Acheter = achat immédiat</p>
+        <div class="table-container">
+          <table class="data-table" id="auction-table">
+            <thead><tr>
+              <th>Objet</th><th>Qté</th><th>Enchère / départ</th><th>Achat imm.</th><th>Vs marché</th><th>Vendeur</th><th>Expire</th><th>Actions</th>
+            </tr></thead>
+            <tbody id="auction-body"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="panel" id="panel-buyhouse">
+        <div class="panel-header">
+          <h2>Hôtel d'achat</h2>
+          <button class="btn btn-primary" id="btn-new-buy">+ Offre d'achat</button>
+        </div>
+        <div class="tabs">
+          <button class="tab active" data-tab="active-buys">Offres</button>
+          <button class="tab" data-tab="my-buys">Mes offres</button>
+        </div>
+        <div class="filters-bar trade-filters">
+          <input type="search" id="buy-search" class="input" placeholder="Rechercher un objet, acheteur…" />
+          <select id="buy-category" class="select"><option value="all">Toutes catégories</option></select>
+          <label class="check-label" title="Une seule offre par objet : la mieux payée"><input type="checkbox" id="buy-best-only" checked /> Meilleures offres</label>
+        </div>
+        <p class="trade-hint text-muted">Vendez depuis votre stock · la marge estimée utilise votre coût d'achat moyen</p>
+        <div class="table-container">
+          <table class="data-table" id="buyhouse-table">
+            <thead><tr>
+              <th>Objet</th><th>Qté</th><th>Prix proposé</th><th>Votre stock / marge</th><th>Acheteur</th><th>Expire</th><th>Actions</th>
+            </tr></thead>
+            <tbody id="buyhouse-body"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="panel" id="panel-inventory">
+        <div class="panel-header">
+          <h2>Inventaire</h2>
+          <span id="inventory-slots"></span>
+        </div>
+        <div class="inventory-categories" id="inventory-categories">
+          <button class="category-btn active" data-category="all">Tout</button>
+        </div>
+        <div class="inventory-layout">
+          <div class="inventory-grid" id="inventory-grid"></div>
+          <aside id="inventory-detail" class="inventory-detail" hidden>
+            <p class="text-muted">Cliquez un objet pour voir le marché et vendre rapidement.</p>
+          </aside>
+        </div>
+      </section>
+      <section class="panel" id="panel-market">
+        <div class="panel-header">
+          <h2>Marché</h2>
+          <div class="filters-bar trade-filters" style="margin:0">
+            <input type="search" id="market-search" class="input" placeholder="Rechercher…" />
+            <select id="market-category" class="select"><option value="all">Tout</option></select>
+            <select id="market-sort" class="select" title="Trier">
+              <option value="name">Nom</option>
+              <option value="spread">Écart (opportunité)</option>
+              <option value="discount">Bonne affaire achat</option>
+              <option value="margin">Marge revente</option>
+              <option value="volume">Volume</option>
+            </select>
+          </div>
+        </div>
+        <div class="market-events" id="market-events"></div>
+        <p class="trade-hint text-muted">Haut/bas et graphique = historique local · Marge = si vous vendez à la meilleure offre d'achat</p>
+        <div class="table-container">
+          <table class="data-table" id="market-table">
+            <thead><tr>
+              <th>Objet</th><th>Moyen</th><th>Haut / bas</th><th>Vente</th><th>Achat</th><th>Écart</th><th>Vous</th><th>Volume</th><th>Tendance</th><th>Graphique</th>
+            </tr></thead>
+            <tbody id="market-body"></tbody>
+          </table>
+        </div>
+      </section>
       <section class="panel" id="panel-npcs"><div class="panel-header"><h2>Marchands</h2><p id="clan-status"></p></div><div class="npc-grid" id="npc-grid"></div></section>
       <section class="panel" id="panel-jobs"><div class="panel-header"><h2>Atelier</h2><span id="jobs-vault"></span></div><div id="jobs-root" class="jobs-root"></div></section>
       <section class="panel" id="panel-goals"><div class="panel-header"><h2>Objectifs</h2><div id="progress-summary"></div></div><div class="goals-grid" id="goals-grid"></div></section>

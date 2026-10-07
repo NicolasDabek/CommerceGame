@@ -1,8 +1,10 @@
 /**
  * Interface — Hôtel d'achat
+ * Stock joueur et marge estimée à la revente.
  */
 
 import { ITEMS, getItemById } from '../data/items.js';
+import { formatMoney, dealBadge, marginHtml } from './TradeInsights.js';
 
 function gameNow() {
   return (typeof window !== 'undefined' && window.game?.timeManager)
@@ -15,6 +17,7 @@ export class BuyHouseUI {
     this.getActiveBuyOffers = options.getActiveBuyOffers || (() => []);
     this.getPlayerBuyOffers = options.getPlayerBuyOffers || (() => []);
     this.getPlayerItemCount = options.getPlayerItemCount || (() => 0);
+    this.getInsight = options.getInsight || (() => null);
     this.onCancel = options.onCancel || (() => {});
     this.onCreateBuy = options.onCreateBuy || (() => {});
     this.onFulfill = options.onFulfill || (() => {});
@@ -107,7 +110,7 @@ export class BuyHouseUI {
     if (filtered.length === 0) {
       this.tbody.innerHTML = `
         <tr class="empty-row">
-          <td colspan="6">Aucune offre ne correspond aux filtres</td>
+          <td colspan="7">Aucune offre ne correspond aux filtres</td>
         </tr>
       `;
       return;
@@ -131,37 +134,48 @@ export class BuyHouseUI {
     const itemName = item ? `${item.icon || ''} ${item.name}` : offer.itemId;
     const buyer = this.resolveName(offer.ownerId);
     const remaining = offer.getRemainingText(gameNow());
+    const insight = this.getInsight(offer.itemId);
+    const avg = insight?.average ?? null;
+    const owned = this.getPlayerItemCount(offer.itemId);
+    const avgCost = insight?.avgCost ?? null;
+
+    let stockCell = `<span class="text-muted">sac ×${owned}</span>`;
+    if (owned > 0 && avgCost != null) {
+      const unitMargin = Math.round((offer.price - avgCost) * 100) / 100;
+      const pct = avgCost > 0 ? Math.round((unitMargin / avgCost) * 1000) / 10 : null;
+      stockCell = `sac ×${owned}<br>marge ${marginHtml(unitMargin, pct)}`;
+    } else if (owned > 0) {
+      stockCell = `sac ×${owned}<br><small class="text-muted">coût inconnu</small>`;
+    }
+
+    const vsMarket = avg != null
+      ? `${dealBadge(offer.price, avg, { invert: true })}<br><small class="text-muted">moy. ${formatMoney(avg)} €</small>`
+      : '';
 
     let actions = '';
     if (offer.ownerId === 'player') {
       actions = `<button class="btn btn-small btn-ghost" data-action="cancel" data-offer-id="${offer.id}">Annuler</button>`;
+    } else if (owned > 0) {
+      const maxQty = Math.min(owned, offer.quantity);
+      const label = owned >= offer.quantity ? `Vendre (x${maxQty})` : `Vendre ${maxQty}/${offer.quantity}`;
+      const total = Math.round(offer.price * maxQty * 100) / 100;
+      actions = `<button class="btn btn-small btn-success" data-action="fulfill" data-offer-id="${offer.id}" data-max-qty="${maxQty}" title="Total ≈ ${formatMoney(total)} €">${label}</button>`;
     } else {
-      const owned = this.getPlayerItemCount(offer.itemId);
-      if (owned > 0) {
-        const maxQty = Math.min(owned, offer.quantity);
-        const label = owned >= offer.quantity ? `Vendre (x${maxQty})` : `Vendre ${maxQty}/${offer.quantity}`;
-        actions = `<button class="btn btn-small btn-success" data-action="fulfill" data-offer-id="${offer.id}" data-max-qty="${maxQty}" title="Vente partielle possible">${label}</button>`;
-      } else {
-        actions = `<span class="text-muted">Pas en stock</span>`;
-      }
+      actions = `<span class="text-muted">Pas en stock</span>`;
     }
 
+    const rowClass = owned > 0 && avgCost != null && offer.price > avgCost ? 'row-deal' : '';
+
     return `
-      <tr>
-        <td>${itemName}</td>
+      <tr class="${rowClass}">
+        <td>${itemName}${vsMarket ? `<br>${vsMarket}` : ''}</td>
         <td>${offer.quantity}</td>
-        <td class="text-money">${this._formatMoney(offer.price)} €</td>
+        <td class="text-money">${formatMoney(offer.price)} €</td>
+        <td>${stockCell}</td>
         <td>${buyer}</td>
         <td class="text-muted">${remaining}</td>
         <td>${actions}</td>
       </tr>
     `;
-  }
-
-  _formatMoney(amount) {
-    return Number(amount).toLocaleString('fr-FR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
   }
 }

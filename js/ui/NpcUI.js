@@ -97,6 +97,10 @@ export class NpcUI {
           <span>Achats: ${this._formatMoney(profile.bought)} €</span>
         </div>
         <div class="npc-section">
+          <h4>Annonces actives</h4>
+          <div class="npc-tags">${this._offerChips(profile) || '<span class="text-muted">Aucune</span>'}</div>
+        </div>
+        <div class="npc-section">
           <h4>Inventaire connu</h4>
           <div class="npc-tags">${topInventory || '<span class="text-muted">Vide</span>'}</div>
         </div>
@@ -106,6 +110,20 @@ export class NpcUI {
         </div>
       </article>
     `;
+  }
+
+
+  _offerChips(profile) {
+    const offers = (profile.activeOffers || []).slice(0, 4);
+    if (!offers.length) return '';
+    return offers.map(o => {
+      const item = getItemById(o.itemId);
+      const kind = o.type === 'sell' ? 'vend' : 'achète';
+      const price = o.type === 'sell'
+        ? (o.buyoutPrice ?? o.currentBid ?? o.price)
+        : o.price;
+      return `<span class="mini-chip" title="${kind} ×${o.quantity}">${item?.icon || ''} ${kind} ${this._formatMoney(price)} €</span>`;
+    }).join('');
   }
 
   _aiLine(profile, allied, trustLabel) {
