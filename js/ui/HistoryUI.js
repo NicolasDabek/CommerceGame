@@ -31,6 +31,7 @@ export class HistoryUI {
       this.btnClear.addEventListener('click', () => {
         if (this.filterType) this.filterType.value = 'all';
         if (this.filterItem) this.filterItem.value = '';
+        this.onFiltersCleared?.();
         this.render();
       });
     }
@@ -81,13 +82,15 @@ export class HistoryUI {
     const typeLabel = {
       matching: 'Matching',
       buyout: 'Achat immédiat',
-      auction_end: 'Fin d\'enchère'
+      auction_end: 'Fin d\'enchère',
+      negotiated: 'Marchandage'
     }[tx.type] || tx.type;
 
     const typeClass = {
       matching: 'badge-matching',
       buyout: 'badge-buyout',
-      auction_end: 'badge-auction'
+      auction_end: 'badge-auction',
+      negotiated: 'badge-haggle'
     }[tx.type] || '';
 
     const seller = this.resolveName(tx.sellerId);

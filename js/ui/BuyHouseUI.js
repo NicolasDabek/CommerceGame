@@ -21,6 +21,7 @@ export class BuyHouseUI {
     this.onCancel = options.onCancel || (() => {});
     this.onCreateBuy = options.onCreateBuy || (() => {});
     this.onFulfill = options.onFulfill || (() => {});
+    this.onNegotiate = options.onNegotiate || null;
     this.resolveName = options.resolveName || ((id) => id === 'player' ? 'Vous' : id);
 
     this.tbody = document.getElementById('buyhouse-body');
@@ -78,6 +79,15 @@ export class BuyHouseUI {
     }
   }
 
+  setTab(tabId) {
+    const tabs = document.querySelectorAll('#panel-buyhouse .tab');
+    const target = [...tabs].find(t => t.dataset.tab === tabId);
+    if (!target) return;
+    tabs.forEach(t => t.classList.toggle('active', t === target));
+    this.currentTab = tabId;
+    this.render();
+  }
+
   _matches(offer) {
     const item = getItemById(offer.itemId);
     if (this.category !== 'all' && item?.category !== this.category) return false;
@@ -125,6 +135,7 @@ export class BuyHouseUI {
         const offerId = btn.dataset.offerId;
         if (action === 'cancel') this.onCancel(offerId);
         else if (action === 'fulfill') this.onFulfill(offerId, Number(btn.dataset.maxQty) || 1);
+        else if (action === 'negotiate') this.onNegotiate?.(offerId);
       });
     });
   }
@@ -160,6 +171,9 @@ export class BuyHouseUI {
       const label = owned >= offer.quantity ? `Vendre (x${maxQty})` : `Vendre ${maxQty}/${offer.quantity}`;
       const total = Math.round(offer.price * maxQty * 100) / 100;
       actions = `<button class="btn btn-small btn-success" data-action="fulfill" data-offer-id="${offer.id}" data-max-qty="${maxQty}" title="Total ≈ ${formatMoney(total)} €">${label}</button>`;
+      if (this.onNegotiate && offer.ownerId !== 'city') {
+        actions += ` <button class="btn btn-small btn-ghost btn-haggle" data-action="negotiate" data-offer-id="${offer.id}" title="Demandez un meilleur prix à ${buyer} (plafonné à environ 104 % de la valeur de référence). Sa marge dépend de sa confiance et de la pénurie en ville.">🤝 Négocier</button>`;
+      }
     } else {
       actions = `<span class="text-muted">Pas en stock</span>`;
     }

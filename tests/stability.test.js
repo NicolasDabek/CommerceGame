@@ -18,6 +18,21 @@ export function run() {
       assert(s.moneyBand[0] >= 0.85 && s.moneyBand[1] <= 1.15, `masse monétaire ${s.moneyBand}`);
       assert(s.txPerDay >= 5, `activité ${s.txPerDay} tx/jour`);
       assert(Date.now() > 1.7e12, 'horloge restaurée');
+    }],
+    ['Robots joueurs (marchandage, crédit en boucle) : aucune richesse infinie', async () => {
+      const quiet = console.error;
+      console.error = () => {};
+      try {
+        for (const mode of ['trader', 'exploit']) {
+          const { summary } = await runSimulation({ days: 40, seeds: 1, bot: mode });
+          const b = summary.bot;
+          assert(b.bestRunGainPerDay < 10, `${mode} : gain ${b.bestRunGainPerDay} €/jour`);
+          assert(b.worthEnd < b.worthStart * 1.3, `${mode} : patrimoine ${b.worthStart} → ${b.worthEnd}`);
+          assert(summary.moneyBand[0] >= 0.85 && summary.moneyBand[1] <= 1.15, `${mode} : masse monétaire ${summary.moneyBand}`);
+        }
+      } finally {
+        console.error = quiet;
+      }
     }]
   ]);
 }

@@ -18,10 +18,11 @@ Les modules ES ne fonctionnent pas en `file://`. Alternatives : `npm start` ou `
 ## Tests
 
 ```bash
-npm test          # tests unitaires (économie, offre/demande, IA et métiers des PNJ, atelier, suivi & ordres, Comptoir, matching…) + stabilité 60 jours
+npm test          # tests unitaires (économie, offre/demande, IA et métiers des PNJ, atelier, suivi & ordres, marchandage, crédit, parcours, Comptoir, matching…) + stabilité 60 jours + robots anti-exploit
 npm run sim       # simulation headless de l'économie (120 jours, 3 graines)
 npm run sim -- --days=365 --seeds=5 --every=30
 npm run sim -- --json
+npm run sim -- --bot=trader     # + un robot joueur : trader (marchandage), exploit (crédit en boucle), defaulter (mauvais payeur)
 ```
 
 La simulation fait tourner les 15 PNJ sans navigateur ni réseau (horloge virtuelle, hasard déterministe)
@@ -107,6 +108,48 @@ s'il achète beaucoup un objet, les prix d'annonce montent un peu ; s'il en vend
 - **Bilan (P&L)** : marge réalisée par objet, contrats & services, coûts d'atelier, frais d'annonce, résultat net, latent du stock,
   barres des 14 derniers jours ; résumé dans le Carnet.
 
+## Marchandage (bouton « 🤝 Négocier »)
+
+- Sur l'annonce d'un marchand (Hôtel de vente) ou son offre d'achat (Hôtel d'achat) : proposez votre prix.
+  Réponse : **accord**, **contre-offre** (valable la journée) ou **refus** ; une offre trop basse **vexe** (confiance −5).
+- La marge du marchand (0–16 %) dépend de sa **confiance**, son humeur, son stock, sa trésorerie, la pénurie ou le surplus en ville, sa personnalité et votre **rang**.
+- Garde-fous : jamais sous **90 %** de la valeur de référence à l'achat, jamais au-dessus de **104 %** à la vente ;
+  3 à 5 propositions par marchand et par jour (selon le rang), **2 accords** par marchand et par jour. Le Comptoir ne marchande pas.
+- Aussi : **achat partiel** d'un lot (« Acheter… ») et **vente groupée** depuis le Sac (« Tout vendre… » au-dessus d'un prix minimum).
+
+## Rangs de réputation
+
+| Rang | Réputation | Marchandage | Crédit | Ordres permanents |
+|---|---|---|---|---|
+| 🌱 Nouveau venu | 0+ | 3 essais | 300 € · 1,5 %/j | — |
+| 🙂 Connu sur la place | 8+ | 3 essais, +1 % | 600 € · 1,4 %/j | — |
+| 🤝 Commerçant fiable | 18+ | 4 essais, +2 % | 1 000 € · 1,2 %/j | +1 |
+| ⭐ Marchand estimé | 35+ | 4 essais, +3 % | 1 600 € · 1 %/j | +1 |
+| 🏛️ Maison reconnue | 60+ | 5 essais, +4 % | 2 500 € · 0,8 %/j | +2 |
+
+Les frais d'annonce baissent de 0,8 % par point de réputation (62 % minimum). Réputation négative : pas de crédit.
+
+## Crédit du Comptoir (Suivi → Crédit)
+
+- Un prêt à la fois, 3 ou 7 jours, plafond et taux selon le rang. **Aucun argent créé** : les fonds viennent de la trésorerie du Comptoir
+  (au-delà de 600 €) et des marchands les plus riches ; capital et intérêts leur reviennent.
+- Remboursement anticipé possible (au moins 1 jour d'intérêts) ; prélèvement automatique à l'échéance ; à temps : +2 réputation.
+- Retard : +1 %/jour (max 20 %), −3 puis −1 réputation/jour, 50 % des ventes saisies, prélèvement du solde dès le 3ᵉ jour.
+
+## Parcours du marchand (bouton « Parcours »)
+
+5 chapitres de 4 étapes (Premiers pas → Lire le marché → Commerçant fiable → Maison de commerce → Grand négociant),
+chacune avec un « Comment faire » et un bouton « Y aller ». Récompenses : réputation, XP, cases de sac — **jamais d'argent**.
+Une carte « prochaine étape » s'affiche sur la place (masquable), une astuce à la première visite de chaque lieu,
+et le **patrimoine** (argent + stock au prix du marché + offres en cours − crédit) est affiché en haut.
+Les anciens objectifs restent disponibles dans l'onglet « Objectifs libres ».
+
+## Raccourcis clavier
+
+`1` Sac · `2` Hôtel de vente · `3` Hôtel d'achat · `4` Halle des prix · `5` Atelier · `6` Marchands · `7` Suivi · `8` Parcours · `9` Carnet ·
+`/` rechercher · `N` nouvelle annonce / offre · `P` pause · `?` ou `H` aide · `Échap` ferme la fenêtre puis le lieu.
+Les filtres, tris et onglets sont mémorisés (préférences locales, séparées de la sauvegarde).
+
 ## Monde 3D — contrôles
 
 - **ZQSD** (AZERTY) / **WASD** (QWERTY) ou **flèches** : marcher (la caméra suit)
@@ -155,12 +198,12 @@ Reset sauvegarde : bouton **Reset** ou `localStorage.clear(); location.reload();
 │   ├── main.js
 │   ├── core/          # Game, Economy, SupplyDemand, condition (état des objets), TimeManager, GamePatch
 │   ├── models/
-│   ├── systems/       # PNJ, Comptoir, JobBoard (métiers/atelier), TradingDesk (suivi/ordres/bilan)…
+│   ├── systems/       # PNJ, Comptoir, JobBoard (métiers/atelier), TradingDesk (suivi/ordres/bilan), Negotiation, Credit, Career…
 │   ├── ui/
 │   ├── world/         # TownWorld (place 3D) + mount (branchement sur index.html)
 │   ├── data/
 │   └── utils/storage.js
-├── scripts/           # sim.mjs + simCore.mjs (simulation headless de l'économie)
+├── scripts/           # sim.mjs + simCore.mjs (simulation headless de l'économie) + exploitBot.mjs (robots joueurs)
 ├── tests/
 ├── lib/               # Three.js r170, OrbitControls, Scene3D (voir lib/README.md)
 └── assets/fonts/      # Nunito + Fredoka (woff2, licence OFL)

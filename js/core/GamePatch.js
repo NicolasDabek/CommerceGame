@@ -1,5 +1,10 @@
 import { JobBoard } from '../systems/JobBoard.js';
 import { TradingDesk } from '../systems/TradingDesk.js';
+import { Negotiation } from '../systems/Negotiation.js';
+import { Credit } from '../systems/Credit.js';
+import { Career } from '../systems/Career.js';
+import { getRankView, rankFor } from './Ranks.js';
+import { getItemById } from '../data/items.js';
 import { Storage } from '../utils/storage.js';
 import { Offer } from '../models/Offer.js';
 import { CLANS, getClanById } from '../data/npcs.js';
@@ -43,6 +48,17 @@ export function enhanceGame(game) {
   game.jobBoard.ensureContracts();
   // Suivi, alertes, ordres permanents et journal (anciennes sauvegardes : vide)
   game.tradingDesk = new TradingDesk(game, savedData.trading || {});
+  // Marchandage, crédit du Comptoir, parcours du marchand (anciennes sauvegardes : vides)
+  game.negotiation = new Negotiation(game, savedData.negotiation || {});
+  game.credit = new Credit(game, savedData.credit || {});
+  game.tradeListeners.push((tx) => game.credit.onTransaction(tx));
+  game.career = new Career(game, savedData.career || {});
+
+  // Nouvelle partie : les marchands ouvrent boutique tout de suite (hôtels non vides)
+  if (game.__newGame && game.npcController?.primeMarket) {
+    game.npcController.primeMarket(2, game.timeManager.now());
+    game.__newGame = false;
+  }
 
   if (!Offer.__repFees) {
     Offer.__repFees = true;
@@ -103,6 +119,9 @@ export function enhanceGame(game) {
     if (data) {
       data.jobs = game.jobBoard.toJSON();
       if (game.tradingDesk) data.trading = game.tradingDesk.toJSON();
+      if (game.negotiation) data.negotiation = game.negotiation.toJSON();
+      if (game.credit) data.credit = game.credit.toJSON();
+      if (game.career) data.career = game.career.toJSON();
       Storage.save(data);
     }
   };
@@ -117,9 +136,14 @@ export function enhanceGame(game) {
     if (game.timeManager.getCurrentDay() !== dayBefore) {
       // Les PNJ (production, consommation) et le Comptoir sont déjà gérés dans Game.onDayChange
       game.jobBoard.onNewDay();
+      const loanEvent = game.credit?.onNewDay();
+      if (loanEvent?.type === 'autoRepaid') game.uiCallbacks?.onStatus?.(`Crédit remboursé automatiquement : −${loanEvent.amount.toFixed(2)} €`);
+      else if (loanEvent?.type === 'overdue') game.uiCallbacks?.onStatus?.(`Crédit en retard (${loanEvent.days} j) : réputation en baisse, 50 % de vos ventes saisies${loanEvent.seized ? ` · ${loanEvent.seized.toFixed(2)} € prélevés` : ''}`);
+      game.career?.check();
       game.save();
     } else {
       game.jobBoard.ensureContracts();
+      game.career?.check();
     }
     const after = game.offers.map(o => `${o.id}:${o.currentBid}:${o.status}:${o.quantity}`).join('|');
     if (after !== snapshot && typeof window !== 'undefined') {
@@ -192,6 +216,88 @@ export function enhanceGame(game) {
   game.removeStandingOrder = (id) => { const r = game.tradingDesk.removeStandingOrder(id); game._notifyUI(); return r; };
   game.markAlertsRead = () => { game.tradingDesk.markAlertsRead(); game._notifyUI(); };
   game.getGameNow = () => game.timeManager.now();
+
+  // ---------- Marchandage ----------
+  game.getNegotiationQuote = (offerId) => game.negotiation.quote(offerId);
+  game.negotiate = (offerId, price, qty, opts) => {
+    const r = game.negotiation.propose(offerId, price, qty, opts);
+    if (r.success && r.outcome === 'accepted') game.career?.check();
+    return r;
+  };
+
+  // ---------- Crédit du Comptoir ----------
+  game.getCreditView = () => game.credit.getView();
+  game.getCreditQuote = (amount, days) => game.credit.quote(amount, days);
+  game.borrow = (amount, days) => game.credit.borrow(amount, days);
+  game.repayLoan = () => { const r = game.credit.repay(); if (r.success) game.career?.check(); return r; };
+
+  // ---------- Rang, parcours, patrimoine ----------
+  game.getRankView = () => getRankView(game.player.reputation || 0);
+  game.getCareerView = () => game.career.getView();
+  game.notePanel = (panel) => { game.career?.notePanel(panel); };
+
+  /** Patrimoine = argent + stock au prix du marché + offres en cours + établi − crédit. */
+  game.getNetWorth = function() {
+    const value = (itemId, q, p) => game.getAdjustedMarketPrice(itemId, q ?? 50, p ?? 50) || 0;
+    const cash = game.player.money;
+    const stock = game.player.inventory.items.reduce((t, s) => t + value(s.itemId, s.quality, s.perfection) * s.quantity, 0);
+    let listed = 0; let locked = 0;
+    game.offers.forEach(o => {
+      if (o.status !== 'active') return;
+      if (o.ownerId === 'player' && o.type === 'sell') listed += value(o.itemId, o.quality, o.perfection) * o.quantity;
+      if (o.ownerId === 'player' && o.type === 'buy') locked += o.price * o.quantity;
+      if (o.type === 'sell' && o.currentBidderId === 'player' && o.currentBid != null) locked += o.currentBid * o.quantity;
+    });
+    const bench = (game.jobBoard?.bench || []).reduce((t, e) => t + value(e.itemId, e.toQuality ?? e.quality, e.perfection) * (e.quantity || 1), 0);
+    const debt = game.credit?.outstanding?.() || 0;
+    const r = (n) => Math.round(n * 100) / 100;
+    const total = r(cash + stock + listed + locked + bench - debt);
+    return { total, cash: r(cash), stock: r(stock), listed: r(listed), locked: r(locked), bench: r(bench), debt: r(debt) };
+  };
+
+  // ---------- Vente groupée ----------
+  /** Offres d'achat (PNJ et Comptoir) pour un objet, de la mieux payée à la moins bien payée. */
+  game.getBulkSellPlan = function(itemId, minPrice = 0) {
+    const owned = game.player.inventory.count(itemId);
+    const offers = game.getActiveBuyOffers()
+      .filter(o => o.itemId === itemId && o.ownerId !== 'player' && o.price >= minPrice && o.quantity > 0)
+      .sort((a, b) => b.price - a.price || a.createdAt - b.createdAt);
+    let left = owned; let total = 0; const lines = [];
+    for (const o of offers) {
+      if (left <= 0) break;
+      const qty = Math.min(left, o.quantity);
+      lines.push({ offerId: o.id, buyer: game.getNpcName(o.ownerId), qty, price: o.price });
+      total += qty * o.price; left -= qty;
+    }
+    const sold = owned - left;
+    const avgCost = game._getAveragePlayerCost(itemId);
+    return {
+      itemId, owned, sold, remaining: left, lines,
+      total: Math.round(total * 100) / 100,
+      avgPrice: sold ? Math.round((total / sold) * 100) / 100 : null,
+      margin: avgCost != null && sold ? Math.round((total - avgCost * sold) * 100) / 100 : null
+    };
+  };
+  game.bulkSell = function(itemId, minPrice = 0) {
+    const plan = game.getBulkSellPlan(itemId, minPrice);
+    if (!plan.sold) return { success: false, error: "Aucune offre d'achat pour cet objet à ce prix" };
+    let sold = 0; let total = 0;
+    for (const line of plan.lines) {
+      const r = game.fulfillBuyOffer(line.offerId, line.qty);
+      if (r.success) { sold += line.qty; total += r.total; }
+    }
+    if (!sold) return { success: false, error: 'Vente impossible' };
+    const item = getItemById(itemId);
+    return { success: true, sold, total: Math.round(total * 100) / 100, name: item?.name || itemId, offers: plan.lines.length };
+  };
+
+  // Résumé de progression : titre de rang et frais réels (manquaient dans l'écran Objectifs)
+  const origSummary = game.getProgressSummary.bind(game);
+  game.getProgressSummary = function() {
+    const s = origSummary();
+    const rank = rankFor(game.player.reputation || 0);
+    return { ...s, reputationTitle: rank.title, rankIcon: rank.icon, feeMultiplier: game.player.getFeeMultiplier() };
+  };
 
   const origProfiles = game.getNpcProfiles.bind(game);
   game.getNpcProfiles = function() {

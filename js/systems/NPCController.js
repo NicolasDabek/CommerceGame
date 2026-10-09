@@ -404,6 +404,30 @@ export class NPCController {
     return actions;
   }
 
+  /**
+   * Nouvelle partie : chaque marchand agit quelques fois tout de suite pour que les hôtels
+   * ne soient pas vides à l'arrivée du joueur (mêmes règles que le tick normal).
+   */
+  primeMarket(rounds = 2, now = this.getNow()) {
+    const actions = [];
+    for (let r = 0; r < rounds; r++) {
+      NPCS.forEach(npc => {
+        const state = this._ensureState(npc);
+        if (!state || state.actionsToday >= this.actionBudget(npc)) return;
+        this._invalidateBooks();
+        const result = this._chooseAndAct(npc, state, now);
+        if (!result) return;
+        state.actionsToday += 1;
+        state.lastIntent = result.intent || this._intentLabel(result, state);
+        state.lastReason = result.reason || null;
+        this._remember(state, state.lastIntent);
+        actions.push(result);
+      });
+    }
+    this._invalidateBooks();
+    return actions;
+  }
+
   _remember(state, text) {
     if (!text) return;
     state.journal.push(text);

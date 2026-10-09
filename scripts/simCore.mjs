@@ -75,7 +75,7 @@ function priceIndex(game, ITEMS) {
  * @param {{days?:number, seeds?:number, seedBase?:number}} options
  * @returns {Promise<{summary:object, runs:Array}>}
  */
-export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000 } = {}) {
+export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000, bot = null } = {}) {
   const realNow = Date.now;
   const realRandom = Math.random;
   const hadStorage = Object.prototype.hasOwnProperty.call(globalThis, 'localStorage');
@@ -94,10 +94,12 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000 } =
 
   const t0 = realNow();
   const runs = [];
+  let botLogs = [];
   try {
     const { Game } = await import('../js/core/Game.js');
     const { enhanceGame } = await import('../js/core/GamePatch.js');
     const { ITEMS } = await import('../js/data/items.js');
+    const { createBot } = bot ? await import('./exploitBot.mjs') : {};
 
     for (let i = 0; i < seeds; i++) {
       const seed = seedBase + i * 7919;
@@ -127,12 +129,17 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000 } =
       const shortNoListing = {};
       const shortDurations = [];
       const start = { money: moneySupply(game), stock: stock(game), price: priceIndex(game, ITEMS) };
+      const botPlayer = bot ? createBot(game, bot) : null;
+      if (botPlayer) botLogs.push(botPlayer.log);
 
       for (let day = 1; day <= days; day++) {
         const end = virtualNow + msPerDay;
+        let botDone = false;
         while (virtualNow < end) {
           virtualNow += TICK_MS;
           game.tick();
+          // Le robot joue en milieu de journée
+          if (botPlayer && !botDone && virtualNow >= end - msPerDay / 2) { botPlayer.act(day); botDone = true; }
         }
         if (game.offers.length > 400) game.offers = game.offers.filter(o => o.status === 'active');
         if (game.transactions.length > 2000) game.transactions.length = 2000;
@@ -198,7 +205,12 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000 } =
     else delete globalThis.localStorage;
   }
 
-  return { summary: summarize(runs, days, seeds, realNow() - t0), runs };
+  const summary = summarize(runs, days, seeds, realNow() - t0);
+  if (bot) {
+    const { summarizeBot } = await import('./exploitBot.mjs');
+    summary.bot = summarizeBot(botLogs);
+  }
+  return { summary, runs };
 }
 
 export function summarize(runs, days, seeds, elapsedMs) {

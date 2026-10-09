@@ -11,6 +11,10 @@ import { NpcUI } from './ui/NpcUI.js';
 import { GoalsUI } from './ui/GoalsUI.js';
 import { JobsUI } from './ui/JobsUI.js';
 import { TradingUI } from './ui/TradingUI.js';
+import { CareerUI } from './ui/CareerUI.js';
+import { Shortcuts } from './ui/Shortcuts.js';
+import { openNegotiationModal, openBuyQtyModal, openBulkSellModal } from './ui/NegotiationUI.js';
+import { UiPrefs } from './utils/prefs.js';
 import { getItemById } from './data/items.js';
 import { formatMoney as fmtMoney, insightCardHtml, qtyQuickButtons, wireQtyQuick, economyChipHtml } from './ui/TradeInsights.js';
 import { Offer } from './models/Offer.js';
@@ -85,6 +89,12 @@ function suggestedBuyPrice(itemId) {
 function updateMoneyDisplay() {
   const el = document.getElementById('money-value');
   if (el) el.textContent = formatMoney(game.player.money);
+  const nw = document.getElementById('networth-chip');
+  if (nw && game.getNetWorth) {
+    const w = game.getNetWorth();
+    nw.innerHTML = `Patrimoine <strong>${formatMoney(w.total)} €</strong>`;
+    nw.title = `Patrimoine : argent ${formatMoney(w.cash)} € + stock ${formatMoney(w.stock)} € + annonces ${formatMoney(w.listed)} € + offres ${formatMoney(w.locked)} € + établi ${formatMoney(w.bench)} €${w.debt ? ` − crédit ${formatMoney(w.debt)} €` : ''}. Cliquez pour voir votre parcours.`;
+  }
 }
 function setStatus(msg) {
   const el = document.getElementById('status-message');
@@ -342,7 +352,12 @@ function openFulfillModal(offerId, maxQty) {
   }, 0);
 }
 
-let historyUI, auctionUI, buyUI, inventoryUI, marketUI, npcUI, goalsUI, jobsUI, tradingUI;
+let historyUI, auctionUI, buyUI, inventoryUI, marketUI, npcUI, goalsUI, jobsUI, tradingUI, careerUI, shortcuts;
+const negCtx = () => ({ game, Modal, setStatus, refresh: () => refreshAllUI() });
+function openNegotiation(offerId) {
+  if (!game.getNegotiationQuote) { setStatus('Marchandage indisponible'); return; }
+  openNegotiationModal({ ...negCtx(), offerId });
+}
 
 function act(result, okMsg) {
   if (result?.success) setStatus(okMsg);
@@ -374,7 +389,9 @@ function initUI() {
     onBuyout: (offerId, qty) => { const result = game.buyout(offerId, qty); if (result.success) { setStatus('Achat immédiat réussi'); refreshAllUI(); } else setStatus(result.error || "Échec de l'achat"); },
     onCancel: (offerId) => { const result = game.cancelOffer(offerId); if (result.success) { setStatus('Annonce annulée'); refreshAllUI(); } else setStatus(result.error || 'Erreur'); },
     onCreateSell: () => openCreateSellModal(),
-    onBid: (offerId) => openBidModal(offerId)
+    onBid: (offerId) => openBidModal(offerId),
+    onNegotiate: (offerId) => openNegotiation(offerId),
+    onBuyClick: (offerId) => openBuyQtyModal({ ...negCtx(), offerId, onNegotiate: (id) => openNegotiation(id) })
   });
   buyUI = new BuyHouseUI({
     getActiveBuyOffers: () => game.getActiveBuyOffers(),
@@ -384,7 +401,8 @@ function initUI() {
     resolveName,
     onCancel: (offerId) => { const result = game.cancelOffer(offerId); if (result.success) { setStatus(`Offre annulée (remboursé : ${(result.refund || 0).toFixed(2)} €)`); refreshAllUI(); } else setStatus(result.error || 'Erreur'); },
     onCreateBuy: () => openCreateBuyModal(),
-    onFulfill: (offerId, maxQty) => openFulfillModal(offerId, maxQty)
+    onFulfill: (offerId, maxQty) => openFulfillModal(offerId, maxQty),
+    onNegotiate: (offerId) => openNegotiation(offerId)
   });
   inventoryUI = new InventoryUI({
     getInventory: () => game.inventory,
@@ -397,8 +415,13 @@ function initUI() {
     onList: (slot) => openCreateSellModalForSlot(slot),
     onSell: (slot) => sellSlotToBestBuy(slot),
     getRepairQuote: (id, q, p, mode) => (game.getRepairQuote ? game.getRepairQuote(id, q, p, mode) : null),
-    onOpenWorkshop: () => { if (jobsUI) jobsUI.tab = 'workshop'; window.showWorldPanel?.('jobs'); }
+    onOpenWorkshop: () => { if (jobsUI) jobsUI.tab = 'workshop'; window.showWorldPanel?.('jobs'); },
+    onBulkSell: (slot) => {
+      if (!game.getBulkSellPlan) { setStatus('Indisponible'); return; }
+      openBulkSellModal({ ...negCtx(), itemId: slot.itemId });
+    }
   });
+  inventoryUI.onCategoryChange = (cat) => UiPrefs.set('inventoryCategory', cat);
   marketUI = new MarketUI({
     getMarketRows: () => game.getMarketRows(),
     getEvents: () => game.economy.getActiveEvents(),
@@ -411,7 +434,10 @@ function initUI() {
       act(r, r.watched ? 'Ajouté à la liste de suivi (onglet Suivi)' : 'Retiré de la liste de suivi');
     }
   });
-  npcUI = new NpcUI({ getProfiles: () => game.getNpcProfiles(), resolveName });
+  npcUI = new NpcUI({
+    getProfiles: () => game.getNpcProfiles(), resolveName,
+    getHaggle: (npcId) => (game.negotiation ? { triesLeft: game.negotiation.triesLeft(npcId), triesPerDay: game.negotiation.triesPerDay(), dealsLeft: game.negotiation.dealsLeft(npcId) } : null)
+  });
   goalsUI = new GoalsUI({ getGoals: () => game.getGoals(), getSummary: () => game.getProgressSummary() });
   tradingUI = new TradingUI({
     getView: () => (game.getTradingView ? game.getTradingView() : null),
@@ -422,8 +448,27 @@ function initUI() {
       markRead: () => { game.markAlertsRead(); refreshAllUI(); },
       addOrder: (params) => act(game.addStandingOrder(params), 'Ordre permanent créé — offre du jour placée'),
       toggleOrder: (id) => act(game.toggleStandingOrder(id), 'Ordre mis à jour'),
-      removeOrder: (id) => act(game.removeStandingOrder(id), 'Ordre supprimé')
-    }
+      removeOrder: (id) => act(game.removeStandingOrder(id), 'Ordre supprimé'),
+      borrow: (amount, days) => {
+        const r = game.borrow ? game.borrow(Number(amount) || 0, Number(days) || 7) : { success: false, error: 'Indisponible' };
+        act(r, r.success ? `Crédit accordé : +${formatMoney(r.loan.principal)} € — à rembourser ${formatMoney(r.loan.principal + r.loan.interestFull)} € au plus tard le jour ${r.loan.dueDay}` : '');
+      },
+      repay: () => {
+        const r = game.repayLoan ? game.repayLoan() : { success: false, error: 'Indisponible' };
+        act(r, r.success ? `Crédit remboursé : ${formatMoney(r.paid)} € (intérêts ${formatMoney(r.interest)} €)${r.onTime ? ' · réputation +2' : ''}` : '');
+      }
+    },
+    getCreditView: () => (game.getCreditView ? game.getCreditView() : null),
+    getCreditQuote: (amount, days) => (game.getCreditQuote ? game.getCreditQuote(amount, days) : null)
+  });
+  careerUI = new CareerUI({
+    getCareer: () => (game.getCareerView ? game.getCareerView() : null),
+    getRank: () => (game.getRankView ? game.getRankView() : null),
+    getNetWorth: () => (game.getNetWorth ? game.getNetWorth() : null),
+    getNegotiation: () => game.negotiation?.stats || null,
+    onGo: (panel) => window.showWorldPanel?.(panel),
+    onShowGoals: () => goalsUI?.render(),
+    prefs: UiPrefs
   });
   jobsUI = new JobsUI({
     getMsPerGameDay: () => game.timeManager.msPerGameDay,
@@ -502,16 +547,91 @@ function refreshAllUI() {
   updateMoneyDisplay();
   updateEconomyChip();
   historyUI?.render(); auctionUI?.render(); buyUI?.render(); inventoryUI?.render();
-  marketUI?.render(); npcUI?.render(); goalsUI?.render(); jobsUI?.render();
+  marketUI?.render(); npcUI?.render(); jobsUI?.render();
+  goalsUI?.render(); careerUI?.render();
   tradingUI?.render(); renderHistorySummary();
 }
-window.addEventListener('panel-changed', () => { if (historyUI) refreshAllUI(); });
+window.addEventListener('panel-changed', (e) => {
+  const panel = e.detail?.panel;
+  if (panel) document.body.classList.toggle('in-panel', panel !== 'town');
+  if (panel && panel !== 'town') game.notePanel?.(panel);
+  if (historyUI) refreshAllUI();
+  if (panel && panel !== 'town') careerUI?.showTip(panel);
+  else if (panel === 'town') careerUI?.hideTip();
+});
+
+/* Filtres, tris et onglets mémorisés (localStorage, aucune donnée de partie). */
+const REMEMBERED_INPUTS = ['auction-search', 'auction-category', 'auction-best-only', 'buy-search', 'buy-category', 'buy-best-only',
+  'market-search', 'market-category', 'market-sort', 'filter-type', 'filter-item'];
+function restoreUiPrefs() {
+  const saved = UiPrefs.get('filters', {}) || {};
+  for (const id of REMEMBERED_INPUTS) {
+    const el = document.getElementById(id);
+    if (!el || !(id in saved)) continue;
+    if (el.type === 'checkbox') el.checked = !!saved[id];
+    else {
+      if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === saved[id])) continue;
+      el.value = saved[id];
+    }
+    el.dispatchEvent(new Event(el.tagName === 'SELECT' || el.type === 'checkbox' ? 'change' : 'input'));
+  }
+  const tabs = UiPrefs.get('tabs', {}) || {};
+  if (tabs.auction) auctionUI?.setTab(tabs.auction);
+  if (tabs.buyhouse) buyUI?.setTab(tabs.buyhouse);
+  if (tabs.trading && tradingUI) tradingUI.tab = tabs.trading;
+  if (tabs.jobs && jobsUI) jobsUI.tab = tabs.jobs;
+  const cat = UiPrefs.get('inventoryCategory', null);
+  if (cat && cat !== 'all') inventoryUI?.setCategory(cat);
+}
+function wireUiPrefs() {
+  const saveInput = (el) => {
+    const f = UiPrefs.get('filters', {}) || {};
+    f[el.id] = el.type === 'checkbox' ? el.checked : el.value;
+    UiPrefs.set('filters', f);
+  };
+  for (const id of REMEMBERED_INPUTS) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.addEventListener(el.tagName === 'SELECT' || el.type === 'checkbox' ? 'change' : 'input', () => saveInput(el));
+  }
+  if (historyUI) historyUI.onFiltersCleared = () => {
+    const f = UiPrefs.get('filters', {}) || {};
+    delete f['filter-type']; delete f['filter-item'];
+    UiPrefs.set('filters', f);
+  };
+  const saveTab = (key, value) => { const t = UiPrefs.get('tabs', {}) || {}; t[key] = value; UiPrefs.set('tabs', t); };
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest?.('#panel-auction .tab[data-tab], #panel-buyhouse .tab[data-tab], [data-tr-tab], [data-jobs-tab]');
+    if (!t) return;
+    if (t.dataset.trTab) saveTab('trading', t.dataset.trTab);
+    else if (t.dataset.jobsTab) saveTab('jobs', t.dataset.jobsTab);
+    else saveTab(t.closest('#panel-auction') ? 'auction' : 'buyhouse', t.dataset.tab);
+  });
+}
+function resetUiPrefs() {
+  UiPrefs.set('filters', {}); UiPrefs.set('tabs', {}); UiPrefs.set('inventoryCategory', 'all');
+  for (const id of REMEMBERED_INPUTS) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    if (el.type === 'checkbox') el.checked = false;
+    else if (el.tagName === 'SELECT') el.selectedIndex = 0;
+    else el.value = '';
+    el.dispatchEvent(new Event(el.tagName === 'SELECT' || el.type === 'checkbox' ? 'change' : 'input'));
+  }
+  inventoryUI?.setCategory('all');
+  refreshAllUI();
+}
 
 function init() {
   const loaded = game.load();
   if (loaded) setStatus('Sauvegarde chargée');
-  else { game.giveStarterItems(); setStatus('Nouvelle partie — objets de départ ajoutés'); }
+  else { game.__newGame = true; game.giveStarterItems(); setStatus('Nouvelle partie — objets de départ ajoutés · les marchands ouvrent boutique'); }
   initNavigation(); Modal.init(); initUI(); refreshAllUI();
+  try { restoreUiPrefs(); } catch (e) { console.warn('Préférences ignorées', e); }
+  wireUiPrefs();
+  shortcuts = new Shortcuts({ Modal, prefs: UiPrefs, setStatus, onPrefsReset: resetUiPrefs, onShowHud: () => careerUI?.render() });
+  document.getElementById('btn-help')?.addEventListener('click', () => shortcuts.openHelp());
+  document.getElementById('networth-chip')?.addEventListener('click', () => window.showWorldPanel?.('goals'));
   if (!game.uiCallbacks.onStatus) game.uiCallbacks.onStatus = (msg) => setStatus(msg);
   setInterval(() => {
     const offersBefore = game.offers.length;

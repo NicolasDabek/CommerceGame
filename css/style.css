@@ -1285,3 +1285,91 @@ tr.row-deal td:first-child {
   .trading-layout { grid-template-columns: 1fr; }
   .repair-opts { grid-template-columns: 1fr; }
 }
+
+/* ===== v5 : marchandage, crédit, parcours, raccourcis ===== */
+.btn-haggle { border-color: rgba(253, 203, 110, 0.55); }
+.btn-haggle:hover:not(:disabled) { background: rgba(253, 203, 110, 0.12); }
+.badge-haggle { background: rgba(253, 203, 110, 0.18); color: var(--warning); }
+.neg-card { margin-bottom: 10px; }
+.neg-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.trust-bar { position: relative; display: inline-block; vertical-align: middle; width: 120px; height: 8px; border-radius: 6px; background: var(--bg-input); border: 1px solid var(--border); overflow: hidden; }
+.trust-bar i { position: absolute; top: 0; bottom: 0; }
+.trust-bar i.good { background: var(--success); }
+.trust-bar i.mid { background: var(--warning); }
+.trust-bar i.bad { background: var(--danger); }
+.trust-bar b { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--text-muted); }
+.neg-flex { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; background: var(--bg-input); }
+.neg-flex-très-faible { color: var(--danger); }
+.neg-flex-faible { color: var(--warning); }
+.neg-flex-moyenne { color: var(--info); }
+.neg-flex-large { color: var(--success); }
+.neg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
+.neg-grid .input { width: 100%; }
+.neg-pct { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.neg-note { font-size: 0.82rem; color: var(--text-secondary); margin: 6px 0; }
+.neg-warn { color: var(--warning); }
+.neg-preview, .neg-help { font-size: 0.82rem; margin: 6px 0; }
+.neg-tries { font-size: 0.82rem; color: var(--text-secondary); }
+.neg-response { margin-top: 10px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--bg-input); border: 1px solid var(--border); }
+.neg-response.neg-counter { border-color: rgba(253, 203, 110, 0.7); }
+.neg-response.neg-refused { border-color: var(--border-light); color: var(--text-secondary); }
+.neg-response.neg-error { border-color: rgba(225, 112, 85, 0.7); color: var(--danger); }
+.neg-response.neg-accept { border-color: rgba(0, 184, 148, 0.7); color: var(--success); }
+.compact-table th, .compact-table td { padding: 4px 8px; font-size: 0.84rem; }
+.row-current td { background: var(--accent-soft); }
+.row-locked td { opacity: 0.6; }
+.credit-layout { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .credit-layout { grid-template-columns: 1fr; } }
+.loan-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; }
+.loan-card.loan-overdue { border-color: var(--danger); box-shadow: 0 0 0 1px rgba(225, 112, 85, 0.35) inset; }
+.loan-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--warning); margin-left: 6px; vertical-align: middle; }
+
+/* Parcours & rangs */
+.career-root { display: flex; flex-direction: column; gap: 12px; }
+.career-tabs { margin-bottom: 4px; }
+.career-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.chapter-pills { display: flex; gap: 6px; margin: 4px 0; }
+.chapter-pill { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--bg-input); border: 2px solid var(--border); font-size: 0.95rem; }
+.chapter-pill.done { border-color: var(--success); }
+.chapter-pill.current { border-color: var(--warning); box-shadow: 0 0 0 3px rgba(253, 203, 110, 0.18); }
+.chapter-pill.locked { opacity: 0.45; }
+.chapter-list { display: flex; flex-direction: column; gap: 10px; }
+.chapter-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; }
+.chapter-card h3 { margin: 0 0 6px; font-size: 1rem; }
+.chapter-card.current { border-color: rgba(253, 203, 110, 0.6); }
+.chapter-card.done { opacity: 0.8; padding: 8px 14px; }
+.chapter-card.done p, .chapter-card.locked p { margin: 2px 0; font-size: 0.85rem; }
+.chapter-card.locked { opacity: 0.55; }
+.step-list { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 8px; }
+.step { background: var(--bg-input); border-radius: var(--radius-sm); padding: 8px 10px; }
+.step.done { opacity: 0.7; }
+.step-head { display: flex; align-items: center; gap: 8px; }
+.step-head strong { flex: 1; }
+.step-val { font-size: 0.82rem; color: var(--text-secondary); white-space: nowrap; }
+.step .goal-bar { margin: 6px 0 2px; }
+.step-how { margin: 6px 0 0; font-size: 0.84rem; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chapter-reward { margin: 6px 0 0; font-size: 0.88rem; }
+.rank-help { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 14px; }
+.rank-help h3 { font-size: 0.95rem; margin: 6px 0; }
+.rank-help ul { margin: 0 0 6px 18px; padding: 0; font-size: 0.86rem; color: var(--text-secondary); }
+
+/* Carte « prochaine étape » sur la place */
+.career-hud { position: absolute; left: 12px; top: 64px; z-index: 5; width: min(300px, 70%); background: rgba(24, 27, 38, 0.92); border: 1px solid rgba(253, 203, 110, 0.45); border-radius: 12px; padding: 10px 12px; color: var(--text-primary); font-size: 0.85rem; }
+.career-hud[hidden], body.in-panel .career-hud { display: none; }
+.hud-step-title { font-weight: 800; color: var(--warning); margin-bottom: 4px; }
+.hud-step-how { color: var(--text-secondary); font-size: 0.8rem; margin: 4px 0 8px; }
+.hud-step-actions { display: flex; gap: 6px; align-items: center; }
+.hud-x { margin-left: auto; background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.9rem; }
+.hud-x:hover { color: var(--text-primary); }
+.networth-chip { font-size: 0.82rem; color: var(--text-secondary); background: rgba(44, 49, 66, 0.85); padding: 4px 10px; border-radius: 999px; cursor: pointer; }
+.networth-chip strong { color: var(--money); }
+.dock-help { min-width: 36px; }
+
+/* Astuce de lieu + rappel des touches */
+.panel-tip { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 18px; background: #34301f; border-bottom: 1px solid rgba(253, 203, 110, 0.35); font-size: 0.88rem; }
+.panel-tip[hidden] { display: none; }
+.panel-tip span { flex: 1; }
+.interior-keys { font-size: 0.75rem; margin-left: auto; margin-right: 12px; }
+@media (max-width: 900px) { .interior-keys { display: none; } }
+kbd { display: inline-block; min-width: 18px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border-light); background: var(--bg-input); font-family: inherit; font-size: 0.82rem; text-align: center; }
+.shortcut-table td:first-child { white-space: nowrap; width: 1%; }

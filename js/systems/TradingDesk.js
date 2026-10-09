@@ -7,6 +7,7 @@
 
 import { getItemById } from '../data/items.js';
 import { Offer } from '../models/Offer.js';
+import { rankFor } from '../core/Ranks.js';
 
 const MAX_WATCH = 10;
 const MAX_ALERTS = 30;
@@ -209,7 +210,9 @@ export class TradingDesk {
   // Ordres d'achat permanents
   // ============================================
   slots() {
-    return this.game.jobBoard?.standingOrderSlots?.() ?? 2;
+    // Métier Négociant + avantage du rang de réputation
+    const base = this.game.jobBoard?.standingOrderSlots?.() ?? 2;
+    return base + (rankFor(this.game.player?.reputation || 0).orderSlots || 0);
   }
 
   addStandingOrder({ itemId, price, quantity, minQuality = 0 }) {
@@ -220,7 +223,7 @@ export class TradingDesk {
     if (!(p > 0) || !(q > 0)) return { success: false, error: 'Prix et quantité requis' };
     if (q > 10) return { success: false, error: '10 unités par jour maximum' };
     const active = this.standingOrders.filter(o => o.active).length;
-    if (active >= this.slots()) return { success: false, error: `Tous vos ordres permanents sont utilisés (${this.slots()}) — montez le métier Négociant` };
+    if (active >= this.slots()) return { success: false, error: `Tous vos ordres permanents sont utilisés (${this.slots()}) — montez le métier Négociant ou votre rang de réputation` };
     const order = {
       id: `so_${this._seq++}`,
       itemId, price: p, quantity: q, minQuality: Math.max(0, Math.min(90, Number(minQuality) || 0)),
