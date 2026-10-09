@@ -4,6 +4,8 @@
  *   npm run sim                         # 120 jours, 3 graines
  *   npm run sim -- --days=200 --seeds=5 --every=20
  *   npm run sim -- --json               # sortie JSON (pour comparer avant/après)
+ *   npm run sim -- --bot=exploit        # + un joueur-robot qui cherche les boucles d'argent (marchandage, crédit)
+ *   npm run sim -- --bot=defaulter      # + un joueur-robot qui emprunte sans rembourser
  *
  * Mesure jour par jour : niveau des prix (moyenne des prix / prix de base), masse monétaire
  * (joueur + PNJ + fonds bloqués + Comptoir municipal + caisse des contrats), stock PNJ,
@@ -26,7 +28,8 @@ const QUIET = !!args.quiet;
 const realError = console.error;
 console.error = (...a) => { if (!String(a[0] || '').includes('sauvegarde')) realError(...a); };
 
-const { summary, runs } = await runSimulation({ days: DAYS, seeds: SEEDS });
+const BOT = typeof args.bot === 'string' ? args.bot : (args.bot ? 'exploit' : null);
+const { summary, runs } = await runSimulation({ days: DAYS, seeds: SEEDS, bot: BOT });
 
 if (JSON_OUT) {
   console.log(JSON.stringify({ summary, runs: runs.map(r => ({ seed: r.seed, reserveStats: r.reserveStats, series: r.series.filter(p => p.day % EVERY === 0 || p.day === 1) })) }, null, 2));

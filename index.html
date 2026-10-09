@@ -59,22 +59,27 @@
           </div>
           <button class="eco-chip" id="eco-chip" type="button" title="Santé de l'économie — cliquez pour ouvrir le marché">Prix 100</button>
           <button class="btn btn-small btn-ghost" id="btn-reset-save">Reset</button>
+          <span class="networth-chip" id="networth-chip" title="Patrimoine : argent + stock au prix du marché + offres en cours − crédit">Patrimoine —</span>
           <div class="money-display" id="money-display"><span class="money-icon">€</span><span class="money-value" id="money-value">1 250,00</span></div>
         </div>
       </header>
+      <div id="career-hud" class="career-hud" hidden></div>
       <nav class="world-dock">
         <button class="dock-btn" data-panel="inventory">Sac</button>
-        <button class="dock-btn" data-panel="goals">Objectifs</button>
+        <button class="dock-btn" data-panel="goals" title="Parcours du marchand, rang de réputation et objectifs">Parcours</button>
         <button class="dock-btn" data-panel="history">Carnet</button>
         <button class="dock-btn" data-panel="trading" title="Liste de suivi, alertes de prix, ordres permanents et bilan">Suivi <span class="dock-badge" id="trading-badge" hidden></span></button>
         <button class="dock-btn" id="btn-town-recenter">Recadrer</button>
+        <button class="dock-btn dock-help" id="btn-help" title="Raccourcis clavier et aide (touche ?)">?</button>
       </nav>
       <aside id="town-inspect" hidden></aside>
     </div>
     <div id="interior-overlay">
       <div class="interior-bar">
         <button class="btn btn-primary" id="btn-exit-interior">Sortir dans la rue</button>
+        <span class="interior-keys text-muted">1 Sac · 2 Vente · 3 Achat · 4 Halle · 5 Atelier · 6 Marchands · 7 Suivi · 8 Parcours · 9 Carnet · ? aide</span>
       </div>
+      <div id="panel-tip" class="panel-tip" hidden></div>
       <div class="interior-body">
       <section class="panel" id="panel-history">
         <div class="panel-header">
@@ -87,6 +92,7 @@
             <option value="matching">Matching</option>
             <option value="buyout">Achat immédiat</option>
             <option value="auction_end">Fin d'enchère</option>
+            <option value="negotiated">Marchandage</option>
           </select>
           <input type="search" id="filter-item" class="input" placeholder="Filtrer par objet…" />
           <button class="btn btn-small btn-ghost" id="btn-clear-filters">Effacer</button>
@@ -194,7 +200,7 @@
       <section class="panel" id="panel-npcs"><div class="panel-header"><h2>Marchands</h2><p id="clan-status"></p></div><div class="npc-grid" id="npc-grid"></div></section>
       <section class="panel" id="panel-jobs"><div class="panel-header"><h2>Atelier</h2><span id="jobs-vault"></span></div><div id="jobs-root" class="jobs-root"></div></section>
       <section class="panel" id="panel-trading"><div class="panel-header"><h2>Suivi &amp; ordres</h2><span class="text-muted">alertes de prix · achats automatiques · bilan</span></div><div id="trading-root" class="trading-root"></div></section>
-      <section class="panel" id="panel-goals"><div class="panel-header"><h2>Objectifs</h2><div id="progress-summary"></div></div><div class="goals-grid" id="goals-grid"></div></section>
+      <section class="panel" id="panel-goals"><div class="panel-header"><h2>Progression</h2><div id="progress-summary"></div></div><div id="career-root" class="career-root"></div><div class="goals-grid" id="goals-grid" hidden></div></section>
       </div>
     </div>
     <div class="modal-overlay hidden" id="modal-overlay"><div class="modal" id="modal"><div class="modal-header"><h3 id="modal-title"></h3><button class="modal-close" id="modal-close">x</button></div><div class="modal-body" id="modal-body"></div><div class="modal-footer" id="modal-footer"></div></div></div>
@@ -220,7 +226,12 @@
       });
       window.dispatchEvent(new CustomEvent('panel-changed', { detail: { panel: target } }));
     };
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') window.showWorldPanel('town'); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      var modal = document.getElementById('modal-overlay');
+      if (modal && !modal.classList.contains('hidden')) { modal.classList.add('hidden'); return; }
+      window.showWorldPanel('town');
+    });
   </script>
   <script type="module" src="js/main.js"></script>
   <script type="module" src="js/world/mount.js"></script>

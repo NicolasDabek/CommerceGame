@@ -22,6 +22,8 @@ export class TradingUI {
   constructor(options = {}) {
     this.getView = options.getView || (() => null);
     this.getFair = options.getFair || (() => 0);
+    this.getCreditView = options.getCreditView || null;
+    this.getCreditQuote = options.getCreditQuote || null;
     this.actions = options.actions || {};
     this.root = document.getElementById('trading-root');
     this.badgeEl = document.getElementById('trading-badge');
@@ -47,10 +49,12 @@ export class TradingUI {
         <button class="tab ${this.tab === 'watch' ? 'active' : ''}" data-tr-tab="watch">Suivi &amp; alertes${view.unread ? ` <span class="dock-badge">${view.unread}</span>` : ''}</button>
         <button class="tab ${this.tab === 'orders' ? 'active' : ''}" data-tr-tab="orders">Ordres permanents (${view.activeOrders}/${view.orderSlots})</button>
         <button class="tab ${this.tab === 'journal' ? 'active' : ''}" data-tr-tab="journal">Bilan</button>
+        ${this.getCreditView ? `<button class="tab ${this.tab === 'credit' ? 'active' : ''}" data-tr-tab="credit" title="Emprunter au Comptoir municipal">Crédit${this._loanBadge()}</button>` : ''}
       </div>`;
     let body = '';
     if (this.tab === 'orders') body = this._orders(view);
     else if (this.tab === 'journal') body = this._journal(view);
+    else if (this.tab === 'credit' && this.getCreditView) body = this._credit(this.getCreditView());
     else body = this._watch(view);
     this.root.innerHTML = tabs + body;
     this._wire();
@@ -116,7 +120,7 @@ export class TradingUI {
         </tr>`;
     }).join('');
     return `
-      <p class="trade-hint text-muted">Un ordre permanent place chaque jour une offre d'achat d'1 jour à votre prix (argent bloqué + frais d'annonce). Idéal pour constituer du stock pendant un surplus et revendre en pénurie. Places : ${view.orderSlots} (plus avec le métier Négociant).</p>
+      <p class="trade-hint text-muted">Un ordre permanent place chaque jour une offre d'achat d'1 jour à votre prix (argent bloqué + frais d'annonce). Idéal pour constituer du stock pendant un surplus et revendre en pénurie. Places : ${view.orderSlots} (plus avec le métier Négociant et le rang de réputation).</p>
       <div class="trading-add order-form">
         <label>Objet <select class="select" id="so-item">${itemOptions()}</select></label>
         <label>Prix unitaire (€) <input class="input input-xs" type="number" id="so-price" step="0.01" min="0.01" value="${(firstFair * 0.95).toFixed(2)}" /></label>
@@ -167,8 +171,77 @@ export class TradingUI {
       </div>`;
   }
 
+  _loanBadge() {
+    const c = this.getCreditView?.();
+    if (!c?.loan) return '';
+    return c.loan.status === 'overdue' ? ' <span class="dock-badge">!</span>' : ' <span class="loan-dot" title="Crédit en cours">●</span>';
+  }
+
+  _credit(c) {
+    const pct = (r) => `${String(Math.round(r * 1000) / 10).replace('.', ',')} %`;
+    const ranks = c.ranks.map(r => `<tr class="${r.title === c.rank.title ? 'row-current' : ''}"><td>${r.icon} ${r.title}</td><td>${r.minRep}+</td><td>${formatMoney(r.limit)} €</td><td>${pct(r.rate)} / jour</td></tr>`).join('');
+    const history = c.history.map(h => `<tr><td>J${h.takenDay} → J${h.closedDay}</td><td>${formatMoney(h.principal)} €</td><td>${formatMoney(h.interest)} €</td><td>${h.onTime ? '<span class="text-success">à temps</span>' : `<span class="text-danger">${h.overdueDays} j de retard</span>`}</td></tr>`).join('');
+    let main;
+    if (c.loan) {
+      const l = c.loan;
+      const overdue = l.status === 'overdue';
+      main = `
+        <div class="loan-card ${overdue ? 'loan-overdue' : ''}">
+          <h3>${overdue ? '⚠️ Crédit en retard' : '💶 Crédit en cours'}</h3>
+          <div class="neg-grid">
+            <span>Emprunté le jour ${l.takenDay}</span><strong>${formatMoney(l.principal)} €</strong>
+            <span title="Intérêts simples, au moins 1 jour facturé, au plus la durée prévue (+ pénalités de retard)">Intérêts à ce jour (${pct(l.rate)} / jour)</span><strong>${formatMoney(l.interest)} €</strong>
+            <span>Déjà remboursé</span><strong>${formatMoney(l.paid || 0)} €</strong>
+            <span>À payer maintenant pour solder</span><strong class="text-money">${formatMoney(l.outstanding)} €</strong>
+            <span>Échéance</span><strong>${overdue ? `dépassée depuis ${l.overdueDays} j` : l.daysLeft > 0 ? `jour ${l.dueDay} (dans ${l.daysLeft} j) — ${formatMoney(l.fullTermTotal)} € si vous attendez` : 'aujourd\'hui'}</strong>
+          </div>
+          ${overdue ? '<p class="neg-note neg-warn">Retard : pénalité de 1 %/jour (plafonnée à 20 %), −1 réputation par jour, 50 % de vos ventes saisies ; au 3ᵉ jour, le Comptoir prélève votre solde.</p>' : '<p class="text-muted">À l\'échéance, le montant dû est prélevé automatiquement si votre solde suffit. Remboursé à temps : +2 réputation.</p>'}
+          <button class="btn btn-primary" data-tr="repay">Rembourser ${formatMoney(l.outstanding)} €</button>
+        </div>`;
+    } else {
+      const q = this.getCreditQuote?.(Math.min(c.limit, Math.max(c.minAmount, Math.round(c.limit / 2))), 7);
+      main = `
+        <div class="loan-card">
+          <h3>💶 Emprunter au Comptoir</h3>
+          <p>Votre rang <strong>${c.rank.icon} ${c.rank.title}</strong> : plafond <strong>${formatMoney(c.rankLimit)} €</strong> à <strong>${pct(c.rate)}</strong> par jour.
+            <span class="text-muted" title="Le Comptoir prête sa trésorerie au-delà d'une réserve de 600 € et les dépôts des marchands les plus riches. Les intérêts leur reviennent.">Fonds prêtables aujourd'hui : ${formatMoney(c.pool)} € (${c.lenders} prêteur${c.lenders > 1 ? 's' : ''}).</span></p>
+          ${c.limit < c.minAmount ? `<p class="neg-note neg-warn">${c.rankLimit <= 0 ? 'Réputation négative : pas de crédit.' : 'Le Comptoir n\'a pas assez de fonds à prêter pour le moment.'}</p>` : `
+          <div class="trading-add order-form">
+            <label>Montant (€) <input class="input input-xs" type="number" id="cr-amount" min="${c.minAmount}" max="${c.limit}" step="10" value="${q ? q.amount : c.minAmount}" /></label>
+            <label>Durée <select class="select" id="cr-days">${c.durations.map(d => `<option value="${d}" ${d === 7 ? 'selected' : ''}>${d} jours</option>`).join('')}</select></label>
+            <button class="btn btn-small btn-primary" data-tr="borrow">Emprunter</button>
+            <small class="text-muted">max ${formatMoney(c.limit)} €</small>
+          </div>
+          <p class="text-muted" id="cr-quote"></p>`}
+          <p class="trade-hint text-muted">Le crédit sert de levier : acheter un lot en surplus, livrer un gros contrat, profiter d'une alerte. Emprunter puis rembourser tout de suite coûte au moins un jour d'intérêts : il n'y a rien à gagner sans commercer.</p>
+        </div>`;
+    }
+    return `
+      <div class="credit-layout">
+        <div>${main}</div>
+        <aside class="alert-log">
+          <h3>Plafonds par rang</h3>
+          <table class="data-table compact-table"><thead><tr><th>Rang</th><th>Rép.</th><th>Plafond</th><th>Taux</th></tr></thead><tbody>${ranks}</tbody></table>
+          <h3 style="margin-top:12px">Historique</h3>
+          ${history ? `<table class="data-table compact-table"><thead><tr><th>Période</th><th>Capital</th><th>Intérêts</th><th>Statut</th></tr></thead><tbody>${history}</tbody></table>` : '<p class="text-muted">Aucun crédit remboursé.</p>'}
+          <p class="text-muted" style="margin-top:8px">Remboursés à temps : ${c.stats.onTime} · en retard : ${c.stats.late} · intérêts payés : ${formatMoney(c.stats.interestPaid)} €</p>
+        </aside>
+      </div>`;
+  }
+
   _wire() {
     const root = this.root;
+    const crAmount = root.querySelector('#cr-amount');
+    const crDays = root.querySelector('#cr-days');
+    const crQuote = root.querySelector('#cr-quote');
+    const updQuote = () => {
+      if (!crAmount || !crQuote || !this.getCreditQuote) return;
+      const q = this.getCreditQuote(Number(crAmount.value) || 0, Number(crDays.value) || 7);
+      crQuote.innerHTML = `Intérêts : <strong>${formatMoney(q.interest)} €</strong> (${String(Math.round(q.rate * 1000) / 10).replace('.', ',')} % × ${q.days} j) · à rembourser au jour ${q.dueDay} : <strong class="text-money">${formatMoney(q.total)} €</strong> · remboursement anticipé possible (min. 1 jour d'intérêts).`;
+    };
+    crAmount?.addEventListener('input', updQuote);
+    crDays?.addEventListener('change', updQuote);
+    updQuote();
     root.querySelectorAll('[data-tr-tab]').forEach(b => b.addEventListener('click', () => { this.tab = b.dataset.trTab; this.render(); }));
     const soItem = root.querySelector('#so-item');
     const soPrice = root.querySelector('#so-price');
@@ -199,6 +272,8 @@ export class TradingUI {
       }
       if (a === 'toggle-order') this.actions.toggleOrder?.(btn.dataset.id);
       if (a === 'remove-order') this.actions.removeOrder?.(btn.dataset.id);
+      if (a === 'borrow') this.actions.borrow?.(crAmount?.value, crDays?.value);
+      if (a === 'repay') this.actions.repay?.();
     }));
   }
 }

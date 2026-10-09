@@ -13,6 +13,7 @@ export class InventoryUI {
     this.onSlotClick = options.onSlotClick || (() => {});
     this.onSell = options.onSell || (() => {});
     this.onList = options.onList || (() => {});
+    this.onBulkSell = options.onBulkSell || null;
 
     this.grid = document.getElementById('inventory-grid');
     this.slotsInfo = document.getElementById('inventory-slots');
@@ -36,13 +37,18 @@ export class InventoryUI {
 
   _bindEvents() {
     this.categoriesEl?.querySelectorAll('.category-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.categoriesEl.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.currentCategory = btn.dataset.category;
-        this.render();
-      });
+      btn.addEventListener('click', () => this.setCategory(btn.dataset.category));
     });
+  }
+
+  /** Change la catégorie affichée (mémorisée par main.js). */
+  setCategory(category) {
+    const btns = this.categoriesEl ? [...this.categoriesEl.querySelectorAll('.category-btn')] : [];
+    if (!btns.some(b => b.dataset.category === category)) category = 'all';
+    btns.forEach(b => b.classList.toggle('active', b.dataset.category === category));
+    this.currentCategory = category;
+    this.onCategoryChange?.(category);
+    this.render();
   }
 
   render() {
@@ -162,10 +168,12 @@ export class InventoryUI {
       <div class="detail-actions">
         <button class="btn btn-primary btn-small" data-act="list">Mettre en vente</button>
         <button class="btn btn-success btn-small" data-act="sell" ${insight?.bestBuy ? '' : 'disabled'} title="Vendre à la meilleure offre d'achat">Vendre à l'hôtel d'achat</button>
+        ${this.onBulkSell ? `<button class="btn btn-ghost btn-small" data-act="bulk" ${insight?.bestBuy ? '' : 'disabled'} title="Vend tout votre stock de cet objet aux offres d'achat, de la mieux payée à la moins bien payée, au-dessus d'un prix minimum que vous choisissez">Tout vendre…</button>` : ''}
       </div>
     `;
     this.detailEl.querySelector('[data-act="list"]')?.addEventListener('click', () => this.onList(slot));
     this.detailEl.querySelector('[data-act="sell"]')?.addEventListener('click', () => this.onSell(slot));
+    this.detailEl.querySelector('[data-act="bulk"]')?.addEventListener('click', () => this.onBulkSell?.(slot));
     this.detailEl.querySelector('[data-act="workshop"]')?.addEventListener('click', () => this.onOpenWorkshop?.());
   }
 

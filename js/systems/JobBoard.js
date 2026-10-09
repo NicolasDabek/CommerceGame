@@ -443,6 +443,7 @@ export class JobBoard {
     this.game.addMoney(order.pay);
     this.game.npcController.noteTradeWithPlayer?.(order.npcId, 0, false);
     order.status = 'done';
+    this.game.career?.noteShortageDelivery?.(order.itemId);
     this.stats.npcOrders = (this.stats.npcOrders || 0) + 1;
     this.stats.earned = moneyRound((this.stats.earned || 0) + order.pay);
     this.gainXp('trade', 10);
@@ -1110,6 +1111,7 @@ export class JobBoard {
     this.game.player.addXp(job.rush ? 18 : 12);
     this.game.player.addReputation(job.rush ? 2 : 1);
     job.status = 'done';
+    this.game.career?.noteShortageDelivery?.(job.itemId);
     this.stats.contracts += 1;
     this.stats.earned = Math.round((this.stats.earned + payout) * 100) / 100;
     this._markActive();

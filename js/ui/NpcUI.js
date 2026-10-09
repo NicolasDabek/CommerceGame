@@ -9,6 +9,7 @@ export class NpcUI {
     this.getReputation = options.getReputation || (() => 0);
     this.onJoinClan = options.onJoinClan || null;
     this.onLeaveClan = options.onLeaveClan || null;
+    this.getHaggle = options.getHaggle || null;
     this.root = document.getElementById('npc-grid');
   }
 
@@ -161,6 +162,11 @@ export class NpcUI {
     const pct = Math.round(Math.max(-1, Math.min(1, trust)) * 100);
     const trustWord = trust > 0.3 ? ' · vous fait confiance' : trust < -0.3 ? ' · méfiant' : '';
     chips.push(`<span class="mini-chip trust-chip" title="Monte quand vous commercez avec lui à prix correct. Plus elle est haute, plus il accepte vos offres facilement.">🤝 Confiance ${pct > 0 ? '+' : ''}${pct}${trustWord}</span>`);
+    const haggle = this.getHaggle?.(profile.id);
+    if (haggle) {
+      const cls = haggle.triesLeft === 0 || haggle.dealsLeft === 0 ? 'chip-warn' : '';
+      chips.push(`<span class="mini-chip ${cls}" title="Marchandage (bouton 🤝 Négocier dans les hôtels de vente et d'achat) : propositions restantes aujourd'hui et accords encore possibles. Le nombre d'essais dépend de votre rang ; tout se recharge chaque jour.">🗣️ ${haggle.triesLeft}/${haggle.triesPerDay} essais · ${haggle.dealsLeft} accord${haggle.dealsLeft > 1 ? 's' : ''}</span>`);
+    }
     if (profile.actionBudget) {
       chips.push(`<span class="mini-chip" title="Nombre d'actions de marché aujourd'hui / maximum">⏱ ${profile.actionsToday}/${profile.actionBudget} actions</span>`);
     }

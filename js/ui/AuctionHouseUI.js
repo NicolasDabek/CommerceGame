@@ -30,6 +30,8 @@ export class AuctionHouseUI {
     this.onCancel = options.onCancel || (() => {});
     this.onCreateSell = options.onCreateSell || (() => {});
     this.onBid = options.onBid || (() => {});
+    this.onNegotiate = options.onNegotiate || null;
+    this.onBuyClick = options.onBuyClick || null;
     this.resolveName = options.resolveName || ((id) => id === 'player' ? 'Vous' : id);
 
     this.tbody = document.getElementById('auction-body');
@@ -85,6 +87,16 @@ export class AuctionHouseUI {
         this.render();
       });
     }
+  }
+
+  /** Onglet courant (mémorisé par main.js). */
+  setTab(tabId) {
+    const tabs = document.querySelectorAll('#panel-auction .tab');
+    const target = [...tabs].find(t => t.dataset.tab === tabId);
+    if (!target) return;
+    tabs.forEach(t => t.classList.toggle('active', t === target));
+    this.currentTab = tabId;
+    this.render();
   }
 
   _matches(offer) {
@@ -143,6 +155,8 @@ export class AuctionHouseUI {
         if (action === 'buyout') this.onBuyout(offerId, Number(btn.dataset.qty) || 1);
         else if (action === 'cancel') this.onCancel(offerId);
         else if (action === 'bid') this.onBid(offerId);
+        else if (action === 'buyq') this.onBuyClick?.(offerId);
+        else if (action === 'negotiate') this.onNegotiate?.(offerId);
       });
     });
   }
@@ -190,11 +204,22 @@ export class AuctionHouseUI {
       }
       if (offer.buyoutPrice) {
         const total = Math.round(offer.buyoutPrice * offer.quantity * 100) / 100;
+        const unitOk = money >= offer.buyoutPrice;
         const canPay = money >= total;
-        const title = canPay
-          ? `Total ${formatMoney(total)} €`
-          : `Il manque ${formatMoney(total - money)} €`;
-        buttons.push(`<button class="btn btn-small ${canPay ? 'btn-primary' : 'btn-ghost'}" data-action="buyout" data-offer-id="${offer.id}" data-qty="${offer.quantity}" ${canPay ? '' : 'disabled'} title="${title}">Acheter</button>`);
+        // Plusieurs unités : on choisit la quantité dans une fenêtre (achat partiel possible)
+        const multi = offer.quantity > 1 && this.onBuyClick;
+        const enabled = multi ? unitOk : canPay;
+        const title = enabled
+          ? (multi ? `${formatMoney(offer.buyoutPrice)} € l'unité · choisissez la quantité (total max ${formatMoney(total)} €)` : `Total ${formatMoney(total)} €`)
+          : `Il manque ${formatMoney((multi ? offer.buyoutPrice : total) - money)} €`;
+        buttons.push(`<button class="btn btn-small ${enabled ? 'btn-primary' : 'btn-ghost'}" data-action="${multi ? 'buyq' : 'buyout'}" data-offer-id="${offer.id}" data-qty="${offer.quantity}" ${enabled ? '' : 'disabled'} title="${title}">Acheter${multi ? '…' : ''}</button>`);
+      }
+      if (this.onNegotiate && offer.ownerId !== 'city') {
+        const busy = offer.currentBid != null;
+        const tip = busy
+          ? 'Enchère en cours : impossible de négocier un achat direct'
+          : `Proposez votre prix à ${seller}. Sa marge dépend de sa confiance envers vous, de son stock et de la demande en ville.`;
+        buttons.push(`<button class="btn btn-small btn-ghost btn-haggle" data-action="negotiate" data-offer-id="${offer.id}" ${busy ? 'disabled' : ''} title="${tip}">🤝 Négocier</button>`);
       }
       actions = buttons.join(' ') || `<span class="text-muted">Votre enchère</span>`;
     }

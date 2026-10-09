@@ -34,3 +34,15 @@ export function drainItem(game, itemId) {
   game.offers.forEach(o => { if (o.itemId === itemId && o.type === 'sell') o.status = 'cancelled'; });
   if (game.reserve.stock[itemId]) game.reserve.stock[itemId] = 0;
 }
+
+/** Masse monétaire totale (joueur + PNJ + offres bloquées + Comptoir + caisse des frais). */
+export function totalMoney(game) {
+  const npc = Object.values(game.npcController.npcStates).reduce((t, s) => t + (s.capital || 0), 0);
+  let locked = 0;
+  game.offers.forEach(o => {
+    if (o.status !== 'active') return;
+    if (o.type === 'buy') locked += o.price * o.quantity;
+    if (o.type === 'sell' && o.currentBid != null) locked += o.currentBid * o.quantity;
+  });
+  return Math.round((game.player.money + npc + locked + (game.reserve?.treasury || 0) + (game.jobBoard?.feeVault || 0)) * 100) / 100;
+}
