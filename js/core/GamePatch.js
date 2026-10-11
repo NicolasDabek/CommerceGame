@@ -1,3 +1,5 @@
+import { styleFor } from '../systems/Negotiation.js';
+import { NPCS as NPCS_LIST } from '../data/npcs.js';
 import { JobBoard } from '../systems/JobBoard.js';
 import { TradingDesk } from '../systems/TradingDesk.js';
 import { Negotiation } from '../systems/Negotiation.js';
@@ -219,6 +221,7 @@ export function enhanceGame(game) {
 
   // ---------- Marchandage ----------
   game.getNegotiationQuote = (offerId) => game.negotiation.quote(offerId);
+  game.getNegotiationChance = (offerId, price, qty) => game.negotiation.estimateChance(offerId, price, qty);
   game.negotiate = (offerId, price, qty, opts) => {
     const r = game.negotiation.propose(offerId, price, qty, opts);
     if (r.success && r.outcome === 'accepted') game.career?.check();
@@ -315,6 +318,8 @@ export function enhanceGame(game) {
         clanColor: ai.clanColor || null,
         trust: ai.trust ?? 0,
         lastReason: ai.lastReason || null,
+        mind: ai.mind || null,
+        haggleStyle: (() => { const npc = NPCS_LIST.find(n => n.id === p.id); return npc ? styleFor(npc) : null; })(),
         strategy: ai.strategy || null,
         strategyText: ai.strategyText || null,
         profession: ai.profession || null,

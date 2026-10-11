@@ -62,7 +62,7 @@ export class TradingUI {
 
   _watch(view) {
     const rows = view.watch.map(w => `
-      <tr data-watch-row="${w.itemId}">
+      <tr data-watch-row="${w.itemId}" data-item-id="${w.itemId}">
         <td>${w.item.icon} ${w.item.name}<br><small class="text-muted">${w.item.category}</small></td>
         <td class="text-money">${formatMoney(w.fair)} €<br><small class="${w.changePct >= 0 ? 'text-success' : 'text-danger'}" title="Évolution de la valeur normale depuis que vous suivez l'objet">${formatPct(w.changePct)} depuis l'ajout</small></td>
         <td><span title="Annonce la moins chère">vente ${w.bestSell != null ? `<strong>${formatMoney(w.bestSell)} €</strong>` : '—'}</span>${w.dealPct != null && w.dealPct >= 5 ? ` <small class="text-success">(−${w.dealPct} %)</small>` : ''}<br><small class="text-muted" title="Offre d'achat la mieux payée">achat ${w.bestBuy != null ? `${formatMoney(w.bestBuy)} €` : '—'}</small></td>

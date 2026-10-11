@@ -159,7 +159,7 @@ export class MarketUI {
       ? `<button class="watch-star ${watched ? 'on' : ''}" data-watch="${row.item.id}" title="${watched ? 'Retirer du suivi' : 'Suivre cet objet (alertes de prix)'}" aria-label="Suivre">${watched ? '★' : '☆'}</button>`
       : '';
     return `
-      <tr class="${dealClass}" data-item-row="${row.item.id}">
+      <tr class="${dealClass}" data-item-row="${row.item.id}" data-item-id="${row.item.id}">
         <td>${star}${item?.icon || ''} ${item?.name || row.item.id}<br><small class="text-muted">${row.item.category} · ${row.item.rarity}</small></td>
         <td class="text-money">${formatMoney(row.average)} €${row.explanation ? `<br>${priceWhyChip(row.explanation)}` : ''}</td>
         <td>${supplyCellHtml(row.supply)}</td>

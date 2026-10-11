@@ -77,6 +77,13 @@ export class InventoryUI {
       const key = `${slot.itemId}|${slot.quality}|${slot.perfection}`;
       el.className = 'inventory-slot filled' + (this.selectedKey === key ? ' selected' : '');
       el.dataset.slotIndex = index;
+      el.dataset.itemId = slot.itemId;
+      el.dataset.q = slot.quality;
+      el.dataset.p = slot.perfection;
+      el.tabIndex = 0;
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-label', `${item?.name || slot.itemId}, ${slot.quantity} unité(s), qualité ${slot.quality}`);
+      el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } });
 
       const rarityColor = this._rarityColor(item?.rarity);
       let marginBit = '';

@@ -35,8 +35,26 @@ export const NEGOTIATION_TUNING = {
   insultRatio: 0.85,       // sous 85 % du plancher → offense
   insultTrust: 0.05,
   dealsPerNpc: 2,          // accords par marchand et par jour
-  noBuyoutMarkup: 1.1      // annonce sans achat immédiat : prix demandé = départ + 10 % (min. référence)
+  noBuyoutMarkup: 1.1,     // annonce sans achat immédiat : prix demandé = départ + 10 % (min. référence)
+  bundleFlex: 0.02,        // lot entier (3+) : +2 % de marge
+  bundleMinQty: 3,
+  bluffFlex: 0.005,        // chaque « bluff » mémorisé retire 0,5 % de marge…
+  bluffFlexMax: 0.03,      // … jusqu'à 3 %
+  bluffDecay: 0.7,         // la mémoire s'estompe chaque jour
+  dealFlex: 0.004,         // un bon client (accords passés) gagne un peu de marge…
+  dealFlexMax: 0.02,       // … jusqu'à 2 %
+  chanceSigma: 0.015       // incertitude de l'estimation de chance (± 1,5 % du prix)
 };
+
+/** Styles de marchandage (selon la personnalité). Concessions décroissantes : first × decay^(tour−1). */
+export const HAGGLE_STYLES = {
+  stubborn: { id: 'stubborn', label: 'Têtu', icon: '🪨', patience: 3, first: 0.3, decay: 0.45, text: 'Lâche peu et de moins en moins ; n\'aime pas les offres basses.' },
+  generous: { id: 'generous', label: 'Arrangeant', icon: '😊', patience: 5, first: 0.55, decay: 0.7, text: 'Fait de vraies concessions et garde patience.' },
+  greedy: { id: 'greedy', label: 'Gourmand', icon: '🦊', patience: 4, first: 0.35, decay: 0.55, text: 'Discute volontiers mais ses contre-offres restent hautes.' },
+  impatient: { id: 'impatient', label: 'Pressé', icon: '⏱️', patience: 3, first: 0.6, decay: 0.5, text: 'Cède vite au début puis coupe court.' }
+};
+const STYLE_BY_PERSONALITY = { prudent: 'stubborn', collectionneur: 'stubborn', 'épicier': 'generous', artisan: 'generous', agressif: 'greedy', opportuniste: 'impatient' };
+export function styleFor(npc) { return HAGGLE_STYLES[STYLE_BY_PERSONALITY[npc?.personality]] || HAGGLE_STYLES.greedy; }
 
 const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
 
@@ -51,6 +69,8 @@ export class Negotiation {
     this.game = game;
     this.byNpc = saved.byNpc || {};
     this.counters = saved.counters || {};
+    this.sessions = saved.sessions || {};   // offerId → { day, rounds[], patience, npcPrice, walked }
+    this.memory = saved.memory || {};       // npcId → { bluffs, deals, insults, day }
     this.stats = {
       attempts: 0, deals: 0, buyDeals: 0, sellDeals: 0, refused: 0, insults: 0, saved: 0, extra: 0,
       ...(saved.stats || {})
@@ -66,6 +86,33 @@ export class Negotiation {
     let s = this.byNpc[npcId];
     if (!s || s.day !== day) {
       s = this.byNpc[npcId] = { day, tries: 0, deals: 0 };
+    }
+    return s;
+  }
+
+  /** Mémoire du marchand sur le joueur (bluffs, accords), estompée chaque jour. */
+  _memory(npcId) {
+    const day = this._day();
+    let m = this.memory[npcId];
+    if (!m) m = this.memory[npcId] = { bluffs: 0, deals: 0, insults: 0, day };
+    if (m.day !== day) {
+      const k = Math.pow(NEGOTIATION_TUNING.bluffDecay, Math.max(0, day - m.day));
+      m.bluffs = Math.round(m.bluffs * k * 100) / 100;
+      m.insults = Math.round(m.insults * k * 100) / 100;
+      m.day = day;
+    }
+    return m;
+  }
+
+  /** Séance de marchandage du jour sur une offre. */
+  _session(offerId, npc) {
+    const day = this._day();
+    let s = this.sessions[offerId];
+    if (!s || s.day !== day) {
+      const style = styleFor(npc);
+      const mem = this._memory(npc.id);
+      const patience = Math.max(2, style.patience - (mem.bluffs >= 3 ? 1 : 0) + (mem.deals >= 3 ? 1 : 0));
+      s = this.sessions[offerId] = { day, rounds: [], patience, patienceMax: patience, npcPrice: null, walked: false };
     }
     return s;
   }
@@ -87,7 +134,7 @@ export class Negotiation {
   }
 
   /** Marge de manœuvre (0–16 %) et ses raisons, lisibles par le joueur. */
-  flexFor(npc, state, itemId, kind) {
+  flexFor(npc, state, itemId, kind, bundle = false) {
     const T = NEGOTIATION_TUNING;
     const ctl = this.game.npcController;
     const reasons = [];
@@ -117,6 +164,10 @@ export class Negotiation {
     const rank = this._rank();
     if (rank.haggleBonus) { flex += rank.haggleBonus; reasons.push(`rang ${rank.title} ${rank.haggleBonus > 0 ? '+' : ''}${Math.round(rank.haggleBonus * 100)} %`); }
     if (personalityBonus[npc.personality]) flex += personalityBonus[npc.personality];
+    const mem = this._memory(npc.id);
+    if (mem.bluffs > 0.5) { const f = Math.min(T.bluffFlexMax, mem.bluffs * T.bluffFlex); flex -= f; reasons.push(`se souvient de vos offres trop basses −${(f * 100).toFixed(1).replace('.', ',')} %`); }
+    if (mem.deals > 0) { const f = Math.min(T.dealFlexMax, mem.deals * T.dealFlex); flex += f; if (f >= 0.004) reasons.push('bon client'); }
+    if (bundle) { flex += T.bundleFlex; reasons.push('lot entier : +2 %'); }
     if (kind === 'sell') flex *= T.sellFlexFactor;
     flex = Math.max(0, Math.min(T.maxFlex, flex));
     return { flex, reasons };
@@ -144,26 +195,32 @@ export class Negotiation {
   }
 
   /** Prix limite du PNJ (plancher à l'achat, plafond à la vente). */
-  _limit(ctx) {
+  _isBundle(ctx, qty) {
+    return ctx.kind === 'buy' && qty >= NEGOTIATION_TUNING.bundleMinQty && qty === ctx.offer.quantity;
+  }
+
+  _limit(ctx, qty = 1) {
     const T = NEGOTIATION_TUNING;
     const { offer, npc, state, kind } = ctx;
     const ctl = this.game.npcController;
     const q = offer.quality ?? 50;
     const p = offer.perfection ?? 50;
     const ref = ctl.refPrice(offer.itemId, kind === 'buy' ? q : (offer.minQuality || 50), kind === 'buy' ? p : (offer.minPerfection || 50));
-    const { flex, reasons } = this.flexFor(npc, state, offer.itemId, kind);
+    const { flex, reasons } = this.flexFor(npc, state, offer.itemId, kind, this._isBundle(ctx, qty));
     const noise = hashNoise(`${npc.id}|${offer.id}|${this._day()}`);
     if (kind === 'buy') {
       const ask = this.askPrice(offer, ref);
       const minSell = ctl.profileOf(npc).minSell || 0.9;
       const hardFloor = r2(ref * Math.max(T.floorRef, minSell * 0.92));
       const limit = r2(Math.min(ask, Math.max(hardFloor, ask * (1 - flex) * (1 + noise))));
-      return { ref, ask, limit, flex, reasons, hardFloor };
+      const estimate = r2(Math.min(ask, Math.max(hardFloor, ask * (1 - flex))));
+      return { ref, ask, limit, estimate, flex, reasons, hardFloor };
     }
     const bid = offer.price;
     const cap = r2(ref * Math.min(T.ceilRef, ctl.maxBuyRatio(npc, state, ctx.item)));
     const limit = r2(Math.max(bid, Math.min(cap, bid * (1 + flex) * (1 + noise))));
-    return { ref, ask: bid, limit, flex, reasons, hardFloor: cap };
+    const estimate = r2(Math.max(bid, Math.min(cap, bid * (1 + flex))));
+    return { ref, ask: bid, limit, estimate, flex, reasons, hardFloor: cap };
   }
 
   /** Prix demandé pour une vente immédiate. */
@@ -194,6 +251,12 @@ export class Negotiation {
     const counter = this.counters[offerId] && this.counters[offerId].day === this._day() ? this.counters[offerId].price : null;
     const step = kind === 'buy' ? -1 : 1;
     const suggestions = [0.03, 0.06, 0.1].map(pct => r2(lim.ask * (1 + step * pct)));
+    const session = this._session(offerId, npc);
+    const style = styleFor(npc);
+    const mem = this._memory(npc.id);
+    if (session.walked && !haggleBlocked) haggleBlocked = `${npc.name} a coupé court sur cette offre aujourd'hui`;
+    const fair = this.fairPrice(ctx, lim);
+    const bundleQty = kind === 'buy' && offer.quantity >= NEGOTIATION_TUNING.bundleMinQty ? offer.quantity : null;
     return {
       ok: true,
       kind,
@@ -225,8 +288,74 @@ export class Negotiation {
       suggestions,
       blocked,
       haggleBlocked,
-      triesUsed: day.tries
+      triesUsed: day.tries,
+      style: { id: style.id, label: style.label, icon: style.icon, text: style.text },
+      patience: session.walked ? 0 : session.patience,
+      patienceMax: session.patienceMax,
+      walked: session.walked,
+      rounds: session.rounds.map(r => ({ ...r })),
+      memory: { bluffs: mem.bluffs, deals: mem.deals },
+      fair: fair.price,
+      fairReasons: fair.reasons,
+      suggested: this.suggestPrice(offerId, 0.7),
+      bundleQty,
+      bundleFlexPct: Math.round(NEGOTIATION_TUNING.bundleFlex * 100)
     };
+  }
+
+  /** Prix juste conseillé : la référence, ramenée dans la fourchette du marchand, avec les raisons. */
+  fairPrice(ctx, lim = this._limit(ctx)) {
+    const reasons = [];
+    const ref = lim.ref;
+    let price;
+    if (ctx.kind === 'buy') {
+      price = Math.min(lim.ask, Math.max(lim.hardFloor, ref));
+      reasons.push(lim.ask > ref * 1.02 ? `il demande ${Math.round((lim.ask / ref - 1) * 100)} % au-dessus de la valeur de référence` : 'prix demandé proche de la valeur de référence');
+    } else {
+      price = Math.max(lim.ask, Math.min(lim.hardFloor, ref));
+      reasons.push(lim.ask < ref * 0.98 ? `son offre est ${Math.round((1 - lim.ask / ref) * 100)} % sous la valeur de référence` : 'offre proche de la valeur de référence');
+    }
+    const sig = this.game.npcController.marketSignal?.(ctx.offer.itemId);
+    const status = sig?.view?.status;
+    if (status === 'shortage') reasons.push('pénurie en ville : les prix tiennent');
+    else if (status === 'surplus') reasons.push('la ville en déborde : prix en baisse');
+    return { price: r2(price), reasons };
+  }
+
+  /**
+   * Chance estimée (0–1) qu'un prix soit accepté. Basée sur la marge estimée du marchand,
+   * sans connaître son humeur exacte du jour (± 1,5 %).
+   */
+  estimateChance(offerId, price, qty = 1) {
+    const ctx = this._context(offerId);
+    if (ctx.error) return { chance: 0, label: '—', zone: 'error' };
+    const lim = this._limit(ctx, Math.max(1, Math.floor(qty) || 1));
+    const p = Number(price) || 0;
+    const session = this._session(offerId, ctx.npc);
+    if (Math.abs(p - lim.ask) < 0.005) return { chance: 1, label: 'Prix demandé : accord immédiat', zone: 'ask' };
+    if (ctx.kind === 'buy' && p > lim.ask) return { chance: 1, label: 'Au-dessus du prix demandé', zone: 'ask' };
+    if (ctx.kind === 'sell' && p < lim.ask) return { chance: 1, label: 'Sous son offre', zone: 'ask' };
+    if (session.walked) return { chance: 0, label: 'Il a coupé court aujourd\'hui', zone: 'walked' };
+    const sigma = Math.max(0.01, lim.ask * NEGOTIATION_TUNING.chanceSigma);
+    const x = ctx.kind === 'buy' ? (p - lim.estimate) / sigma : (lim.estimate - p) / sigma;
+    const chance = 1 / (1 + Math.exp(-1.7 * x));
+    const gap = ctx.kind === 'buy' ? (lim.estimate - p) / lim.ask : (p - lim.estimate) / lim.ask;
+    const insult = ctx.kind === 'buy' ? p < lim.estimate * NEGOTIATION_TUNING.insultRatio : p > lim.estimate / NEGOTIATION_TUNING.insultRatio;
+    let zone = 'likely';
+    if (chance < 0.5) zone = insult ? 'insult' : gap <= NEGOTIATION_TUNING.counterBand ? 'counter' : 'refuse';
+    const label = chance >= 0.8 ? 'Très probable' : chance >= 0.5 ? 'Probable' : zone === 'counter' ? 'Contre-offre probable' : zone === 'insult' ? 'Risque de le vexer' : 'Refus probable';
+    return { chance: Math.round(chance * 100) / 100, label, zone };
+  }
+
+  /** Prix qui atteint environ la chance visée. */
+  suggestPrice(offerId, target = 0.7, qty = 1) {
+    const ctx = this._context(offerId);
+    if (ctx.error) return null;
+    const lim = this._limit(ctx, qty);
+    const sigma = Math.max(0.01, lim.ask * NEGOTIATION_TUNING.chanceSigma);
+    const x = Math.log(target / (1 - target)) / 1.7;
+    const raw = ctx.kind === 'buy' ? lim.estimate + x * sigma : lim.estimate - x * sigma;
+    return ctx.kind === 'buy' ? r2(Math.min(lim.ask, raw)) : r2(Math.max(lim.ask, raw));
   }
 
   _eligibleQty(offer) {
@@ -251,7 +380,10 @@ export class Negotiation {
     if (!(p > 0)) return { success: false, error: 'Prix invalide' };
     if (!(qty > 0) || qty > offer.quantity) return { success: false, error: 'Quantité invalide' };
     if (kind === 'buy' && offer.currentBid != null) return { success: false, error: 'Une enchère est en cours sur cette annonce' };
-    const lim = this._limit(ctx);
+    const lim = this._limit(ctx, qty);
+    const session = this._session(offerId, npc);
+    const mem = this._memory(npc.id);
+    const style = styleFor(npc);
     if (kind === 'buy' && p > lim.ask + 0.005) return { success: false, error: `Inutile de payer plus que le prix demandé (${lim.ask.toFixed(2)} €)` };
     if (kind === 'sell' && p < lim.ask - 0.005) return { success: false, error: `Son offre est déjà de ${lim.ask.toFixed(2)} € : demandez au moins autant` };
     const direct = Math.abs(p - lim.ask) < 0.005;
@@ -260,6 +392,7 @@ export class Negotiation {
     const counterEntry = this.counters[offerId];
     const isCounter = acceptCounter && counterEntry && counterEntry.day === this._day() && Math.abs(counterEntry.price - p) < 0.005;
     const dayState = this._npcDay(npc.id);
+    if (!isCounter && !direct && session.walked) return { success: false, error: `${npc.name} a coupé court : achat au prix demandé ou acceptez sa dernière contre-offre` };
     if (!isCounter && !direct) {
       if (dayState.tries >= this.triesPerDay()) return { success: false, error: `${npc.name} ne veut plus discuter aujourd'hui` };
       dayState.tries += 1;
@@ -297,6 +430,8 @@ export class Negotiation {
       }
       dayState.deals += 1;
       delete this.counters[offerId];
+      session.rounds.push({ price: p, outcome: 'accepted' });
+      mem.deals = Math.min(10, mem.deals + 1);
       this.stats.deals += 1;
       const gain = r2(Math.abs(lim.ask - p) * qty);
       if (kind === 'buy') { this.stats.buyDeals += 1; this.stats.saved = r2(this.stats.saved + gain); }
@@ -309,34 +444,50 @@ export class Negotiation {
       };
     }
 
-    // Contre-offre si la proposition est proche
+    // Contre-offre si la proposition est proche : concessions de plus en plus petites
     const gap = kind === 'buy' ? (lim.limit - p) / lim.ask : (p - lim.limit) / lim.ask;
-    if (gap <= T.counterBand && dayState.tries < this.triesPerDay() + 1) {
-      const counter = kind === 'buy'
-        ? r2(Math.min(lim.ask - 0.01, lim.limit + (lim.ask - lim.limit) * 0.35))
-        : r2(Math.max(lim.ask + 0.01, lim.limit - (lim.limit - lim.ask) * 0.35));
+    const insult = kind === 'buy' ? p < lim.limit * T.insultRatio : p > lim.limit / T.insultRatio;
+    session.patience -= insult ? 2 : 1;
+    const walkAway = session.patience <= 0;
+    if (walkAway) session.walked = true;
+    if (gap <= T.counterBand && !insult) {
+      const round = session.rounds.filter(r => r.outcome === 'counter').length + 1;
+      const share = Math.min(0.9, style.first * Math.pow(style.decay, round - 1));
+      const prev = session.npcPrice ?? lim.ask;
+      let counter = kind === 'buy'
+        ? r2(prev - (prev - lim.limit) * share)
+        : r2(prev + (lim.limit - prev) * share);
+      counter = kind === 'buy' ? Math.max(lim.limit, Math.min(lim.ask - 0.01, counter)) : Math.min(lim.limit, Math.max(lim.ask + 0.01, counter));
+      counter = r2(counter);
+      const concession = r2(Math.abs(prev - counter));
+      session.npcPrice = counter;
+      session.rounds.push({ price: p, outcome: 'counter', counter, concession });
       this.counters[offerId] = { price: counter, day: this._day() };
       this.game.save?.();
+      const tail = walkAway ? ' (dernière offre : il ne discutera plus aujourd\'hui)' : round >= 2 ? ` (il ne lâche plus que ${concession.toFixed(2).replace('.', ',')} €)` : '';
       return {
-        success: true, outcome: 'counter', price: p, counter,
-        message: pickLine(COUNTER_LINES, npc, counter, kind),
-        triesLeft: this.triesLeft(npc.id)
+        success: true, outcome: 'counter', price: p, counter, concession, round, walked: walkAway,
+        message: pickLine(walkAway ? LAST_LINES : round >= 2 ? COUNTER2_LINES : COUNTER_LINES, npc, counter, kind) + tail,
+        triesLeft: this.triesLeft(npc.id), patience: Math.max(0, session.patience)
       };
     }
 
-    // Refus (offense si la proposition est très éloignée)
+    // Refus (offense si la proposition est très éloignée) — le marchand s'en souvient
     this.stats.refused += 1;
-    const insult = kind === 'buy' ? p < lim.limit * T.insultRatio : p > lim.limit / T.insultRatio;
+    mem.bluffs = Math.round((mem.bluffs + (insult ? 1 : 0.5)) * 100) / 100;
     if (insult) {
       this.stats.insults += 1;
+      mem.insults = Math.round((mem.insults + 1) * 100) / 100;
       state.trust = Math.max(-1, (state.trust || 0) - T.insultTrust);
       state.mood = Math.max(-1, (state.mood || 0) - 0.05);
     }
+    session.rounds.push({ price: p, outcome: insult ? 'insult' : 'refused' });
     this.game.save?.();
+    const base = insult ? pickLine(INSULT_LINES, npc, p, kind) : pickLine(REFUSE_LINES, npc, p, kind);
     return {
-      success: true, outcome: 'refused', price: p, insulted: insult,
-      message: insult ? pickLine(INSULT_LINES, npc, p, kind) : pickLine(REFUSE_LINES, npc, p, kind),
-      triesLeft: this.triesLeft(npc.id)
+      success: true, outcome: 'refused', price: p, insulted: insult, walked: walkAway,
+      message: base + (walkAway ? ' Il met fin à la discussion pour aujourd\'hui.' : ''),
+      triesLeft: this.triesLeft(npc.id), patience: Math.max(0, session.patience)
     };
   }
 
@@ -403,7 +554,11 @@ export class Negotiation {
     Object.entries(this.byNpc).forEach(([id, s]) => { if (s.day === day) byNpc[id] = s; });
     const counters = {};
     Object.entries(this.counters).forEach(([id, c]) => { if (c.day === day) counters[id] = c; });
-    return { byNpc, counters, stats: { ...this.stats } };
+    const sessions = {};
+    Object.entries(this.sessions).forEach(([id, c]) => { if (c.day === day) sessions[id] = c; });
+    const memory = {};
+    Object.entries(this.memory).forEach(([id, m]) => { if (m.bluffs > 0.05 || m.deals > 0 || m.insults > 0.05) memory[id] = m; });
+    return { byNpc, counters, sessions, memory, stats: { ...this.stats } };
   }
 }
 
@@ -419,8 +574,16 @@ const ACCEPT_LINES = {
   sell: ['« D\'accord pour {p} €. »', '« {p} € ? Topez là. »', '« Bon, je vous les prends à {p} €. »']
 };
 const COUNTER_LINES = {
-  buy: ['« Je peux descendre à {p} €, pas un centime de moins. »', '« {p} €, c\'est mon dernier mot. »'],
-  sell: ['« Je monte à {p} €, pas plus. »', '« {p} € et on n\'en parle plus. »']
+  buy: ['« Je peux descendre à {p} €. »', '« Disons {p} €, ça vous va ? »'],
+  sell: ['« Je peux monter à {p} €. »', '« Disons {p} €, ça vous va ? »']
+};
+const COUNTER2_LINES = {
+  buy: ['« Bon… {p} €, mais je ne bougerai plus beaucoup. »', '« {p} €. Vous me faites perdre de l\'argent. »'],
+  sell: ['« Allez, {p} €, je ne peux guère faire mieux. »', '« {p} €, et c\'est généreux. »']
+};
+const LAST_LINES = {
+  buy: ['« {p} €, c\'est mon dernier mot. »'],
+  sell: ['« {p} € et on n\'en parle plus. »']
 };
 const REFUSE_LINES = {
   buy: ['« Non, ça ne couvre pas mes frais. »', '« Trop bas, désolé. »'],

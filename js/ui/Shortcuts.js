@@ -104,11 +104,14 @@ export class Shortcuts {
             <tr><td><kbd>/</kbd></td><td>Rechercher dans le lieu ouvert</td></tr>
             <tr><td><kbd>N</kbd></td><td>Nouvelle annonce (Hôtel de vente) ou offre d'achat (Hôtel d'achat)</td></tr>
             <tr><td><kbd>P</kbd></td><td>Pause / reprise du temps</td></tr>
+            <tr><td><kbd>Ctrl</kbd>+<kbd>K</kbd> ou <kbd>K</kbd></td><td>Rechercher une commande, un objet, un marchand</td></tr>
+            <tr><td>Survol / <kbd>Tab</kbd></td><td>Aperçu rapide d'un objet (prix, offre / demande, votre stock)</td></tr>
             <tr><td><kbd>?</kbd> ou <kbd>H</kbd></td><td>Cette aide</td></tr>
           </tbody>
         </table>
         <p class="text-muted" style="margin-top:10px">Vos filtres, tris et onglets sont mémorisés d'une visite à l'autre.</p>`,
       buttons: [
+        { label: '👁️ Affichage & accessibilité', className: 'btn-ghost', onClick: () => { this.Modal.close(); window.openA11y?.(); } },
         { label: 'Réafficher la carte Parcours et les astuces', className: 'btn-ghost', onClick: () => {
           this.prefs.set('hudHidden', false); this.prefs.set('tipsSeen', []); this.prefs.set('tipsOff', false);
           this.onShowHud(); this.Modal.close(); this.setStatus('Carte Parcours et astuces réactivées');

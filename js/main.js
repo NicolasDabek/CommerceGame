@@ -15,6 +15,10 @@ import { CareerUI } from './ui/CareerUI.js';
 import { Shortcuts } from './ui/Shortcuts.js';
 import { openNegotiationModal, openBuyQtyModal, openBulkSellModal } from './ui/NegotiationUI.js';
 import { UiPrefs } from './utils/prefs.js';
+import { NotificationCenter } from './ui/Notifications.js';
+import { ItemPreview } from './ui/ItemPreview.js';
+import { CommandPalette } from './ui/CommandPalette.js';
+import { applyA11y, openA11yModal } from './ui/A11y.js';
 import { getItemById } from './data/items.js';
 import { formatMoney as fmtMoney, insightCardHtml, qtyQuickButtons, wireQtyQuick, economyChipHtml } from './ui/TradeInsights.js';
 import { Offer } from './models/Offer.js';
@@ -30,6 +34,19 @@ const Modal = {
     this.footerEl = document.getElementById('modal-footer');
     document.getElementById('modal-close').addEventListener('click', () => this.close());
     this.overlay.addEventListener('click', (e) => { if (e.target === this.overlay) this.close(); });
+    const box = this.overlay.querySelector('.modal');
+    box?.setAttribute('role', 'dialog');
+    box?.setAttribute('aria-modal', 'true');
+    box?.setAttribute('aria-labelledby', 'modal-title');
+    // Tab reste dans la fenêtre
+    this.overlay.addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab') return;
+      const f = [...this.overlay.querySelectorAll('button, input, select, textarea, [tabindex="0"], summary')].filter(el => !el.disabled && el.offsetParent !== null);
+      if (!f.length) return;
+      const first = f[0]; const last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
   },
   open({ title, bodyHTML, buttons = [] }) {
     this.titleEl.textContent = title;
@@ -42,9 +59,20 @@ const Modal = {
       button.addEventListener('click', () => { if (btn.onClick) btn.onClick(); });
       this.footerEl.appendChild(button);
     });
+    const wasOpen = !this.overlay.classList.contains('hidden');
+    if (!wasOpen) this.lastFocus = document.activeElement;
     this.overlay.classList.remove('hidden');
+    // Focus sur le premier champ (ou le bouton principal) pour jouer au clavier
+    const target = this.bodyEl.querySelector('input:not([type="hidden"]):not([disabled]), select, textarea') || this.footerEl.querySelector('.btn-primary') || this.footerEl.querySelector('button');
+    target?.focus?.({ preventScroll: true });
   },
-  close() { this.overlay.classList.add('hidden'); }
+  close() {
+    this.overlay.classList.add('hidden');
+    if (this.overlay.contains(document.activeElement)) document.activeElement.blur();
+    const back = this.lastFocus;
+    this.lastFocus = null;
+    if (back && back.isConnected && back.offsetParent !== null && back !== document.body && !['INPUT', 'TEXTAREA', 'SELECT'].includes(back.tagName)) back.focus?.({ preventScroll: true });
+  }
 };
 
 function initNavigation() {
@@ -353,7 +381,8 @@ function openFulfillModal(offerId, maxQty) {
 }
 
 let historyUI, auctionUI, buyUI, inventoryUI, marketUI, npcUI, goalsUI, jobsUI, tradingUI, careerUI, shortcuts;
-const negCtx = () => ({ game, Modal, setStatus, refresh: () => refreshAllUI() });
+let notes = null;
+const negCtx = () => ({ game, Modal, setStatus, refresh: () => refreshAllUI(), notify: (n) => notes?.push(n) });
 function openNegotiation(offerId) {
   if (!game.getNegotiationQuote) { setStatus('Marchandage indisponible'); return; }
   openNegotiationModal({ ...negCtx(), offerId });
@@ -632,10 +661,68 @@ function init() {
   shortcuts = new Shortcuts({ Modal, prefs: UiPrefs, setStatus, onPrefsReset: resetUiPrefs, onShowHud: () => careerUI?.render() });
   document.getElementById('btn-help')?.addEventListener('click', () => shortcuts.openHelp());
   document.getElementById('networth-chip')?.addEventListener('click', () => window.showWorldPanel?.('goals'));
-  if (!game.uiCallbacks.onStatus) game.uiCallbacks.onStatus = (msg) => setStatus(msg);
+  applyA11y(UiPrefs);
+  notes = new NotificationCenter({
+    getTimeLabel: () => document.getElementById('game-time')?.textContent?.split('(')[0].trim() || '',
+    onOpenPanel: (panel) => window.showWorldPanel?.(panel)
+  });
+  const prevStatus = game.uiCallbacks.onStatus;
+  game.uiCallbacks.onStatus = (msg) => {
+    if (prevStatus) prevStatus(msg); else setStatus(msg);
+    notes.push({ text: msg, panel: /crédit/i.test(msg) ? 'trading' : /chapitre/i.test(msg) ? 'goals' : /^🔔/.test(msg) ? 'trading' : null });
+  };
+  new ItemPreview({ game });
+  const palette = new CommandPalette({
+    game,
+    actions: {
+      openPanel: (panel) => window.showWorldPanel?.(panel),
+      searchIn: (panel, text) => {
+        window.showWorldPanel?.(panel);
+        const id = { market: 'market-search', auction: 'auction-search', buyhouse: 'buy-search' }[panel];
+        const el = document.getElementById(id);
+        if (el) { el.value = text; el.dispatchEvent(new Event('input')); }
+      },
+      negotiate: (offerId) => { window.showWorldPanel?.('auction'); openNegotiation(offerId); },
+      toggleWatch: (itemId) => { const r = game.toggleWatch(itemId); act(r, r.watched ? 'Objet suivi (onglet Suivi)' : 'Objet retiré du suivi'); },
+      openNpc: (npcId) => {
+        window.showWorldPanel?.('npcs');
+        setTimeout(() => { const card = document.getElementById(`npc-card-${npcId}`); card?.scrollIntoView({ block: 'center' }); card?.classList.add('flash'); setTimeout(() => card?.classList.remove('flash'), 1600); }, 60);
+      },
+      openCredit: () => { if (tradingUI) tradingUI.tab = 'credit'; window.showWorldPanel?.('trading'); },
+      openHelp: () => shortcuts.openHelp(),
+      openSettings: () => openA11yModal({ Modal, prefs: UiPrefs, setStatus }),
+      togglePause: () => shortcuts.togglePause(),
+      openNotes: () => notes.open()
+    }
+  });
+  document.getElementById('btn-palette')?.addEventListener('click', () => palette.open());
+  window.openA11y = () => openA11yModal({ Modal, prefs: UiPrefs, setStatus });
+  // Boutons « Effacer les filtres » des listes vides
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest?.('[data-reset-filters]');
+    if (!b) return;
+    const pre = b.dataset.resetFilters;
+    const search = document.getElementById(`${pre}-search`);
+    const cat = document.getElementById(`${pre}-category`);
+    const best = document.getElementById(`${pre}-best-only`);
+    if (search) { search.value = ''; search.dispatchEvent(new Event('input')); }
+    if (cat) { cat.value = 'all'; cat.dispatchEvent(new Event('change')); }
+    if (best) { best.checked = false; best.dispatchEvent(new Event('change')); }
+  });
   setInterval(() => {
     const offersBefore = game.offers.length;
+    const lastTx = game.transactions[0]?.id;
     game.tick();
+    // Ce que les marchands ont fait avec vos offres pendant ce temps → notifications
+    for (const tx of game.transactions) {
+      if (tx.id === lastTx) break;
+      if (tx.sellerId !== 'player' && tx.buyerId !== 'player') continue;
+      const item = getItemById(tx.itemId);
+      const other = game.getNpcName(tx.sellerId === 'player' ? tx.buyerId : tx.sellerId);
+      notes.push(tx.sellerId === 'player'
+        ? { kind: 'deal', icon: '💰', panel: 'history', text: `${other} vous a acheté ${item?.icon || ''} ${item?.name || tx.itemId} ×${tx.quantity} pour ${formatMoney(tx.total)} €` }
+        : { kind: 'deal', icon: '📦', panel: 'inventory', text: `Vous avez obtenu ${item?.icon || ''} ${item?.name || tx.itemId} ×${tx.quantity} de ${other} pour ${formatMoney(tx.total)} €` });
+    }
     const panelOpen = document.getElementById('interior-overlay')?.classList.contains('open');
     if (panelOpen || game.offers.length !== offersBefore) refreshAllUI();
     else tradingUI?.updateBadge();
