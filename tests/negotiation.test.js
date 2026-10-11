@@ -77,12 +77,14 @@ export function run() {
       const { game, restore } = await makeGame();
       try {
         game.player.money = 5000;
-        const offer = npcListing(game, 'item_004', 20);
         const tries = game.negotiation.triesPerDay();
+        // une annonce différente à chaque fois (sinon le marchand coupe court avant)
         for (let i = 0; i < tries; i++) {
-          const r = game.negotiate(offer.id, 1, 1);
+          const o = npcListing(game, 'item_004', 20);
+          const r = game.negotiate(o.id, 1, 1);
           assertEqual(r.outcome, 'refused');
         }
+        const offer = npcListing(game, 'item_004', 20);
         const blocked = game.negotiate(offer.id, 1, 1);
         assertEqual(blocked.success, false, 'plus d\'essais');
         assert(/ne veut plus discuter/.test(blocked.error));

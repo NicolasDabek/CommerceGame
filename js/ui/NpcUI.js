@@ -77,7 +77,7 @@ export class NpcUI {
     const trust = typeof profile.trust === 'number' ? profile.trust : 0;
 
     return `
-      <article class="npc-card">
+      <article class="npc-card" id="npc-card-${profile.id}">
         <div class="npc-card-header">
           <div>
             <h3>${profile.name}</h3>
@@ -89,6 +89,7 @@ export class NpcUI {
         </div>
         <p class="npc-description">${profile.description}</p>
         ${this._intentBox(profile)}
+        ${this._mindBox(profile)}
         ${this._statusChips(profile, trust)}
         ${this._aiLine(profile, allied)}
         <div class="npc-tags">
@@ -143,6 +144,31 @@ export class NpcUI {
         ${profile.lastReason ? `<small>${profile.lastReason}</small>` : ''}
       </div>
     `;
+  }
+
+  /** Objectif du jour, bilan sur 7 jours, ce qu'il a appris, rival, style de marchandage. */
+  _mindBox(profile) {
+    const m = profile.mind;
+    if (!m) return '';
+    const eur = (n) => `${n >= 0 ? '+' : ''}${this._formatMoney(n)} €`;
+    const series = m.pnlSeries || [];
+    const max = Math.max(1, ...series.map(v => Math.abs(v)));
+    const spark = series.map(v => `<i class="${v >= 0 ? 'up' : 'down'}" style="height:${Math.max(8, Math.round(Math.abs(v) / max * 100))}%" title="${eur(v)}"></i>`).join('');
+    const style = profile.haggleStyle;
+    return `
+      <div class="npc-mind">
+        <div class="npc-goal" title="Objectif choisi chaque matin selon sa trésorerie, son stock et les besoins de la ville">
+          <span class="npc-goal-icon">${m.goal.icon}</span>
+          <div><strong>${m.goal.label}</strong><small>${m.goal.reason}</small></div>
+        </div>
+        <div class="npc-mind-row">
+          ${m.pnlDays ? `<span class="mini-chip ${m.pnl7 >= 0 ? 'chip-good' : 'chip-bad'}" title="Variation de sa valeur (trésorerie + stock) sur les ${m.pnlDays} derniers jours">📈 ${m.pnlDays} j : ${eur(m.pnl7)}</span><span class="npc-spark" aria-hidden="true">${spark}</span>` : '<span class="mini-chip">📈 bilan demain</span>'}
+          ${m.lesson ? `<span class="mini-chip" title="Il ajuste ses priorités selon ce qui lui a rapporté (ou coûté) ces derniers jours">🧠 Apprend : ${m.lesson}</span>` : ''}
+          ${m.cautious ? '<span class="mini-chip chip-warn" title="Après des pertes, il paie un peu moins cher (jusqu\'à −1,8 %)">🛡️ Prudent après des pertes</span>' : ''}
+          ${m.rivalName ? `<span class="mini-chip chip-warn" title="Ils se sont souvent surenchéris ou cassé les prix : il cherche à le battre">⚔️ Rival : ${m.rivalName}</span>` : ''}
+          ${style ? `<span class="mini-chip" title="Style de marchandage : ${style.text}">${style.icon} ${style.label}</span>` : ''}
+        </div>
+      </div>`;
   }
 
   /** Trésorerie, stock vs cible, besoins, confiance — lisibles d'un coup d'œil. */

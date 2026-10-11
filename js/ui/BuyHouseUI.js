@@ -120,7 +120,7 @@ export class BuyHouseUI {
     if (filtered.length === 0) {
       this.tbody.innerHTML = `
         <tr class="empty-row">
-          <td colspan="7">Aucune offre ne correspond aux filtres</td>
+          <td colspan="7"><div class="empty-state">🔍 Aucune offre d'achat ne correspond aux filtres.${this.query || this.category !== 'all' || this.bestOnly ? ' <button class="btn btn-small btn-ghost" data-reset-filters="buy">Effacer les filtres</button>' : ' Astuce : publiez votre propre offre (touche N) ou revenez plus tard.'}</div></td>
         </tr>
       `;
       return;
@@ -181,7 +181,7 @@ export class BuyHouseUI {
     const rowClass = owned > 0 && avgCost != null && offer.price > avgCost ? 'row-deal' : '';
 
     return `
-      <tr class="${rowClass}">
+      <tr class="${rowClass}" data-item-id="${offer.itemId}">
         <td>${itemName}${vsMarket ? `<br>${vsMarket}` : ''}</td>
         <td>${offer.quantity}</td>
         <td class="text-money">${formatMoney(offer.price)} €</td>

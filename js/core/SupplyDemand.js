@@ -135,6 +135,9 @@ export class SupplyDemand {
       const h = holders[idx];
       h.slot.quantity -= 1;
       consumed += 1;
+      // Bilan des marchands (IA v6) : l'usage par la ville n'est pas une perte commerciale
+      const mind = states[h.id]?.mind;
+      if (mind) mind.usedValue = Math.round(((mind.usedValue || 0) + (game.economy?.getFairValue?.(itemId) || 0)) * 100) / 100;
       left -= 1;
       if (h.slot.quantity <= 0) holders.splice(idx, 1);
     }

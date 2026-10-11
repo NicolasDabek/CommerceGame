@@ -5,6 +5,7 @@
  * Garde-fous : prix d'annonce bornés, achats plafonnés, budget d'actions quotidien, délais par objet.
  */
 
+import { dailyReview, noteAction, scoreBumps, noteRival, isPersonalRival, markSold, blocksBuyBack, mindView, ensureMind, npcWorth } from './NpcMind.js';
 import { NPCS, getClanById, getNpcProfession } from '../data/npcs.js';
 import { ITEMS, getItemById } from '../data/items.js';
 import { Offer } from '../models/Offer.js';
@@ -244,15 +245,16 @@ export class NPCController {
     NPCS.forEach(npc => {
       const state = this._ensureState(npc);
       if (!state) return;
+      const worthBefore = ensureMind(state).lastWorth != null ? npcWorth(this, state, npc.id) : null;
       state.dayHint = day;
       state.actionsToday = 0;
       state.mood = Math.max(-1, Math.min(1, state.mood * 0.72));
-      state.trust = Math.max(-1, Math.min(1, state.trust * 0.97));
       if (state.capital < npc.capital * 0.12) state.mood = Math.max(-1, state.mood - 0.15);
       if (!this.externalConsumption) this._consume(npc, state);
       this._repairOwnStock(npc, state);
       this._produce(npc, state);
       this._pickFocus(npc, state);
+      dailyReview(this, npc, state, day, worthBefore); // bilan, apprentissage, rivalités, objectif du jour
     });
   }
 
@@ -396,6 +398,7 @@ export class NPCController {
         state.actionsToday += 1;
         state.lastIntent = result.intent || this._intentLabel(result, state);
         state.lastReason = result.reason || null;
+        noteAction(state, result.type);
         this._remember(state, state.lastIntent);
         this._invalidateBooks();
         actions.push(result);
@@ -420,6 +423,7 @@ export class NPCController {
         state.actionsToday += 1;
         state.lastIntent = result.intent || this._intentLabel(result, state);
         state.lastReason = result.reason || null;
+        noteAction(state, result.type);
         this._remember(state, state.lastIntent);
         actions.push(result);
       });
@@ -484,6 +488,8 @@ export class NPCController {
     if (stockQty > target * 1.3) this._bump(scored, 'sell', 0.25);
     if (stockQty < target * 0.4) this._bump(scored, 'buy', 0.16);
     if (this.capitalState(npc, state).id === 'dry') { this._bump(scored, 'sell', 0.3); this._bump(scored, 'fulfill', 0.3); }
+    // Objectif du jour + ce qu'il a appris de ses gains / pertes récents (bornés)
+    for (const [type, add] of Object.entries(scoreBumps(state))) this._bump(scored, type, add);
     scored.sort((a, b) => b.score - a.score);
     for (const option of scored) { const result = option.fn(); if (result) return result; }
     return null;
@@ -512,6 +518,7 @@ export class NPCController {
     if (item && item.id === state.focusItemId) cap += 0.04;
     if (item && preferred && this._qtyOf(state, item.id) === 0) cap += 0.03;
     cap += state.mood * 0.03;
+    cap -= (state.mind?.caution || 0) * 0.06; // prudent après des pertes (max −1,8 %)
     const hardCap = npc.personality === 'collectionneur' && preferred ? NPC_TUNING.collectorCap : NPC_TUNING.buyCapMax;
     return Math.min(hardCap, cap);
   }
@@ -549,6 +556,7 @@ export class NPCController {
       if (this._isPreferred(npc, item)) s += 0.22;
       if (o.itemId === state.focusItemId) s += 0.16;
       if (o.currentBidderId === 'player') s += 0.14 + state.rivalry * 0.18;
+      else if (isPersonalRival(state, o.currentBidderId)) s += 0.08;
       if (this._timeLeftRatio(o, now) < 0.18) s += 0.28;
       best = Math.max(best, s);
     }
@@ -624,6 +632,7 @@ export class NPCController {
     if (sellOffers.length === 0) return null;
     const candidates = [];
     for (const offer of sellOffers) {
+      if (blocksBuyBack(state, offer.itemId, state.dayHint)) continue;
       const item = getItemById(offer.itemId);
       const ref = this.refPrice(offer.itemId, offer.quality, offer.perfection);
       const preferred = this._isPreferred(npc, item);
@@ -658,8 +667,10 @@ export class NPCController {
       return a.dealRatio - b.dealRatio;
     });
     const pick = candidates[0];
+    const outbid = pick.offer.currentBidderId;
     const result = this.executeBid(pick.offer, npc.id, pick.bid);
     if (!result || !result.success) return null;
+    if (outbid && this.npcStates[outbid]) noteRival(this.npcStates[outbid], npc.id, 1); // le surenchéri s'en souviendra
     if (pick.vsPlayer) this.notePlayerDeal(npc.id, true);
     const icon = pick.item?.icon || '';
     return {
@@ -694,6 +705,7 @@ export class NPCController {
     if (!result || !result.success) return null;
     pick.slot.quantity -= pick.qty;
     if (pick.slot.quantity <= 0) state.inventory = state.inventory.filter(s => s !== pick.slot);
+    markSold(state, pick.buy.itemId, state.dayHint);
     if (pick.buy.ownerId === 'player') this.notePlayerDeal(npc.id, true);
     const item = getItemById(pick.buy.itemId);
     const dry = this.capitalState(npc, state).id === 'dry';
@@ -718,6 +730,7 @@ export class NPCController {
       const preferred = this._isPreferred(npc, item);
       return { offer: o, item, ref, preferred, dealRatio: ref > 0 ? o.buyoutPrice / ref : 9, focused: o.itemId === state.focusItemId, cap: this.maxBuyRatio(npc, state, item) };
     }).filter(c => {
+      if (blocksBuyBack(state, c.offer.itemId, state.dayHint)) return false;
       // Réparateur : un objet abîmé vaut la valeur qu'il aura une fois réparé
       if (this.professionOf(npc).repairs && (c.offer.quality ?? 50) < NPC_TUNING.damagedQuality && isRepairable(c.offer.itemId)) {
         const repaired = this.refPrice(c.offer.itemId, 75, Math.min(90, (c.offer.perfection ?? 50) + 15));
@@ -818,10 +831,12 @@ export class NPCController {
     let price = ref * mult;
     const comp = sig.book;
     if (comp.bestSell != null && comp.bestSellerId !== npc.id && comp.bestSell >= ref * 0.85 && comp.bestSell < price) {
-      const rival = this._isRival(npc, comp.bestSellerId);
+      const personal = isPersonalRival(state, comp.bestSellerId);
+      const rival = this._isRival(npc, comp.bestSellerId) || personal;
+      if (this.npcStates[comp.bestSellerId]) noteRival(this.npcStates[comp.bestSellerId], npc.id, 0.5);
       const undercut = npc.personality === 'agressif' || rival ? 0.98 : 0.995;
       price = comp.bestSell * undercut;
-      why.push(rival ? 'casse les prix du clan rival' : 's\'aligne sur la concurrence');
+      why.push(personal ? `casse les prix de son rival ${this.getNpcName(comp.bestSellerId)}` : rival ? 'casse les prix du clan rival' : 's\'aligne sur la concurrence');
     }
     const floor = Math.max(NPC_TUNING.listMin, profile.minSell * 0.88);
     price = Math.min(ref * NPC_TUNING.listMax, Math.max(ref * floor, price));
@@ -882,6 +897,7 @@ export class NPCController {
     }
     slot.quantity -= qty;
     if (slot.quantity <= 0) state.inventory = state.inventory.filter(s => s !== slot);
+    markSold(state, slot.itemId, state.dayHint);
     this.addOffer(offer);
     this.runMatching(offer);
     const ratio = ref > 0 ? price / ref : 1;
@@ -903,7 +919,7 @@ export class NPCController {
       const focus = ITEMS.find(i => i.id === state.focusItemId);
       if (focus && !pool.includes(focus)) pool = [focus, ...pool];
     }
-    pool = pool.filter(i => !liveBuys.some(o => o.itemId === i.id));
+    pool = pool.filter(i => !liveBuys.some(o => o.itemId === i.id) && !blocksBuyBack(state, i.id, state.dayHint));
     if (pool.length === 0) return null;
     const ranked = pool.map(item => {
       const sig = this.marketSignal(item.id);
@@ -986,7 +1002,8 @@ export class NPCController {
       stockLabel: stock > target * 1.5 ? 'Stock trop plein' : stock < target * 0.5 ? 'Stock bas' : 'Stock correct',
       needs,
       actionsToday: state.actionsToday || 0, actionBudget: this.actionBudget(npc),
-      journal: [...(state.journal || [])]
+      journal: [...(state.journal || [])],
+      mind: mindView(this, npc, state)
     };
   }
 

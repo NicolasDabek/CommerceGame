@@ -195,7 +195,16 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000, bo
         txBefore = txCount;
       }
       Object.values(shortSince).forEach(since => shortDurations.push(days + 1 - since));
-      runs.push({ seed, start, series, shortDurations, shortByItem, shortNoListing, cityResolved: game.supplyDemand ? [...game.supplyDemand.resolved] : null, reserveStats: game.reserve ? { ...game.reserve.stats } : null });
+      // IA des marchands (v6) : bilans, prudence, objectifs du jour, rivalités
+      const minds = Object.values(game.npcController.npcStates).map(st => st.mind).filter(Boolean);
+      const npcMind = {
+        pnlPositive: minds.filter(m => m.pnl.reduce((t, v) => t + v, 0) > 0).length,
+        pnlNegative: minds.filter(m => m.pnl.reduce((t, v) => t + v, 0) < 0).length,
+        cautious: minds.filter(m => m.caution > 0.12).length,
+        rivals: minds.filter(m => Object.values(m.rivals).some(v => v >= 2)).length,
+        goals: minds.reduce((acc, m) => { const g = m.goal?.id || 'none'; acc[g] = (acc[g] || 0) + 1; return acc; }, {})
+      };
+      runs.push({ seed, start, series, npcMind, shortDurations, shortByItem, shortNoListing, cityResolved: game.supplyDemand ? [...game.supplyDemand.resolved] : null, reserveStats: game.reserve ? { ...game.reserve.stats } : null });
     }
   } finally {
     Date.now = realNow;
@@ -223,6 +232,13 @@ export function summarize(runs, days, seeds, elapsedMs) {
     days,
     seeds,
     priceStart: 1,
+    npcMind: runs[0]?.npcMind ? {
+      pnlPositive: r3(avg(runs.map(r => r.npcMind.pnlPositive))),
+      pnlNegative: r3(avg(runs.map(r => r.npcMind.pnlNegative))),
+      cautious: r3(avg(runs.map(r => r.npcMind.cautious))),
+      withRival: r3(avg(runs.map(r => r.npcMind.rivals))),
+      goals: runs.reduce((acc, r) => { Object.entries(r.npcMind.goals).forEach(([g, n]) => { acc[g] = (acc[g] || 0) + n; }); return acc; }, {})
+    } : null,
     priceEnd: r3(avg(last.map(l => l.price))),
     priceEndMax: r3(Math.max(...last.map(l => l.priceMax))),
     priceEndMin: r3(Math.min(...last.map(l => l.priceMin))),

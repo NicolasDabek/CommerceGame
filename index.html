@@ -203,6 +203,11 @@
       <section class="panel" id="panel-goals"><div class="panel-header"><h2>Progression</h2><div id="progress-summary"></div></div><div id="career-root" class="career-root"></div><div class="goals-grid" id="goals-grid" hidden></div></section>
       </div>
     </div>
+    <div class="quick-tools" role="toolbar" aria-label="Outils rapides">
+      <button class="qt-btn" id="btn-palette" type="button" title="Rechercher une commande, un objet, un marchand (Ctrl+K ou K)" aria-label="Recherche de commandes">🔍 <kbd>Ctrl K</kbd></button>
+      <button class="qt-btn" id="btn-notes" type="button" title="Notifications : ventes faites par les marchands, alertes, crédit" aria-label="Notifications">🔔<span class="qt-badge" id="notes-badge" hidden>0</span></button>
+      <div class="notes-panel" id="notes-panel" hidden role="region" aria-label="Notifications"></div>
+    </div>
     <div class="modal-overlay hidden" id="modal-overlay"><div class="modal" id="modal"><div class="modal-header"><h3 id="modal-title"></h3><button class="modal-close" id="modal-close">x</button></div><div class="modal-body" id="modal-body"></div><div class="modal-footer" id="modal-footer"></div></div></div>
   </div>
   <script>

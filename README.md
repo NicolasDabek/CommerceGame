@@ -88,6 +88,16 @@ Chaque marchand a un **métier** :
 Tous anticipent (stock qui fond), affichent l'objet absent des étals en premier et réagissent au joueur :
 s'il achète beaucoup un objet, les prix d'annonce montent un peu ; s'il en vend beaucoup, les offres d'achat baissent.
 
+**Esprit des marchands** (`js/systems/NpcMind.js`), visible sur chaque carte :
+- **Objectif du jour** choisi chaque matin avec sa raison : faire de la trésorerie, écouler le surstock, approvisionner la ville
+  (pénurie d'un objet qu'il détient), reconstituer son stock, chasser les bonnes affaires ou routine ;
+- **Bilan sur 7 jours** (trésorerie + stock à la valeur normale + annonces et enchères en cours ; l'usage par la ville n'est pas compté
+  comme une perte) et **apprentissage borné** : ce qui lui a rapporté gagne jusqu'à +0,1 de priorité, ce qui lui a coûté en perd autant ;
+  après des pertes il devient **prudent** (prix max d'achat −1,8 % au plus) ;
+- **Rivalités personnelles** entre marchands (surenchères, prix cassés) : il cherche à battre son rival ; elles s'estompent (−20 %/jour) ;
+- **Réputation du joueur** : la confiance des marchands tend vers réputation/400 (plafond +0,15) ;
+- **Anti-boucle** : un marchand ne rachète pas le jour même un objet qu'il vient de mettre en vente ou de vendre (sauf pénurie).
+
 ## Métiers du joueur & atelier
 
 - Trois métiers progressent de 1 à 5 (0 / 40 / 120 / 250 / 450 XP) : **Réparateur** (fournitures −6 %/niv., temps −10 %/niv.,
@@ -115,6 +125,14 @@ s'il achète beaucoup un objet, les prix d'annonce montent un peu ; s'il en vend
 - La marge du marchand (0–16 %) dépend de sa **confiance**, son humeur, son stock, sa trésorerie, la pénurie ou le surplus en ville, sa personnalité et votre **rang**.
 - Garde-fous : jamais sous **90 %** de la valeur de référence à l'achat, jamais au-dessus de **104 %** à la vente ;
   3 à 5 propositions par marchand et par jour (selon le rang), **2 accords** par marchand et par jour. Le Comptoir ne marchande pas.
+- **Plusieurs tours** : chaque contre-offre se rapproche de sa limite avec des **concessions de plus en plus petites** ;
+  la **patience** du marchand (2 à 6 selon son style et votre historique) baisse à chaque tour (2 pour une offre vexante) : à zéro il **coupe court**
+  pour la journée, mais sa dernière contre-offre reste valable.
+- **Styles** : 🪨 Têtu (prudent, collectionneur), 😊 Arrangeant (épicier, artisan), 🦊 Gourmand (agressif), ⏱️ Pressé (opportuniste).
+- **Mémoire** : il se souvient de vos offres trop basses (−0,5 % de marge chacune, max −3 %, oubli ~30 %/jour) et de vos accords (bon client, jusqu'à +2 %).
+- **Lot entier** (3 objets ou plus) : +2 % de marge. Plancher de 90 % inchangé.
+- Fenêtre : curseur + champ, **chance d'accord estimée en direct**, prix juste et prix conseillé (~70 %) avec raisons, humeur, confiance,
+  patience, historique des tours et résultat expliqué.
 - Aussi : **achat partiel** d'un lot (« Acheter… ») et **vente groupée** depuis le Sac (« Tout vendre… » au-dessus d'un prix minimum).
 
 ## Rangs de réputation
@@ -149,6 +167,18 @@ Les anciens objectifs restent disponibles dans l'onglet « Objectifs libres ».
 `1` Sac · `2` Hôtel de vente · `3` Hôtel d'achat · `4` Halle des prix · `5` Atelier · `6` Marchands · `7` Suivi · `8` Parcours · `9` Carnet ·
 `/` rechercher · `N` nouvelle annonce / offre · `P` pause · `?` ou `H` aide · `Échap` ferme la fenêtre puis le lieu.
 Les filtres, tris et onglets sont mémorisés (préférences locales, séparées de la sauvegarde).
+
+## Interface (v6)
+
+- **Palette de commandes** (`Ctrl+K` ou `K`, bouton 🔍) : lieux, objets (fiche, acheter, vendre, négocier la meilleure annonce, suivre),
+  marchands, crédit, pause, réglages — recherche sans accents, ↑ ↓ Entrée.
+- **Centre de notifications** (🔔) : ventes et achats faits par les marchands sur vos offres, alertes de prix, crédit, chapitres ;
+  filtres, badge non lu, clic = aller au lieu concerné. Gardé localement (50 dernières).
+- **Aperçu rapide** au survol ou au focus clavier de toute ligne d'objet : valeur normale, moyenne et tendance, meilleures offres,
+  offre / demande, votre stock et coût, mini-graphique.
+- **Affichage & accessibilité** (palette ou aide `?`) : taille du texte (90–130 %), contraste renforcé, animations réduites ;
+  cases du Sac au clavier, focus visible, fenêtres qui gardent le focus (Tab) et le rendent à la fermeture.
+- **Listes vides utiles** : « Effacer les filtres » directement dans le tableau.
 
 ## Monde 3D — contrôles
 
@@ -198,8 +228,8 @@ Reset sauvegarde : bouton **Reset** ou `localStorage.clear(); location.reload();
 │   ├── main.js
 │   ├── core/          # Game, Economy, SupplyDemand, condition (état des objets), TimeManager, GamePatch
 │   ├── models/
-│   ├── systems/       # PNJ, Comptoir, JobBoard (métiers/atelier), TradingDesk (suivi/ordres/bilan), Negotiation, Credit, Career…
-│   ├── ui/
+│   ├── systems/       # PNJ (+ NpcMind), Comptoir, JobBoard (métiers/atelier), TradingDesk (suivi/ordres/bilan), Negotiation, Credit, Career…
+│   ├── ui/            # … + CommandPalette, Notifications, ItemPreview, A11y, NegotiationUI
 │   ├── world/         # TownWorld (place 3D) + mount (branchement sur index.html)
 │   ├── data/
 │   └── utils/storage.js

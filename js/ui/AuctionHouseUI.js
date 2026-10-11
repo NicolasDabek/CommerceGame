@@ -139,7 +139,7 @@ export class AuctionHouseUI {
     if (filtered.length === 0) {
       this.tbody.innerHTML = `
         <tr class="empty-row">
-          <td colspan="8">Aucune annonce ne correspond aux filtres</td>
+          <td colspan="8"><div class="empty-state">🔍 Aucune annonce ne correspond aux filtres.${this.query || this.category !== 'all' || this.bestOnly ? ' <button class="btn btn-small btn-ghost" data-reset-filters="auction">Effacer les filtres</button>' : ' Les marchands publient de nouvelles annonces au fil de la journée.'}</div></td>
         </tr>
       `;
       return;
@@ -227,7 +227,7 @@ export class AuctionHouseUI {
     const rowClass = offer.buyoutPrice != null && avg != null && offer.buyoutPrice < avg * 0.95 ? 'row-deal' : '';
 
     return `
-      <tr class="${rowClass}">
+      <tr class="${rowClass}" data-item-id="${offer.itemId}" data-q="${offer.quality}" data-p="${offer.perfection}">
         <td>${itemName}<br><small class="text-muted">Q${offer.quality} P${offer.perfection}</small>${ownedBit}</td>
         <td>${offer.quantity}</td>
         <td>${bidCell}</td>

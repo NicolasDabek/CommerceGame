@@ -16,50 +16,106 @@ function trustBar(trust) {
   return `<span class="trust-bar" title="Confiance de −100 (méfiant) à +100 (vous fait confiance). Elle monte quand vous commercez avec lui à prix correct, baisse si vous le vexez."><i class="${cls}" style="left:${left}%;width:${width}%"></i><b></b></span> <strong>${pct > 0 ? '+' : ''}${pct}</strong>`;
 }
 
+function moodFace(mood) {
+  if (mood > 0.35) return { icon: '😄', label: 'de bonne humeur' };
+  if (mood < -0.35) return { icon: '😠', label: 'tendu' };
+  if (mood < -0.1) return { icon: '😕', label: 'un peu tendu' };
+  return { icon: '🙂', label: 'calme' };
+}
+
+function patienceBar(q) {
+  const max = Math.max(1, q.patienceMax || 1);
+  const left = Math.max(0, q.patience ?? max);
+  const dots = Array.from({ length: max }, (_, i) => `<i class="${i < left ? 'on' : ''}"></i>`).join('');
+  return `<span class="patience-bar" title="Patience : chaque proposition refusée ou contre-offre en consomme 1, une offre vexante 2. À zéro, il coupe court pour la journée (sa dernière contre-offre reste valable).">${dots}</span> <small class="text-muted">${left}/${max}</small>`;
+}
+
+const OUTCOME_ICON = { counter: '🔁', refused: '✋', insult: '😤', accepted: '✅' };
+
+function roundsHtml(q) {
+  if (!q.rounds?.length) return '<p class="text-muted neg-rounds-empty">Aucune proposition pour l\'instant.</p>';
+  return `<ol class="neg-rounds">${q.rounds.map((r, i) => {
+    const npcPart = r.outcome === 'counter'
+      ? `→ il propose <strong>${formatMoney(r.counter)} €</strong> <small class="text-muted">(concession ${formatMoney(r.concession)} €)</small>`
+      : r.outcome === 'accepted' ? '→ <strong class="text-success">accord</strong>'
+        : r.outcome === 'insult' ? '→ <strong class="text-danger">vexé</strong>' : '→ refus';
+    return `<li><span class="neg-round-n">${i + 1}</span> ${OUTCOME_ICON[r.outcome] || ''} vous : ${formatMoney(r.price)} € ${npcPart}</li>`;
+  }).join('')}</ol>`;
+}
+
 /**
- * @param {{game:object, Modal:object, setStatus:Function, refresh:Function, offerId:string}} ctx
+ * Fenêtre de marchandage (plusieurs tours). Rouverte après chaque réponse pour afficher
+ * l'historique, la patience et la nouvelle estimation.
+ * @param {{game:object, Modal:object, setStatus:Function, refresh:Function, offerId:string, last?:object, keep?:{price:number, qty:number}, notify?:Function}} ctx
  */
-export function openNegotiationModal({ game, Modal, setStatus, refresh, offerId }) {
+export function openNegotiationModal(ctx) {
+  const { game, Modal, setStatus, refresh, offerId, last = null, keep = null, notify = null } = ctx;
   const q = game.getNegotiationQuote(offerId);
   if (!q.ok) { setStatus(q.error); return; }
   const isBuy = q.kind === 'buy';
   const sign = isBuy ? -1 : 1;
   const supply = game.getSupplyView?.(q.itemId);
-  const defaultPrice = q.counter ?? r2(q.ask * (1 + sign * Math.min(0.06, Math.max(0.02, q.flex * 0.7))));
-  const quick = [0.03, 0.06, 0.1].map(p => `<button type="button" class="btn btn-small btn-ghost" data-neg-pct="${p}">${isBuy ? '−' : '+'}${Math.round(p * 100)} %</button>`).join('');
+  const defaultPrice = keep?.price ?? q.counter ?? q.suggested ?? r2(q.ask * (1 + sign * 0.04));
+  const lo = isBuy ? r2(q.ask * 0.78) : q.ask;
+  const hi = isBuy ? q.ask : r2(q.ask * 1.15);
   const reasons = q.reasons.length ? q.reasons.join(' · ') : 'rien de particulier';
   const blockedMsg = q.blocked || q.haggleBlocked;
+  const face = moodFace(q.mood);
+  const memo = q.memory?.bluffs >= 1 ? `<span class="mini-chip chip-warn" title="Il se souvient de vos offres trop basses (oubli progressif, environ −30 % par jour) : sa marge est réduite.">🧠 Se souvient de ${Math.round(q.memory.bluffs)} offre(s) trop basse(s)</span>`
+    : q.memory?.deals >= 1 ? `<span class="mini-chip chip-good" title="Accords passés avec lui : un peu plus de marge et de patience.">🧠 Bon client (${q.memory.deals} accord${q.memory.deals > 1 ? 's' : ''})</span>` : '';
+  const offer = game.offers.find(o => o.id === offerId);
+  const lastHtml = last ? `<div id="neg-response" class="neg-response ${last.error ? 'neg-error' : last.outcome === 'counter' ? 'neg-counter' : last.insulted ? 'neg-error' : 'neg-refused'}" role="status" aria-live="polite">
+      <span class="neg-result-icon">${last.error ? '⚠️' : OUTCOME_ICON[last.insulted ? 'insult' : last.outcome] || ''}</span> ${last.error || last.message}
+      ${!last.error && q.counter ? ` <button class="btn btn-small btn-success" data-neg-accept="${q.counter}">Accepter ${formatMoney(q.counter)} €</button>` : ''}</div>`
+    : `<div id="neg-response" class="neg-response neg-counter" ${q.counter ? '' : 'hidden'} role="status" aria-live="polite">${q.counter ? `${q.npcName} vous a proposé <strong>${formatMoney(q.counter)} €</strong> aujourd'hui. <button class="btn btn-small btn-success" data-neg-accept="${q.counter}">Accepter ${formatMoney(q.counter)} €</button>` : ''}</div>`;
   const body = `
-    <div class="neg-head">
-      <p>${isBuy ? 'Prix demandé' : 'Son offre'} : <strong class="text-money">${formatMoney(q.ask)} €</strong> l'unité
-        <span class="text-muted">· ${isBuy ? `${q.quantity} en vente` : `demande ${q.quantity} · vous en avez ${q.maxQty} éligible(s)`}</span>
-        ${isBuy && game.offers.find(o => o.id === offerId)?.buyoutPrice == null ? '<br><small class="text-muted" title="Annonce sans achat immédiat : le marchand accepte de vendre tout de suite un peu au-dessus du prix de départ.">Pas d\'achat immédiat sur l\'annonce : prix demandé pour une vente tout de suite.</small>' : ''}
-      </p>
+    <div class="neg-merchant">
+      <div class="neg-face" aria-hidden="true">${face.icon}</div>
+      <div class="neg-merchant-info">
+        <strong>${q.npcName}</strong> <span class="mini-chip" title="${q.style.text}">${q.style.icon} ${q.style.label}</span> ${memo}
+        <div class="neg-bars">
+          <span>Humeur : ${face.label}</span>
+          <span>Confiance ${trustBar(q.trust)}</span>
+          <span>Patience ${patienceBar(q)}</span>
+        </div>
+      </div>
     </div>
     <div class="insight-card compact neg-card">
       <div class="neg-grid">
-        <span title="Prix que le marchand juge normal pour cet objet dans cet état (moyenne du marché + valeur normale).">Valeur de référence</span><strong>${formatMoney(q.ref)} €</strong>
-        <span>Prix moyen du marché</span><strong>${formatMoney(q.average)} €</strong>
+        <span>${isBuy ? 'Prix demandé' : 'Son offre'}</span><strong class="text-money">${formatMoney(q.ask)} € <small class="text-muted">· ${isBuy ? `${q.quantity} en vente` : `${q.maxQty} éligible(s) chez vous`}</small></strong>
+        <span title="Prix que le marchand juge normal pour cet objet dans cet état.">Valeur de référence</span><strong>${formatMoney(q.ref)} € <small class="text-muted">· moyenne ${formatMoney(q.average)} €</small></strong>
         <span>Offre / demande</span><span>${supply ? supplyChipHtml(supply) : '—'}</span>
-        <span>Confiance de ${q.npcName}</span><span>${trustBar(q.trust)}</span>
-        <span title="Estimation de ce que le marchand peut lâcher. Facteurs : ${reasons}.">Marge de manœuvre</span><span><strong class="neg-flex neg-flex-${q.flexLabel.replace(/\s/g, '-')}">${q.flexLabel}</strong> <small class="text-muted">(≈ ${q.flexPct} % · ${reasons})</small></span>
-        <span title="Chaque proposition compte, sauf accepter une contre-offre ou payer le prix demandé. Le rang de réputation donne des essais en plus.">Essais aujourd'hui</span><span><strong id="neg-tries">${q.triesLeft}</strong> / ${q.triesPerDay} · accords restants ${q.dealsLeft}</span>
+        <span title="Ce que le marchand peut lâcher. Facteurs : ${reasons}.">Marge de manœuvre</span><span><strong class="neg-flex neg-flex-${q.flexLabel.replace(/\s/g, '-')}">${q.flexLabel}</strong> <small class="text-muted">(≈ ${q.flexPct} % · ${reasons})</small></span>
+        <span title="Propositions possibles aujourd'hui avec ce marchand (selon votre rang).">Essais</span><span><strong id="neg-tries">${q.triesLeft}</strong> / ${q.triesPerDay} · accords restants ${q.dealsLeft}</span>
       </div>
     </div>
-    ${q.noRoom ? `<p class="neg-note">${isBuy ? 'Ce prix est déjà au plancher du marchand : pas de rabais possible, mais vous pouvez acheter au prix demandé.' : 'Cette offre est déjà au maximum de ce qu\'il peut payer.'}</p>` : ''}
+    ${q.noRoom ? `<p class="neg-note">${isBuy ? 'Déjà au plancher du marchand : pas de rabais possible, mais vous pouvez acheter au prix demandé.' : 'Déjà au maximum de ce qu\'il peut payer.'}</p>` : ''}
     ${blockedMsg ? `<p class="neg-note neg-warn">${blockedMsg}</p>` : ''}
+    <div class="neg-advice">
+      <button type="button" class="btn btn-small btn-ghost" data-neg-set="${q.fair}" title="Prix juste : ${q.fairReasons.join(' · ')}">⚖️ Prix juste ${formatMoney(q.fair)} €</button>
+      ${q.suggested != null && !q.noRoom ? `<button type="button" class="btn btn-small btn-ghost" data-neg-set="${q.suggested}" title="Prix qui a environ 70 % de chances d'être accepté d'après la marge estimée">🎯 Conseillé ${formatMoney(q.suggested)} €</button>` : ''}
+      ${[0.03, 0.06, 0.1].map(p => `<button type="button" class="btn btn-small btn-ghost" data-neg-set="${r2(q.ask * (1 + sign * p))}">${isBuy ? '−' : '+'}${Math.round(p * 100)} %</button>`).join('')}
+    </div>
     <div class="form-row">
-      <div class="form-group"><label>${isBuy ? 'Votre prix unitaire (€)' : 'Prix unitaire demandé (€)'}</label>
-        <input type="number" id="neg-price" class="input" step="0.01" min="0.01" value="${defaultPrice.toFixed(2)}" style="width:100%" />
-        <div class="qty-quick">${quick}</div>
+      <div class="form-group neg-price-group"><label for="neg-price">${isBuy ? 'Votre prix unitaire (€)' : 'Prix unitaire demandé (€)'}</label>
+        <div class="neg-price-line">
+          <input type="range" id="neg-slider" min="${lo}" max="${hi}" step="0.01" value="${Math.min(hi, Math.max(lo, defaultPrice))}" aria-label="Ajuster le prix" />
+          <input type="number" id="neg-price" class="input" step="0.01" min="0.01" value="${Number(defaultPrice).toFixed(2)}" />
+        </div>
       </div>
-      <div class="form-group"><label>Quantité</label>
-        <input type="number" id="neg-qty" class="input" value="1" min="1" max="${Math.max(1, q.maxQty)}" style="width:100%" />${qtyQuickButtons('neg-qty', Math.max(1, q.maxQty))}
+      <div class="form-group"><label for="neg-qty">Quantité</label>
+        <input type="number" id="neg-qty" class="input" value="${keep?.qty ?? 1}" min="1" max="${Math.max(1, q.maxQty)}" style="width:100%" />${qtyQuickButtons('neg-qty', Math.max(1, q.maxQty))}
+        ${q.bundleQty && q.bundleQty <= q.maxQty ? `<button type="button" class="btn btn-small btn-ghost" id="neg-bundle" title="Prendre tout le lot donne ${q.bundleFlexPct} % de marge en plus au marchand">📦 Lot entier ×${q.bundleQty} (+${q.bundleFlexPct} %)</button>` : ''}
       </div>
+    </div>
+    <div class="chance-meter" id="neg-chance" title="Estimation d'après la marge du marchand (son humeur exacte du jour reste inconnue, ± 1,5 %).">
+      <div class="chance-track"><span id="neg-chance-fill"></span></div>
+      <span id="neg-chance-label"></span>
     </div>
     <p class="text-muted neg-preview" id="neg-preview"></p>
-    <div id="neg-response" class="neg-response" ${q.counter ? '' : 'hidden'}>${q.counter ? `${q.npcName} vous a proposé <strong>${formatMoney(q.counter)} €</strong> aujourd'hui. <button class="btn btn-small btn-success" data-neg-accept="${q.counter}">Accepter ${formatMoney(q.counter)} €</button>` : ''}</div>
-    <p class="text-muted neg-help">Astuce : une proposition trop éloignée vexe le marchand (confiance en baisse). Une proposition proche déclenche une contre-offre.</p>`;
+    ${lastHtml}
+    <details class="neg-history" ${q.rounds?.length ? 'open' : ''}><summary>Historique des tours (${q.rounds?.length || 0})</summary>${roundsHtml(q)}</details>
+    <p class="text-muted neg-help">Chaque contre-offre est plus petite que la précédente. Une offre trop basse le vexe, et il s'en souviendra quelques jours.${offer?.buyoutPrice == null && isBuy ? ' Annonce sans achat immédiat : prix demandé pour une vente tout de suite.' : ''}</p>`;
 
   const buttons = [{ label: 'Fermer', className: 'btn-ghost', onClick: () => Modal.close() }];
   if (!q.blocked) {
@@ -70,9 +126,12 @@ export function openNegotiationModal({ game, Modal, setStatus, refresh, offerId 
 
   const root = document.getElementById('modal-body');
   const priceEl = root.querySelector('#neg-price');
+  const sliderEl = root.querySelector('#neg-slider');
   const qtyEl = root.querySelector('#neg-qty');
   const previewEl = root.querySelector('#neg-preview');
-  const respEl = root.querySelector('#neg-response');
+  const fillEl = root.querySelector('#neg-chance-fill');
+  const chanceLabel = root.querySelector('#neg-chance-label');
+  const chanceBox = root.querySelector('#neg-chance');
   wireQtyQuick(root);
 
   const updatePreview = () => {
@@ -84,44 +143,43 @@ export function openNegotiationModal({ game, Modal, setStatus, refresh, offerId 
     previewEl.innerHTML = isBuy
       ? `Total : <strong>${formatMoney(total)} €</strong> · économie vs prix demandé : <strong class="${diff >= 0 ? 'text-success' : 'text-danger'}">${formatMoney(diff)} €</strong> · ${pctTxt(vsRef)} % vs référence`
       : `Total reçu : <strong class="text-money">${formatMoney(total)} €</strong> · gain vs son offre : <strong class="${diff >= 0 ? 'text-success' : 'text-danger'}">${formatMoney(diff)} €</strong> · ${pctTxt(vsRef)} % vs référence`;
+    const est = game.getNegotiationChance ? game.getNegotiationChance(offerId, price, qty) : null;
+    if (est && fillEl) {
+      const pct = Math.round(est.chance * 100);
+      fillEl.style.width = `${pct}%`;
+      chanceBox.dataset.zone = est.zone;
+      chanceLabel.innerHTML = `<strong>${pct} %</strong> · ${est.label}`;
+    }
   };
-  priceEl.addEventListener('input', updatePreview);
+  priceEl.addEventListener('input', () => { if (sliderEl) sliderEl.value = priceEl.value; updatePreview(); });
+  sliderEl?.addEventListener('input', () => { priceEl.value = Number(sliderEl.value).toFixed(2); updatePreview(); });
   qtyEl.addEventListener('input', updatePreview);
-  root.querySelectorAll('[data-neg-pct]').forEach(b => b.addEventListener('click', () => {
-    priceEl.value = r2(q.ask * (1 + sign * Number(b.dataset.negPct))).toFixed(2);
+  root.querySelectorAll('[data-neg-set]').forEach(b => b.addEventListener('click', () => {
+    priceEl.value = Number(b.dataset.negSet).toFixed(2);
+    if (sliderEl) sliderEl.value = priceEl.value;
     updatePreview();
   }));
+  root.querySelector('#neg-bundle')?.addEventListener('click', () => { qtyEl.value = String(q.bundleQty); updatePreview(); });
+  root.querySelectorAll('.qty-quick button').forEach(b => b.addEventListener('click', () => setTimeout(updatePreview, 0)));
+  priceEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !q.haggleBlocked && !q.noRoom && !q.blocked) submit(null, false); });
   updatePreview();
-
-  const wireAccept = () => {
-    respEl.querySelector('[data-neg-accept]')?.addEventListener('click', (e) => submit(Number(e.currentTarget.dataset.negAccept), true));
-  };
-  wireAccept();
+  root.querySelector('[data-neg-accept]')?.addEventListener('click', (e) => submit(Number(e.currentTarget.dataset.negAccept), true));
 
   function submit(forcedPrice, acceptCounter, direct = false) {
     const price = forcedPrice != null ? forcedPrice : Number(priceEl.value);
     const qty = Math.max(1, Math.floor(Number(qtyEl.value) || 1));
     const res = game.negotiate(offerId, price, qty, { acceptCounter });
-    if (!res.success) {
-      respEl.hidden = false;
-      respEl.className = 'neg-response neg-error';
-      respEl.textContent = res.error;
-      return;
-    }
-    if (res.outcome === 'accepted') {
+    if (res.success && res.outcome === 'accepted') {
       Modal.close();
       const gain = res.gain > 0 ? ` · ${isBuy ? 'économie' : 'gain'} ${formatMoney(res.gain)} €` : '';
-      setStatus(`${res.message}${direct ? '' : gain}`);
+      const msg = `${res.message}${direct ? '' : gain}`;
+      setStatus(msg);
+      notify?.({ icon: '🤝', text: msg, kind: 'deal' });
       refresh();
       return;
     }
-    respEl.hidden = false;
-    respEl.className = `neg-response ${res.outcome === 'counter' ? 'neg-counter' : res.insulted ? 'neg-error' : 'neg-refused'}`;
-    respEl.innerHTML = `${res.message}${res.outcome === 'counter' ? ` <button class="btn btn-small btn-success" data-neg-accept="${res.counter}">Accepter ${formatMoney(res.counter)} €</button>` : ''}`;
-    wireAccept();
-    const triesEl = root.querySelector('#neg-tries');
-    if (triesEl && res.triesLeft != null) triesEl.textContent = String(res.triesLeft);
-    refresh();
+    if (res.success) refresh();
+    openNegotiationModal({ ...ctx, last: res.success ? res : { error: res.error }, keep: { price, qty } });
   }
 }
 
