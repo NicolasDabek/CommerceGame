@@ -180,6 +180,25 @@ Les filtres, tris et onglets sont mémorisés (préférences locales, séparées
   cases du Sac au clavier, focus visible, fenêtres qui gardent le focus (Tab) et le rendent à la fermeture.
 - **Listes vides utiles** : « Effacer les filtres » directement dans le tableau.
 
+## Nouveautés v7
+
+**Marchandage**
+- **Attitude du marchand** : un indice (😏 il a de la marge, 🧐 pas d'humeur, 💸 caisse vide, ⏳ patience à bout…) dans la fenêtre de négociation.
+- **Arguments** (un par discussion, coûte 1 de patience) : concurrent moins cher, quantité, client fidèle, signaler un défaut, « la ville en manque ». Vrai → +1 à +3 % de marge (selon le style du marchand) ; faux → confiance, humeur et patience en baisse. Les planchers (90 % du prix de référence) restent inchangés.
+- **Carnet de marchandage** : vos dernières affaires avec ce marchand dans la fenêtre, et le carnet complet dans Parcours → Rang.
+- Répliques variées selon le style (têtu, arrangeant, gourmand, pressé).
+
+**Interface**
+- **⚖️ Comparateur de marchands** (Halle des prix ou palette) : toutes les annonces et offres pour un objet, avec style, confiance, attitude et bouton « Marchander ».
+- **📈 Historique des prix** : courbe SVG avec zoom 7 j / 30 j / tout, prix juste en pointillés, valeur au survol.
+- **Mise en page mobile** (≤ 640 px) pour les fenêtres, tableaux et demandes.
+
+**IA des marchands**
+- **Demandes au joueur** (panneau Marchands, « 📜 Demandes ») : quand un objet de leur spécialité manque, ils demandent 1–3 unités (Q40+) à 105 % de leur prix de référence (≤ 110 % du prix juste), 2 jours, 3 demandes max. Ils paient de leur trésorerie : aucune création d'argent. +1 réputation, +confiance.
+- **Objectifs liés aux événements** : « Profiter d'un événement » (vend plus pendant une hausse sur sa spécialité) ou « Acheter pendant la baisse ».
+- **Coordination de clan** : un marchand ne casse plus les prix d'un membre de son clan, il s'aligne.
+- **Fil « Entre marchands »** dans la Halle des prix : les derniers échanges entre marchands.
+
 ## Monde 3D — contrôles
 
 - **ZQSD** (AZERTY) / **WASD** (QWERTY) ou **flèches** : marcher (la caméra suit)

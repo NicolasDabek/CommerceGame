@@ -16,8 +16,9 @@ import { run as runCareer } from './career.test.js';
 import { run as runHaggle } from './haggle.test.js';
 import { run as runNpcMind } from './npcmind.test.js';
 import { run as runUx } from './ux.test.js';
+import { run as runV7 } from './v7.test.js';
 
-const suites = [runMatching, runEconomy, runInventory, runAuction, runInsight, runNpc, runReserve, runSupply, runProfessions, runJobs, runTrading, runNegotiation, runCredit, runCareer, runHaggle, runNpcMind, runUx, runStability];
+const suites = [runMatching, runEconomy, runInventory, runAuction, runInsight, runNpc, runReserve, runSupply, runProfessions, runJobs, runTrading, runNegotiation, runCredit, runCareer, runHaggle, runNpcMind, runUx, runV7, runStability];
 let failed = 0;
 
 for (const suite of suites) {

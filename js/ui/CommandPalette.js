@@ -72,12 +72,15 @@ export class CommandPalette {
     cmds.push({ title: 'Raccourcis clavier & aide', icon: '⌨️', hint: '?', keywords: 'aide help touches', run: () => a.openHelp() });
     cmds.push({ title: 'Affichage & accessibilité', icon: '👁️', keywords: 'taille texte contraste animations accessibilite reglages', pinned: true, run: () => a.openSettings() });
     cmds.push({ title: 'Notifications', icon: '🔔', keywords: 'notifications historique alertes', run: () => a.openNotes() });
+    if (a.openRequests) cmds.push({ title: 'Demandes des marchands', icon: '📜', keywords: 'demandes commandes livrer requetes', run: () => a.openRequests() });
     for (const item of ITEMS) {
       const owned = g.inventory.count(item.id);
       const ins = g.getItemInsight(item.id);
       const kw = `${item.category} objet`;
       cmds.push({ title: `${item.name} — fiche dans la Halle des prix`, icon: item.icon, keywords: `${kw} prix halle marche`, hint: `${String(ins.average.toFixed(2)).replace('.', ',')} €`, rank: 0.2, run: () => a.searchIn('market', item.name) });
       if (ins.bestSell != null) cmds.push({ title: `Acheter ${item.name}`, icon: '🛒', keywords: `${kw} achat annonce`, hint: `dès ${String(ins.bestSell.toFixed(2)).replace('.', ',')} €`, rank: 0.4, run: () => a.searchIn('auction', item.name) });
+      if (a.compare) cmds.push({ title: `Comparer les marchands : ${item.name}`, icon: '⚖️', keywords: `${kw} comparer comparateur marchands`, rank: 0.6, run: () => a.compare(item.id) });
+      if (a.chart) cmds.push({ title: `Historique des prix : ${item.name}`, icon: '📈', keywords: `${kw} graphique courbe historique`, rank: 0.7, run: () => a.chart(item.id) });
       if (owned > 0) cmds.push({ title: `Vendre ${item.name} (${owned} en stock)`, icon: '💰', keywords: `${kw} vente offre d'achat`, hint: ins.bestBuy != null ? `jusqu'à ${String(ins.bestBuy.toFixed(2)).replace('.', ',')} €` : 'aucune offre', rank: 0.3, run: () => a.searchIn('buyhouse', item.name) });
       const best = g.getActiveSellOffers().filter(o => o.itemId === item.id && o.ownerId !== 'player' && o.ownerId !== 'city' && o.currentBid == null)
         .sort((x, y) => (x.buyoutPrice ?? x.price) - (y.buyoutPrice ?? y.price))[0];
