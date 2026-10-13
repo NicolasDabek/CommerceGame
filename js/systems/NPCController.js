@@ -831,6 +831,15 @@ export class NPCController {
     let price = ref * mult;
     const comp = sig.book;
     if (comp.bestSell != null && comp.bestSellerId !== npc.id && comp.bestSell >= ref * 0.85 && comp.bestSell < price) {
+      const mate = NPCS.find(n => n.id === comp.bestSellerId);
+      if (mate && npc.clanId && mate.clanId === npc.clanId && !isPersonalRival(state, comp.bestSellerId)) {
+        // Coordination de clan : on ne casse pas les prix d'un membre du même clan, on s'aligne.
+        price = comp.bestSell;
+        why.push(`s'aligne sur ${this.getNpcName(comp.bestSellerId)} (même clan)`);
+        const floor0 = Math.max(NPC_TUNING.listMin, profile.minSell * 0.88);
+        price = Math.min(ref * NPC_TUNING.listMax, Math.max(ref * floor0, price));
+        return { price: Math.max(0.01, round2(price)), ref, why, clanAligned: true };
+      }
       const personal = isPersonalRival(state, comp.bestSellerId);
       const rival = this._isRival(npc, comp.bestSellerId) || personal;
       if (this.npcStates[comp.bestSellerId]) noteRival(this.npcStates[comp.bestSellerId], npc.id, 0.5);

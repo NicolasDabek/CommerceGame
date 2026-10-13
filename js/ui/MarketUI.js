@@ -160,7 +160,8 @@ export class MarketUI {
       : '';
     return `
       <tr class="${dealClass}" data-item-row="${row.item.id}" data-item-id="${row.item.id}">
-        <td>${star}${item?.icon || ''} ${item?.name || row.item.id}<br><small class="text-muted">${row.item.category} · ${row.item.rarity}</small></td>
+        <td>${star}${item?.icon || ''} ${item?.name || row.item.id}<br><small class="text-muted">${row.item.category} · ${row.item.rarity}</small>
+          <span class="row-tools"><button class="btn-link" data-compare="${row.item.id}" title="Comparer les marchands" aria-label="Comparer les marchands pour ${item?.name || row.item.id}">⚖️</button><button class="btn-link" data-chart="${row.item.id}" title="Historique des prix" aria-label="Historique des prix de ${item?.name || row.item.id}">📈</button></span></td>
         <td class="text-money">${formatMoney(row.average)} €${row.explanation ? `<br>${priceWhyChip(row.explanation)}` : ''}</td>
         <td>${supplyCellHtml(row.supply)}</td>
         <td class="text-muted">${hiLo}</td>

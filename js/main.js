@@ -7,6 +7,7 @@ import { AuctionHouseUI } from './ui/AuctionHouseUI.js';
 import { BuyHouseUI } from './ui/BuyHouseUI.js';
 import { InventoryUI } from './ui/InventoryUI.js';
 import { MarketUI } from './ui/MarketUI.js';
+import { MarketTools } from './ui/MarketTools.js';
 import { NpcUI } from './ui/NpcUI.js';
 import { GoalsUI } from './ui/GoalsUI.js';
 import { JobsUI } from './ui/JobsUI.js';
@@ -382,6 +383,7 @@ function openFulfillModal(offerId, maxQty) {
 
 let historyUI, auctionUI, buyUI, inventoryUI, marketUI, npcUI, goalsUI, jobsUI, tradingUI, careerUI, shortcuts;
 let notes = null;
+let marketTools = null;
 const negCtx = () => ({ game, Modal, setStatus, refresh: () => refreshAllUI(), notify: (n) => notes?.push(n) });
 function openNegotiation(offerId) {
   if (!game.getNegotiationQuote) { setStatus('Marchandage indisponible'); return; }
@@ -495,6 +497,7 @@ function initUI() {
     getRank: () => (game.getRankView ? game.getRankView() : null),
     getNetWorth: () => (game.getNetWorth ? game.getNetWorth() : null),
     getNegotiation: () => game.negotiation?.stats || null,
+    getHaggleJournal: () => game.getHaggleJournal?.(null, 12) || [],
     onGo: (panel) => window.showWorldPanel?.(panel),
     onShowGoals: () => goalsUI?.render(),
     prefs: UiPrefs
@@ -578,7 +581,7 @@ function refreshAllUI() {
   historyUI?.render(); auctionUI?.render(); buyUI?.render(); inventoryUI?.render();
   marketUI?.render(); npcUI?.render(); jobsUI?.render();
   goalsUI?.render(); careerUI?.render();
-  tradingUI?.render(); renderHistorySummary();
+  tradingUI?.render(); renderHistorySummary(); marketTools?.render();
 }
 window.addEventListener('panel-changed', (e) => {
   const panel = e.detail?.panel;
@@ -672,6 +675,8 @@ function init() {
     notes.push({ text: msg, panel: /crédit/i.test(msg) ? 'trading' : /chapitre/i.test(msg) ? 'goals' : /^🔔/.test(msg) ? 'trading' : null });
   };
   new ItemPreview({ game });
+  marketTools = new MarketTools({ game, Modal, setStatus, openNegotiation: (id) => openNegotiation(id), refresh: () => refreshAllUI() });
+  marketTools.render();
   const palette = new CommandPalette({
     game,
     actions: {
@@ -692,7 +697,10 @@ function init() {
       openHelp: () => shortcuts.openHelp(),
       openSettings: () => openA11yModal({ Modal, prefs: UiPrefs, setStatus }),
       togglePause: () => shortcuts.togglePause(),
-      openNotes: () => notes.open()
+      openNotes: () => notes.open(),
+      compare: (itemId) => marketTools?.openCompare(itemId),
+      chart: (itemId) => marketTools?.openChart(itemId),
+      openRequests: () => window.showWorldPanel?.('npcs')
     }
   });
   document.getElementById('btn-palette')?.addEventListener('click', () => palette.open());

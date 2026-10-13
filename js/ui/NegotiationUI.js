@@ -80,6 +80,7 @@ export function openNegotiationModal(ctx) {
         </div>
       </div>
     </div>
+    <p class="neg-tell" title="Langage corporel : un indice sur son humeur cachée du jour, jamais le prix exact">${q.tell.icon} <em>${q.tell.text}</em></p>
     <div class="insight-card compact neg-card">
       <div class="neg-grid">
         <span>${isBuy ? 'Prix demandé' : 'Son offre'}</span><strong class="text-money">${formatMoney(q.ask)} € <small class="text-muted">· ${isBuy ? `${q.quantity} en vente` : `${q.maxQty} éligible(s) chez vous`}</small></strong>
@@ -108,6 +109,11 @@ export function openNegotiationModal(ctx) {
         ${q.bundleQty && q.bundleQty <= q.maxQty ? `<button type="button" class="btn btn-small btn-ghost" id="neg-bundle" title="Prendre tout le lot donne ${q.bundleFlexPct} % de marge en plus au marchand">📦 Lot entier ×${q.bundleQty} (+${q.bundleFlexPct} %)</button>` : ''}
       </div>
     </div>
+    <div class="neg-tactics" role="group" aria-label="Arguments">
+      <span class="text-muted">Argument (1 par discussion, coûte 1 de patience) :</span>
+      ${q.tacticUsed ? `<span class="mini-chip ${q.tacticUsed.valid ? 'chip-good' : 'chip-bad'}">${q.tacticUsed.valid ? '✓' : '✗'} ${q.tacticUsed.label}${q.tacticUsed.valid ? ` +${(q.tacticUsed.bonus * 100).toFixed(1).replace('.', ',')} %` : ''}</span>`
+        : q.tactics.map(t => `<button type="button" class="btn btn-small btn-ghost" data-neg-tactic="${t.id}" title="${t.text} Risque : ${t.risk}." ${q.haggleBlocked || q.blocked ? 'disabled' : ''}>${t.icon} ${t.label}</button>`).join('')}
+    </div>
     <div class="chance-meter" id="neg-chance" title="Estimation d'après la marge du marchand (son humeur exacte du jour reste inconnue, ± 1,5 %).">
       <div class="chance-track"><span id="neg-chance-fill"></span></div>
       <span id="neg-chance-label"></span>
@@ -115,6 +121,7 @@ export function openNegotiationModal(ctx) {
     <p class="text-muted neg-preview" id="neg-preview"></p>
     ${lastHtml}
     <details class="neg-history" ${q.rounds?.length ? 'open' : ''}><summary>Historique des tours (${q.rounds?.length || 0})</summary>${roundsHtml(q)}</details>
+    ${q.history?.length ? `<details class="neg-history"><summary>Vos dernières affaires avec ${q.npcName} (${q.history.length})</summary><ul class="neg-journal">${q.history.map(h => `<li>J${h.day} · ${h.icon} ${h.itemName} · <strong>${h.outcome}</strong>${h.price != null ? ` à ${formatMoney(h.price)} €` : ''}${h.gain ? ` <small class="text-success">(${formatMoney(h.gain)} € gagnés)</small>` : ''}</li>`).join('')}</ul></details>` : ''}
     <p class="text-muted neg-help">Chaque contre-offre est plus petite que la précédente. Une offre trop basse le vexe, et il s'en souviendra quelques jours.${offer?.buyoutPrice == null && isBuy ? ' Annonce sans achat immédiat : prix demandé pour une vente tout de suite.' : ''}</p>`;
 
   const buttons = [{ label: 'Fermer', className: 'btn-ghost', onClick: () => Modal.close() }];
@@ -163,7 +170,13 @@ export function openNegotiationModal(ctx) {
   root.querySelectorAll('.qty-quick button').forEach(b => b.addEventListener('click', () => setTimeout(updatePreview, 0)));
   priceEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !q.haggleBlocked && !q.noRoom && !q.blocked) submit(null, false); });
   updatePreview();
-  root.querySelector('[data-neg-accept]')?.addEventListener('click', (e) => submit(Number(e.currentTarget.dataset.negAccept), true));
+  root.querySelectorAll('[data-neg-tactic]').forEach(b => b.addEventListener('click', () => {
+    const qty = Math.max(1, Math.floor(Number(qtyEl.value) || 1));
+    const res = game.useHaggleTactic(offerId, b.dataset.negTactic, qty);
+    refresh();
+    openNegotiationModal({ ...ctx, last: res.success ? { outcome: res.valid ? 'counter' : 'refused', insulted: !res.valid, message: res.message, tactic: true } : { error: res.error }, keep: { price: Number(priceEl.value), qty } });
+  }));
+    root.querySelector('[data-neg-accept]')?.addEventListener('click', (e) => submit(Number(e.currentTarget.dataset.negAccept), true));
 
   function submit(forcedPrice, acceptCounter, direct = false) {
     const price = forcedPrice != null ? forcedPrice : Number(priceEl.value);

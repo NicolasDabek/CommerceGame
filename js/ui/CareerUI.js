@@ -21,6 +21,7 @@ export class CareerUI {
     this.getRank = options.getRank || (() => null);
     this.getNetWorth = options.getNetWorth || (() => null);
     this.getNegotiation = options.getNegotiation || (() => null);
+    this.getHaggleJournal = options.getHaggleJournal || (() => []);
     this.onGo = options.onGo || (() => {});
     this.onShowGoals = options.onShowGoals || (() => {});
     this.prefs = options.prefs || null;
@@ -142,7 +143,16 @@ export class CareerUI {
         <h3>En perdre</h3>
         <ul><li>Crédit en retard : −3 puis −1 par jour</li><li>Changer d'alliance de clan : −2 à −3</li></ul>
         ${neg ? `<p class="text-muted">Vos marchandages : ${neg.deals} accord${neg.deals > 1 ? 's' : ''} sur ${neg.attempts} proposition${neg.attempts > 1 ? 's' : ''} · économisé ${formatMoney(neg.saved)} € à l'achat · gagné ${formatMoney(neg.extra)} € à la vente${neg.insults ? ` · ${neg.insults} marchand${neg.insults > 1 ? 's' : ''} vexé${neg.insults > 1 ? 's' : ''}` : ''}</p>` : ''}
-      </div>`;
+      </div>
+      ${this._journal()}`;
+  }
+
+  _journal() {
+    const j = this.getHaggleJournal() || [];
+    const rows = j.slice(0, 12).map(h => `<tr><td>J${h.day}</td><td>${h.npcName}</td><td>${h.icon} ${h.itemName}</td><td>${h.kind === 'buy' ? 'achat' : 'vente'}</td><td><strong>${h.outcome}</strong>${h.tactic ? ` <small class="text-muted">(${h.tactic})</small>` : ''}</td><td>${h.price != null ? `${formatMoney(h.price)} €` : '—'}</td><td class="${h.gain ? 'text-success' : ''}">${h.gain ? `+${formatMoney(h.gain)} €` : '—'}</td></tr>`).join('');
+    return `<div class="rank-help" id="haggle-journal"><h3>📒 Carnet de marchandage</h3>${rows
+      ? `<div class="table-container"><table class="data-table compact-table"><thead><tr><th>Jour</th><th>Marchand</th><th>Objet</th><th>Sens</th><th>Issue</th><th>Prix</th><th>Gain</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      : '<p class="empty-state">Aucune discussion pour l\'instant : cliquez « 🤝 Négocier » sur une annonce d\'un marchand.</p>'}</div>`;
   }
 
   /** Carte « prochaine étape » sur la place (masquable). */

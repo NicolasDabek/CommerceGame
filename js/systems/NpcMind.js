@@ -29,6 +29,8 @@ export const GOALS = {
   restock: { label: 'Reconstituer son stock', icon: '🧺', bumps: { buy: 0.1, buyout: 0.06 } },
   supply: { label: 'Approvisionner la ville', icon: '🏙️', bumps: { sell: 0.08, fulfill: 0.06 } },
   hunt: { label: 'Chasser les bonnes affaires', icon: '🎯', bumps: { buyout: 0.08, bid: 0.06 } },
+  sellEvent: { label: 'Profiter d\'un événement', icon: '📈', bumps: { sell: 0.08, fulfill: 0.06 } },
+  buyEvent: { label: 'Acheter pendant la baisse', icon: '📉', bumps: { buy: 0.08, buyout: 0.05 } },
   steady: { label: 'Routine du marché', icon: '🗓️', bumps: {} }
 };
 
@@ -68,6 +70,14 @@ export function npcWorth(ctl, state, npcId = null) {
   return r2(w);
 }
 
+/** Événement économique actif qui touche une catégorie préférée du marchand (ou global). */
+export function eventFor(ctl, npc) {
+  const evs = typeof ctl.getActiveEvents === 'function' ? (ctl.getActiveEvents() || []) : [];
+  const prefs = npc.preferredCategories || [];
+  return evs.find(e => e && typeof e.modifier === 'number' && Math.abs(e.modifier - 1) >= 0.05 &&
+    (e.global || prefs.includes(e.category) || (Array.isArray(e.categories) && e.categories.some(c => prefs.includes(c))))) || null;
+}
+
 /** Choisit l'objectif du jour selon la situation (lisible dans l'interface). */
 export function pickGoal(ctl, npc, state, day) {
   const m = ensureMind(state);
@@ -75,11 +85,17 @@ export function pickGoal(ctl, npc, state, day) {
   const target = ctl.stockTarget(npc);
   const capRatio = (state.capital || 0) / Math.max(1, npc.capital);
   let id = 'steady';
+  let ev = null;
   let reason = 'Rien d\'urgent : il suit ses habitudes.';
   const shortageItem = (state.inventory || []).map(s => s.itemId).find(itemId => ctl.marketSignal(itemId).shortage);
   if (capRatio < 0.45) { id = 'cash'; reason = `Trésorerie à ${Math.round(capRatio * 100)} % de son capital de départ.`; }
   else if (stock > target * 1.3) { id = 'clear'; reason = `${stock} objets pour une cible de ${target}.`; }
   else if (shortageItem) { id = 'supply'; const it = getItemById(shortageItem); reason = `La ville manque de ${it?.icon || ''} ${it?.name || shortageItem} et il en a.`; }
+  else if ((ev = eventFor(ctl, npc))) {
+    const up = ev.modifier > 1;
+    id = up ? 'sellEvent' : 'buyEvent';
+    reason = up ? `« ${ev.name} » fait monter les prix : il vend plus volontiers.` : `« ${ev.name} » fait baisser les prix : il en profite pour racheter.`;
+  }
   else if (stock < target * 0.5) { id = 'restock'; reason = `Stock bas (${stock}/${target}).`; }
   else if (capRatio > 1.4) { id = 'hunt'; reason = 'Très à l\'aise : il cherche les objets bradés.'; }
   if (m.caution > 0.15 && (id === 'hunt' || id === 'restock')) reason += ' Prudent après des pertes.';

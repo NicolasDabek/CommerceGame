@@ -1,3 +1,4 @@
+import { NpcRequests } from '../systems/NpcRequests.js';
 import { styleFor } from '../systems/Negotiation.js';
 import { NPCS as NPCS_LIST } from '../data/npcs.js';
 import { JobBoard } from '../systems/JobBoard.js';
@@ -55,6 +56,8 @@ export function enhanceGame(game) {
   game.credit = new Credit(game, savedData.credit || {});
   game.tradeListeners.push((tx) => game.credit.onTransaction(tx));
   game.career = new Career(game, savedData.career || {});
+  game.npcRequests = new NpcRequests(game, savedData.npcRequests || {});
+  game.npcController.getActiveEvents = () => game.economy.getActiveEvents();
 
   // Nouvelle partie : les marchands ouvrent boutique tout de suite (hôtels non vides)
   if (game.__newGame && game.npcController?.primeMarket) {
@@ -124,6 +127,7 @@ export function enhanceGame(game) {
       if (game.negotiation) data.negotiation = game.negotiation.toJSON();
       if (game.credit) data.credit = game.credit.toJSON();
       if (game.career) data.career = game.career.toJSON();
+      if (game.npcRequests) data.npcRequests = game.npcRequests.toJSON();
       Storage.save(data);
     }
   };
@@ -141,6 +145,8 @@ export function enhanceGame(game) {
       const loanEvent = game.credit?.onNewDay();
       if (loanEvent?.type === 'autoRepaid') game.uiCallbacks?.onStatus?.(`Crédit remboursé automatiquement : −${loanEvent.amount.toFixed(2)} €`);
       else if (loanEvent?.type === 'overdue') game.uiCallbacks?.onStatus?.(`Crédit en retard (${loanEvent.days} j) : réputation en baisse, 50 % de vos ventes saisies${loanEvent.seized ? ` · ${loanEvent.seized.toFixed(2)} € prélevés` : ''}`);
+      const posted = game.npcRequests?.onNewDay() || [];
+      posted.forEach(r => game.uiCallbacks?.onStatus?.(`📜 Demande de ${game.npcController.getNpcName(r.npcId)} : ${r.qty} × ${getItemById(r.itemId)?.icon || ''} ${getItemById(r.itemId)?.name || r.itemId} à ${r.price.toFixed(2).replace('.', ',')} € pièce (${r.reason})`));
       game.career?.check();
       game.save();
     } else {
@@ -222,6 +228,35 @@ export function enhanceGame(game) {
   // ---------- Marchandage ----------
   game.getNegotiationQuote = (offerId) => game.negotiation.quote(offerId);
   game.getNegotiationChance = (offerId, price, qty) => game.negotiation.estimateChance(offerId, price, qty);
+  game.getNpcRequests = () => game.npcRequests.view();
+  game.deliverNpcRequest = (id) => { const r = game.npcRequests.deliver(id); if (r.success) { game.career?.check(); game._notifyUI?.(); } return r; };
+  /** Fil du marché : échanges entre marchands (sans le joueur ni le Comptoir). */
+  game.getNpcTradeFeed = (limit = 8) => game.transactions
+    .filter(t => t.sellerId && t.buyerId && !['player', 'city'].includes(t.sellerId) && !['player', 'city'].includes(t.buyerId))
+    .slice(0, limit)
+    .map(t => ({ id: t.id, seller: game.npcController.getNpcName(t.sellerId), buyer: game.npcController.getNpcName(t.buyerId), itemId: t.itemId, qty: t.quantity, price: t.price, sameClan: (NPCS_LIST.find(n => n.id === t.sellerId)?.clanId || 1) === (NPCS_LIST.find(n => n.id === t.buyerId)?.clanId || 2) }));
+  /** Comparateur : toutes les annonces et offres d'achat des marchands pour un objet, avec ce qu'en dit la négociation. */
+  game.getMerchantComparison = (itemId) => {
+    const rows = [];
+    for (const o of game.offers) {
+      if (o.itemId !== itemId || o.status !== 'active' || !(o.quantity > 0) || !NPCS_LIST.some(n => n.id === o.ownerId)) continue;
+      const q = game.negotiation.quote(o.id);
+      if (!q?.ok) continue;
+      rows.push({ offerId: o.id, kind: q.kind, npcId: q.npcId, npcName: q.npcName, style: (s => s ? `${s.icon} ${s.label}` : '')(styleFor(NPCS_LIST.find(n => n.id === q.npcId))), price: o.price, ask: q.ask, quality: o.quality, quantity: o.quantity, trust: q.trust, flexLabel: q.flexLabel, tell: q.tell ? `${q.tell.icon} ${q.tell.text}` : '', canHaggle: !q.haggleBlocked && !q.blocked });
+    }
+    const sells = rows.filter(r => r.kind === 'buy').sort((a, b) => a.price - b.price);
+    const buys = rows.filter(r => r.kind === 'sell').sort((a, b) => b.price - a.price);
+    return { itemId, fair: game.economy.getFairValue(itemId), average: game.economy.getAveragePrice(itemId), sells, buys };
+  };
+  /** Historique de prix (prix et horodatage, en jours de jeu relatifs). */
+  game.getPriceSeries = (itemId) => {
+    const ms = game.timeManager?.msPerGameDay || 86400000;
+    const h = game.economy.priceHistory[itemId] || [];
+    const last = h.length ? h[h.length - 1].timestamp : 0;
+    return h.map(p => ({ price: p.price, day: (p.timestamp - last) / ms }));
+  };
+  game.useHaggleTactic = (offerId, tacticId, qty) => game.negotiation.useTactic(offerId, tacticId, qty);
+  game.getHaggleJournal = (npcId, limit) => game.negotiation.getJournal(npcId, limit);
   game.negotiate = (offerId, price, qty, opts) => {
     const r = game.negotiation.propose(offerId, price, qty, opts);
     if (r.success && r.outcome === 'accepted') game.career?.check();

@@ -18,20 +18,22 @@ export function run() {
         game.offers.forEach(o => { if (o.itemId === 'item_004') o.status = 'cancelled'; });
         const desk = game.tradingDesk;
         assert(desk.toggleWatch('item_004').watched, 'suivi');
+        // l'annulation de toutes les annonces peut déclencher une alerte « pénurie » : hors sujet ici
+        const priceAlerts = () => desk.alerts.filter(a => a.kind !== 'shortage');
         desk.setAlert('item_004', '10,00', null);
-        assertEqual(desk.alerts.length, 0, 'rien tant que le prix est haut');
+        assertEqual(priceAlerts().length, 0, 'rien tant que le prix est haut');
         const o = npcSell(game, 'item_004', 9.5);
         desk.checkAlerts();
-        assertEqual(desk.alerts.length, 1, 'alerte');
-        assertEqual(desk.alerts[0].kind, 'below');
+        assertEqual(priceAlerts().length, 1, 'alerte');
+        assertEqual(priceAlerts()[0].kind, 'below');
         desk.checkAlerts();
-        assertEqual(desk.alerts.length, 1, 'pas de doublon');
+        assertEqual(priceAlerts().length, 1, 'pas de doublon');
         o.status = 'cancelled';
         desk.checkAlerts();
         npcSell(game, 'item_004', 9.2);
         desk.checkAlerts();
-        assertEqual(desk.alerts.length, 2, 'se réarme après remontée');
-        assertEqual(desk.unreadCount(), 2);
+        assertEqual(priceAlerts().length, 2, 'se réarme après remontée');
+        assertEqual(desk.unreadCount(), desk.alerts.length);
         desk.markAlertsRead();
         assertEqual(desk.unreadCount(), 0);
       } finally { restore(); }

@@ -71,6 +71,7 @@ export class Negotiation {
     this.counters = saved.counters || {};
     this.sessions = saved.sessions || {};   // offerId → { day, rounds[], patience, npcPrice, walked }
     this.memory = saved.memory || {};       // npcId → { bluffs, deals, insults, day }
+    this.journal = Array.isArray(saved.journal) ? saved.journal : []; // carnet de marchandage (40 derniers)
     this.stats = {
       attempts: 0, deals: 0, buyDeals: 0, sellDeals: 0, refused: 0, insults: 0, saved: 0, extra: 0,
       ...(saved.stats || {})
@@ -134,7 +135,7 @@ export class Negotiation {
   }
 
   /** Marge de manœuvre (0–16 %) et ses raisons, lisibles par le joueur. */
-  flexFor(npc, state, itemId, kind, bundle = false) {
+  flexFor(npc, state, itemId, kind, bundle = false, tactic = null) {
     const T = NEGOTIATION_TUNING;
     const ctl = this.game.npcController;
     const reasons = [];
@@ -168,6 +169,7 @@ export class Negotiation {
     if (mem.bluffs > 0.5) { const f = Math.min(T.bluffFlexMax, mem.bluffs * T.bluffFlex); flex -= f; reasons.push(`se souvient de vos offres trop basses −${(f * 100).toFixed(1).replace('.', ',')} %`); }
     if (mem.deals > 0) { const f = Math.min(T.dealFlexMax, mem.deals * T.dealFlex); flex += f; if (f >= 0.004) reasons.push('bon client'); }
     if (bundle) { flex += T.bundleFlex; reasons.push('lot entier : +2 %'); }
+    if (tactic && tactic.bonus > 0) { flex += tactic.bonus; reasons.push(`argument « ${TACTICS[tactic.id]?.label || tactic.id} » +${(tactic.bonus * 100).toFixed(1).replace('.', ',')} %`); }
     if (kind === 'sell') flex *= T.sellFlexFactor;
     flex = Math.max(0, Math.min(T.maxFlex, flex));
     return { flex, reasons };
@@ -206,7 +208,9 @@ export class Negotiation {
     const q = offer.quality ?? 50;
     const p = offer.perfection ?? 50;
     const ref = ctl.refPrice(offer.itemId, kind === 'buy' ? q : (offer.minQuality || 50), kind === 'buy' ? p : (offer.minPerfection || 50));
-    const { flex, reasons } = this.flexFor(npc, state, offer.itemId, kind, this._isBundle(ctx, qty));
+    const sess = this.sessions[offer.id];
+    const tactic = sess && sess.day === this._day() ? sess.tactic : null;
+    const { flex, reasons } = this.flexFor(npc, state, offer.itemId, kind, this._isBundle(ctx, qty), tactic);
     const noise = hashNoise(`${npc.id}|${offer.id}|${this._day()}`);
     if (kind === 'buy') {
       const ask = this.askPrice(offer, ref);
@@ -257,7 +261,13 @@ export class Negotiation {
     if (session.walked && !haggleBlocked) haggleBlocked = `${npc.name} a coupé court sur cette offre aujourd'hui`;
     const fair = this.fairPrice(ctx, lim);
     const bundleQty = kind === 'buy' && offer.quantity >= NEGOTIATION_TUNING.bundleMinQty ? offer.quantity : null;
+    const tell = this.tell(ctx, session);
+    const tactics = Object.values(TACTICS).filter(t => t.kinds.includes(kind)).map(t => ({ id: t.id, label: t.label, icon: t.icon, text: t.text, risk: t.risk }));
     return {
+      tell,
+      tactics,
+      tacticUsed: session.tactic ? { ...session.tactic, label: TACTICS[session.tactic.id]?.label } : null,
+      history: this.getJournal(npc.id, 4),
       ok: true,
       kind,
       offerId,
@@ -358,6 +368,96 @@ export class Negotiation {
     return ctx.kind === 'buy' ? r2(Math.min(lim.ask, raw)) : r2(Math.max(lim.ask, raw));
   }
 
+  /**
+   * « Langage corporel » : un indice sur l'humeur cachée du jour (le bruit de sa limite),
+   * sa trésorerie ou sa patience. Ne donne jamais le prix exact.
+   */
+  tell(ctx, session = this._session(ctx.offer.id, ctx.npc)) {
+    const { npc, state, offer, kind } = ctx;
+    const noise = hashNoise(`${npc.id}|${offer.id}|${this._day()}`);
+    const ctl = this.game.npcController;
+    if (session.walked) return { icon: '🚪', text: `${npc.name} range déjà ses affaires.` };
+    if (session.patience <= 1) return { icon: '⏳', text: 'Il tapote le comptoir : sa patience est à bout.' };
+    if (kind === 'buy' && ctl.capitalState?.(npc, state)?.id === 'dry') return { icon: '💸', text: 'Il recompte sa caisse : il a besoin de vendre.' };
+    // bruit < 0 à l'achat = limite plus basse aujourd'hui (plus de marge) ; l'inverse à la vente
+    const favorable = kind === 'buy' ? noise < -0.004 : noise > 0.004;
+    const hostile = kind === 'buy' ? noise > 0.004 : noise < -0.004;
+    if (favorable) return { icon: '😏', text: 'Il évite votre regard : il a peut-être un peu de marge aujourd\'hui.' };
+    if (hostile) return { icon: '🧐', text: 'Il croise les bras : pas d\'humeur à céder aujourd\'hui.' };
+    if ((state.mood || 0) > 0.35) return { icon: '😄', text: 'Il plaisante avec vous : bon moment pour discuter.' };
+    if ((state.mood || 0) < -0.35) return { icon: '😠', text: 'Il soupire : mieux vaut ne pas le brusquer.' };
+    return { icon: '🙂', text: 'Il attend votre proposition, impassible.' };
+  }
+
+  /**
+   * Argument de marchandage (un par séance, coûte 1 de patience). Vrai → marge en plus ;
+   * faux ou mal venu → il le prend mal (mémoire, confiance, patience).
+   */
+  useTactic(offerId, tacticId, qty = 1) {
+    const ctx = this._context(offerId);
+    if (ctx.error) return { success: false, error: ctx.error };
+    const t = TACTICS[tacticId];
+    if (!t || !t.kinds.includes(ctx.kind)) return { success: false, error: 'Argument inconnu' };
+    const { npc, state, offer, kind } = ctx;
+    const session = this._session(offerId, npc);
+    if (session.walked) return { success: false, error: `${npc.name} a coupé court aujourd'hui` };
+    if (session.tactic) return { success: false, error: 'Un seul argument par discussion' };
+    if (this.triesLeft(npc.id) <= 0) return { success: false, error: `${npc.name} ne veut plus discuter aujourd'hui` };
+    const mem = this._memory(npc.id);
+    const style = styleFor(npc);
+    const lim = this._limit(ctx, qty);
+    let valid = false; let bonus = 0; let why = '';
+    if (tacticId === 'competitor') {
+      const others = (this.game.offers || []).filter(o => o.status === 'active' && o.type === 'sell' && o.itemId === offer.itemId && o.id !== offer.id && o.ownerId !== npc.id && o.ownerId !== 'player' && o.quantity > 0);
+      const cheapest = others.map(o => ({ o, ask: o.buyoutPrice ?? (o.currentBid ?? o.price) })).filter(x => (x.o.quality ?? 50) >= (offer.quality ?? 50) - 10).sort((a, b) => a.ask - b.ask)[0];
+      if (cheapest && cheapest.ask < lim.ask) { valid = true; bonus = Math.min(0.03, (lim.ask - cheapest.ask) / lim.ask); why = `${this.game.getNpcName?.(cheapest.o.ownerId) || 'un concurrent'} le vend ${cheapest.ask.toFixed(2).replace('.', ',')} €`; }
+      else why = 'personne ne le vend moins cher';
+    } else if (tacticId === 'bulk') {
+      valid = qty >= 2; bonus = valid ? 0.01 : 0; why = valid ? `${qty} unités d'un coup` : 'une seule unité';
+    } else if (tacticId === 'loyalty') {
+      valid = mem.deals >= 2 || (state.trust || 0) >= 0.3; bonus = valid ? 0.015 : 0; why = valid ? 'vous êtes un habitué' : 'il ne vous connaît pas assez';
+    } else if (tacticId === 'defect') {
+      valid = (offer.quality ?? 50) < 60; bonus = valid ? Math.min(0.03, (60 - (offer.quality ?? 50)) / 1000 + 0.015) : 0; why = valid ? `état Q${offer.quality}` : `état Q${offer.quality} : rien à redire`;
+    } else if (tacticId === 'urgent') {
+      // vente : « il en a besoin » — vrai en pénurie / tendu
+      const status = this.game.npcController.marketSignal?.(offer.itemId)?.view?.status;
+      valid = status === 'shortage' || status === 'tight'; bonus = valid ? 0.02 : 0; why = valid ? 'la ville en manque' : 'la ville n\'en manque pas';
+    }
+    bonus = r2(bonus * (style.id === 'stubborn' ? 0.5 : style.id === 'generous' ? 1.3 : 1) * 10000) / 10000;
+    session.patience -= 1;
+    const dayState = this._npcDay(npc.id);
+    dayState.tries += 1;
+    this.stats.attempts += 1;
+    this.stats.tactics = (this.stats.tactics || 0) + 1;
+    let message;
+    if (valid) {
+      session.tactic = { id: tacticId, valid: true, bonus };
+      message = `${npc.name} : ${pickStyled(TACTIC_OK, style.id)} (${why} · marge +${(bonus * 100).toFixed(1).replace('.', ',')} %)`;
+    } else {
+      session.tactic = { id: tacticId, valid: false, bonus: 0 };
+      mem.bluffs = Math.round((mem.bluffs + 1) * 100) / 100;
+      state.trust = Math.max(-1, (state.trust || 0) - (t.risk === 'élevé' ? 0.05 : 0.03));
+      state.mood = Math.max(-1, (state.mood || 0) - 0.05);
+      if (t.risk === 'élevé') session.patience -= 1;
+      message = `${npc.name} : ${pickStyled(TACTIC_KO, style.id)} (${why} · confiance en baisse)`;
+    }
+    if (session.patience <= 0) session.walked = true;
+    session.rounds.push({ price: null, outcome: valid ? 'tactic' : 'tactic-ko', tactic: tacticId });
+    this._log({ npcId: npc.id, itemId: offer.itemId, kind, outcome: valid ? 'argument' : 'argument raté', tactic: tacticId });
+    this.game.save?.();
+    return { success: true, valid, bonus, message, walked: session.walked, patience: Math.max(0, session.patience) };
+  }
+
+  _log(entry) {
+    this.journal.unshift({ day: this._day(), ...entry });
+    if (this.journal.length > 40) this.journal.length = 40;
+  }
+
+  /** Carnet de marchandage (le plus récent d'abord), éventuellement filtré par marchand. */
+  getJournal(npcId = null, limit = 40) {
+    return this.journal.filter(j => !npcId || j.npcId === npcId).slice(0, limit).map(j => ({ ...j, npcName: this.game.getNpcName?.(j.npcId) || j.npcId, itemName: getItemById(j.itemId)?.name || j.itemId, icon: getItemById(j.itemId)?.icon || '' }));
+  }
+
   _eligibleQty(offer) {
     const minQ = offer.minQuality ?? 0;
     const minP = offer.minPerfection ?? 0;
@@ -431,6 +531,7 @@ export class Negotiation {
       dayState.deals += 1;
       delete this.counters[offerId];
       session.rounds.push({ price: p, outcome: 'accepted' });
+      this._log({ npcId: npc.id, itemId: offer.itemId, kind, outcome: 'accord', price: p, ask: lim.ask, qty, gain: r2(Math.abs(lim.ask - p) * qty), tactic: session.tactic?.valid ? session.tactic.id : null });
       mem.deals = Math.min(10, mem.deals + 1);
       this.stats.deals += 1;
       const gain = r2(Math.abs(lim.ask - p) * qty);
@@ -440,7 +541,7 @@ export class Negotiation {
       this.game._notifyUI?.();
       return {
         success: true, outcome: 'accepted', price: p, quantity: qty, gain, transaction: tx,
-        message: pickLine(ACCEPT_LINES, npc, p, kind)
+        message: pickLine(ACCEPT_LINES, npc, p, kind, style.id, session.rounds.length)
       };
     }
 
@@ -467,7 +568,7 @@ export class Negotiation {
       const tail = walkAway ? ' (dernière offre : il ne discutera plus aujourd\'hui)' : round >= 2 ? ` (il ne lâche plus que ${concession.toFixed(2).replace('.', ',')} €)` : '';
       return {
         success: true, outcome: 'counter', price: p, counter, concession, round, walked: walkAway,
-        message: pickLine(walkAway ? LAST_LINES : round >= 2 ? COUNTER2_LINES : COUNTER_LINES, npc, counter, kind) + tail,
+        message: pickLine(walkAway ? LAST_LINES : round >= 2 ? COUNTER2_LINES : COUNTER_LINES, npc, counter, kind, style.id, round) + tail,
         triesLeft: this.triesLeft(npc.id), patience: Math.max(0, session.patience)
       };
     }
@@ -482,6 +583,7 @@ export class Negotiation {
       state.mood = Math.max(-1, (state.mood || 0) - 0.05);
     }
     session.rounds.push({ price: p, outcome: insult ? 'insult' : 'refused' });
+    if (insult || walkAway) this._log({ npcId: npc.id, itemId: offer.itemId, kind, outcome: insult ? 'vexé' : 'a coupé court', price: p, ask: lim.ask });
     this.game.save?.();
     const base = insult ? pickLine(INSULT_LINES, npc, p, kind) : pickLine(REFUSE_LINES, npc, p, kind);
     return {
@@ -558,7 +660,7 @@ export class Negotiation {
     Object.entries(this.sessions).forEach(([id, c]) => { if (c.day === day) sessions[id] = c; });
     const memory = {};
     Object.entries(this.memory).forEach(([id, m]) => { if (m.bluffs > 0.05 || m.deals > 0 || m.insults > 0.05) memory[id] = m; });
-    return { byNpc, counters, sessions, memory, stats: { ...this.stats } };
+    return { byNpc, counters, sessions, memory, journal: this.journal.slice(0, 40), stats: { ...this.stats } };
   }
 }
 
@@ -594,8 +696,35 @@ const INSULT_LINES = {
   sell: ['« À ce prix-là, allez voir ailleurs ! » (confiance en baisse)']
 };
 
-function pickLine(table, npc, price, kind) {
+const STYLE_OPENERS = {
+  stubborn: ['Hmpf.', 'Bon.', 'Écoutez…'],
+  generous: ['Allez,', 'Pour vous,', 'D\'accord,'],
+  greedy: ['Ah, vous savez y faire…', 'Mmh…', 'Entre nous,'],
+  impatient: ['Vite,', 'Bon, on ne va pas y passer la journée :', 'Ok,']
+};
+const TACTIC_OK = {
+  stubborn: '« Mouais… c\'est vrai. »', generous: '« Vous avez raison, faisons un effort. »',
+  greedy: '« Bien vu… je peux peut-être bouger un peu. »', impatient: '« D\'accord, d\'accord. »'
+};
+const TACTIC_KO = {
+  stubborn: '« Ne me racontez pas d\'histoires. »', generous: '« Hum, ce n\'est pas très honnête… »',
+  greedy: '« On ne me la fait pas. »', impatient: '« Vous me faites perdre mon temps. »'
+};
+function pickStyled(table, styleId) { return table[styleId] || table.greedy; }
+
+/** Arguments de marchandage : vrais = marge en plus, faux = méfiance. */
+export const TACTICS = {
+  competitor: { id: 'competitor', icon: '🏷️', label: 'Concurrent moins cher', kinds: ['buy'], risk: 'moyen', text: 'Vrai si un autre marchand vend le même objet moins cher (état comparable) : jusqu\'à +3 % de marge.' },
+  bulk: { id: 'bulk', icon: '📦', label: 'Achat / vente en quantité', kinds: ['buy', 'sell'], risk: 'faible', text: 'Vrai à partir de 2 unités : +1 %.' },
+  loyalty: { id: 'loyalty', icon: '🤝', label: 'Client fidèle', kinds: ['buy', 'sell'], risk: 'moyen', text: 'Vrai après 2 accords avec lui ou si sa confiance ≥ 30 : +1,5 %.' },
+  defect: { id: 'defect', icon: '🔍', label: 'Signaler un défaut', kinds: ['buy'], risk: 'élevé', text: 'Vrai si l\'objet est abîmé (état < 60) : jusqu\'à +3 %. Faux → il se vexe (patience −2).' },
+  urgent: { id: 'urgent', icon: '⏰', label: '« La ville en manque »', kinds: ['sell'], risk: 'moyen', text: 'Vrai si l\'objet est en pénurie ou tendu en ville : +2 %.' }
+};
+
+function pickLine(table, npc, price, kind, styleId = null, round = 0) {
   const lines = table[kind] || table.buy;
-  const idx = Math.abs(Math.floor(price * 100)) % lines.length;
-  return `${npc.name} : ${lines[idx].replace('{p}', Number(price).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}`;
+  const idx = Math.abs(Math.floor(price * 100) + round) % lines.length;
+  const openers = styleId ? STYLE_OPENERS[styleId] : null;
+  const opener = openers ? `${openers[(Math.floor(price * 100) + round) % openers.length]} ` : '';
+  return `${npc.name} : ${opener}${lines[idx].replace('{p}', Number(price).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}`;
 }
