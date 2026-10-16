@@ -604,36 +604,93 @@ export class TownWorld {
     });
   }
 
+  /** Largeur d'un texte d'étiquette (mise en cache, mesurée au canevas : pas de reflow). */
+  _textWidth(text, font) {
+    if (!this._twCache) this._twCache = new Map();
+    const key = `${font}|${text}`;
+    let w = this._twCache.get(key);
+    if (w == null) {
+      if (!this._twCtx) this._twCtx = document.createElement('canvas').getContext('2d');
+      this._twCtx.font = font;
+      w = Math.ceil(this._twCtx.measureText(text).width);
+      if (this._twCache.size > 600) this._twCache.clear();
+      this._twCache.set(key, w);
+    }
+    return w;
+  }
+
+  /**
+   * Étiquettes sans chevauchement : on place d'abord les plus importantes (bâtiment proche / sélectionné,
+   * « Vous », bâtiments, puis marchands du plus proche au plus lointain). Une étiquette qui en recouvre
+   * une autre essaie de se décaler vers le haut, puis perd sa ligne d'intention, puis se masque.
+   */
   _updateLabels() {
     const layer = document.getElementById('town-labels');
     if (!layer) return;
     const w = this.container.clientWidth || 1;
     const h = this.container.clientHeight || 1;
-    const bits = [];
+    const family = this._labelFamily || (this._labelFamily = getComputedStyle(layer).fontFamily || 'sans-serif');
+    const FONT = `700 12px ${family}`;
+    const LINE = 16; const PADX = 8; const PADY = 4; const GAP = 3;
     const project = (obj, yOff) => {
       const v = obj.getWorldPosition(new THREE.Vector3());
       v.y += yOff;
       v.project(this.camera);
       return { x: (v.x * 0.5 + 0.5) * w, y: (-v.y * 0.5 + 0.5) * h };
     };
+    const esc = (t) => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    // Zone libre : sous l'en-tête (et la carte de quête), au-dessus de la barre d'onglets
+    const hostTop = this.container.getBoundingClientRect().top;
+    const hud = document.querySelector('.world-hud');
+    const tabbar = document.getElementById('tabbar');
+    const top = hud ? Math.max(0, hud.getBoundingClientRect().bottom - hostTop - 8) : 0;
+    const bottom = tabbar ? Math.min(h, tabbar.getBoundingClientRect().top - hostTop) : h;
+    const cands = [];
+    const inView = (p) => !(p.x < 8 || p.y < 8 || p.x > w - 8 || p.y > h - 8);
     this._buildings.forEach((b) => {
       const p = project(b.group, b.h + 0.8);
-      if (p.x < 8 || p.y < 8 || p.x > w - 8 || p.y > h - 8) return;
+      if (!inView(p)) return;
       const near = b === this._nearBuilding;
-      const cls = `town-label building${near ? ' near' : ''}${b.id === this._selectedId ? ' selected' : ''}`;
-      const hint = near ? '<i>E pour entrer</i>' : '';
-      bits.push(`<span class="${cls}" style="left:${p.x}px;top:${p.y}px">${b.name}${hint}</span>`);
+      const sel = b.id === this._selectedId;
+      cands.push({ p, cls: `town-label building${near ? ' near' : ''}${sel ? ' selected' : ''}`, name: b.name, sub: near ? 'E pour entrer' : '', prio: near || sel ? 0 : 2 });
     });
+    let me = null;
     if (this.playerToken) {
       const p = project(this.playerToken, 1.7);
-      bits.push(`<span class="town-label player" style="left:${p.x}px;top:${p.y}px">Vous</span>`);
+      me = p;
+      cands.push({ p, cls: 'town-label player', name: 'Vous', sub: '', prio: 1 });
     }
     this._agents.forEach((agent) => {
       const p = project(agent.group, 1.6);
-      if (p.x < 8 || p.y < 8 || p.x > w - 8 || p.y > h - 8) return;
-      const extra = agent.intent ? `<i>${agent.intent}</i>` : '';
-      bits.push(`<span class="town-label npc" style="left:${p.x}px;top:${p.y}px">${agent.npc.name}${extra}</span>`);
+      if (!inView(p)) return;
+      const sel = agent.npc && this._selectedId === agent.npc.id;
+      const d = me ? Math.hypot(p.x - me.x, p.y - me.y) : p.y;
+      cands.push({ p, cls: `town-label npc${sel ? ' selected' : ''}`, name: agent.npc.name, sub: agent.intent || '', prio: sel ? 0 : 3, d });
     });
+    cands.sort((a, b) => a.prio - b.prio || (a.d ?? 0) - (b.d ?? 0));
+    const placed = [];
+    const hits = (r) => placed.some(q => r.l < q.r + GAP && r.r + GAP > q.l && r.t < q.b + GAP && r.b + GAP > q.t);
+    const bits = [];
+    let hidden = 0;
+    for (const c of cands) {
+      const fits = (sub, dy) => {
+        const tw = Math.max(this._textWidth(c.name, FONT), sub ? this._textWidth(sub, FONT) : 0);
+        const bw = tw + PADX * 2; const bh = LINE * (sub ? 2 : 1) + PADY;
+        const r = { l: c.p.x - bw / 2, r: c.p.x + bw / 2, t: c.p.y + dy - bh, b: c.p.y + dy };
+        return (r.t >= top && r.b <= bottom && r.l >= 0 && r.r <= w && !hits(r)) ? r : null;
+      };
+      let got = null; let sub = c.sub; let dy = 0;
+      const one = LINE + PADY + GAP; const two = LINE * 2 + PADY + GAP;
+      const tries = [[c.sub, 0], [c.sub, -two], [c.sub, two], ['', 0], ['', -one], ['', one], ['', -2 * one], ['', 2 * one]];
+      for (const [s2, d2] of tries) {
+        const r = fits(s2, d2);
+        if (r) { got = r; sub = s2; dy = d2; break; }
+      }
+      if (!got) { hidden++; continue; }
+      placed.push(got);
+      bits.push(`<span class="${c.cls}" style="left:${c.p.x.toFixed(1)}px;top:${(c.p.y + dy).toFixed(1)}px">${esc(c.name)}${sub ? `<i>${esc(sub)}</i>` : ''}</span>`);
+    }
+    this._labelStats = { shown: bits.length, hidden };
     layer.innerHTML = bits.join('');
   }
 

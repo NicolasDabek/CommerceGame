@@ -23,20 +23,12 @@
     #town-canvas-host { position: absolute; inset: 0; }
     #town-canvas-host canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
     #town-labels { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
-    .world-hud { position: absolute; top: 0; left: 0; right: 0; z-index: 4; display: flex; justify-content: space-between; gap: 12px; padding: 10px 16px; background: linear-gradient(180deg, rgba(16,18,26,.9), transparent); pointer-events: none; }
-    .world-hud > * { pointer-events: auto; }
-    .hud-left, .hud-right, .hud-center { display: flex; align-items: center; gap: 10px; }
-    .hud-center { flex-direction: column; gap: 2px; font-size: 0.82rem; color: #c5c8d4; }
-    .world-dock { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 4; display: flex; gap: 8px; background: rgba(20,22,32,.85); padding: 8px; border-radius: 999px; }
-    .dock-btn { border: none; background: #2c3142; color: #fff; font-weight: 700; padding: 8px 14px; border-radius: 999px; cursor: pointer; }
-    #interior-overlay { display: none; position: fixed; inset: 0; z-index: 20; background: rgba(12,14,20,.78); flex-direction: column; }
+    #interior-overlay { display: none; position: fixed; inset: 0 0 var(--tabbar-h, 64px) 0; z-index: 20; background: rgba(12,14,20,.78); flex-direction: column; }
     #interior-overlay.open { display: flex; }
     #interior-overlay.open .panel.active { display: flex !important; flex-direction: column; height: 100%; }
     .interior-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; background: #242836; }
     .interior-body { flex: 1; overflow: auto; padding: 16px 20px; }
-    #town-inspect { position: absolute; right: 12px; bottom: 70px; z-index: 5; width: min(280px,70%); background: rgba(24,27,38,.92); border: 1px solid #3d4458; border-radius: 12px; padding: 12px; }
-    .town-label { position: absolute; transform: translate(-50%,-100%); background: rgba(20,22,32,.78); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 6px; white-space: nowrap; }
-    .town-label i { display: block; font-style: normal; font-size: 9px; color: #fdcb6e; }
+    #town-inspect { position: absolute; right: 12px; bottom: calc(var(--tabbar-h, 64px) + 64px); z-index: 5; width: min(280px,70%); background: rgba(24,27,38,.92); border: 1px solid #3d4458; border-radius: 12px; padding: 12px; }
   </style>
 </head>
 <body class="world-mode">
@@ -45,39 +37,31 @@
       <div id="town-canvas-host"></div>
       <div id="town-labels"></div>
       <header class="world-hud">
-        <div class="hud-left"><strong class="logo">La Place</strong><span class="version">monde 3D</span></div>
-        <div class="hud-center">
-          <span id="game-time">Jour 1 — 08:00</span>
-          <span id="status-message">ZQSD / flèches pour marcher · clic : infos · E ou double-clic pour entrer · Échap pour sortir</span>
-        </div>
-        <div class="hud-right">
-          <div class="speed-controls">
-            <button class="speed-btn" data-speed="0">❚❚</button>
-            <button class="speed-btn" data-speed="1">1×</button>
-            <button class="speed-btn active" data-speed="10">10×</button>
-            <button class="speed-btn" data-speed="60">60×</button>
+        <div class="hud-title"><strong class="logo">La Place</strong><span id="game-time">Jour 1 — 08:00</span></div>
+        <div class="hud-controls">
+          <div class="speed-controls" role="group" aria-label="Vitesse du temps">
+            <button class="speed-btn" data-speed="0" aria-label="Pause">❚❚</button>
+            <button class="speed-btn" data-speed="1" aria-label="Vitesse normale">1×</button>
+            <button class="speed-btn active" data-speed="10" aria-label="Vitesse ×10">10×</button>
+            <button class="speed-btn" data-speed="60" aria-label="Vitesse ×60">60×</button>
           </div>
-          <button class="eco-chip" id="eco-chip" type="button" title="Santé de l'économie — cliquez pour ouvrir le marché">Prix 100</button>
-          <button class="btn btn-small btn-ghost" id="btn-reset-save">Reset</button>
-          <span class="networth-chip" id="networth-chip" title="Patrimoine : argent + stock au prix du marché + offres en cours − crédit">Patrimoine —</span>
+          <button class="eco-chip" id="eco-chip" type="button" title="Santé de l'économie — cliquez pour ouvrir la Halle des prix">Prix 100</button>
+        </div>
+        <span id="status-message" class="hud-status" role="status" aria-live="polite">ZQSD / flèches pour marcher · clic : infos · E ou double-clic pour entrer · Échap pour sortir</span>
+        <div class="hud-right">
+          <button class="networth-chip" type="button" id="networth-chip" title="Patrimoine : argent + stock au prix du marché + offres en cours − crédit">Patrimoine —</button>
           <div class="money-display" id="money-display"><span class="money-icon">€</span><span class="money-value" id="money-value">1 250,00</span></div>
         </div>
+        <div id="career-hud" class="career-hud" hidden></div>
       </header>
-      <div id="career-hud" class="career-hud" hidden></div>
-      <nav class="world-dock">
-        <button class="dock-btn" data-panel="inventory">Sac</button>
-        <button class="dock-btn" data-panel="goals" title="Parcours du marchand, rang de réputation et objectifs">Parcours</button>
-        <button class="dock-btn" data-panel="history">Carnet</button>
-        <button class="dock-btn" data-panel="trading" title="Liste de suivi, alertes de prix, ordres permanents et bilan">Suivi <span class="dock-badge" id="trading-badge" hidden></span></button>
-        <button class="dock-btn" id="btn-town-recenter">Recadrer</button>
-        <button class="dock-btn dock-help" id="btn-help" title="Raccourcis clavier et aide (touche ?)">?</button>
-      </nav>
       <aside id="town-inspect" hidden></aside>
     </div>
     <div id="interior-overlay">
       <div class="interior-bar">
-        <button class="btn btn-primary" id="btn-exit-interior">Sortir dans la rue</button>
+        <button class="btn btn-ghost interior-back" id="btn-exit-interior" aria-label="Sortir dans la rue (retour à la place)" title="Sortir dans la rue (Échap)">←</button>
+        <h2 class="interior-title" id="interior-title">Halle des prix</h2>
         <span class="interior-keys text-muted">1 Sac · 2 Vente · 3 Achat · 4 Halle · 5 Atelier · 6 Marchands · 7 Suivi · 8 Parcours · 9 Carnet · ? aide</span>
+        <div class="money-display interior-cash" aria-label="Votre argent"><span class="money-icon">€</span><span class="money-value" id="interior-money">—</span></div>
       </div>
       <div id="panel-tip" class="panel-tip" hidden></div>
       <div class="interior-body">
@@ -171,7 +155,7 @@
       </section>
       <section class="panel" id="panel-market">
         <div class="panel-header">
-          <h2>Marché</h2>
+          <h2>Halle des prix</h2>
           <div class="filters-bar trade-filters" style="margin:0">
             <input type="search" id="market-search" class="input" placeholder="Rechercher…" />
             <select id="market-category" class="select"><option value="all">Tout</option></select>
@@ -203,7 +187,31 @@
       <section class="panel" id="panel-goals"><div class="panel-header"><h2>Progression</h2><div id="progress-summary"></div></div><div id="career-root" class="career-root"></div><div class="goals-grid" id="goals-grid" hidden></div></section>
       </div>
     </div>
+    <nav class="world-dock tabbar" id="tabbar" aria-label="Navigation principale">
+      <button class="tab-btn" data-nav="town" aria-current="page"><span class="tab-ico" aria-hidden="true">🗺️</span><span class="tab-txt">Place</span></button>
+      <button class="tab-btn dock-btn" data-panel="inventory"><span class="tab-ico" aria-hidden="true">🎒</span><span class="tab-txt">Sac</span></button>
+      <button class="tab-btn dock-btn" data-panel="market" title="Halle des prix : prix moyens, tendances et bonnes affaires"><span class="tab-ico" aria-hidden="true">📈</span><span class="tab-txt">Prix</span></button>
+      <button class="tab-btn dock-btn" data-panel="history" title="Carnet des transactions"><span class="tab-ico" aria-hidden="true">📒</span><span class="tab-txt">Carnet</span></button>
+      <button class="tab-btn" id="btn-more" aria-expanded="false" aria-controls="more-sheet"><span class="tab-ico" aria-hidden="true">☰</span><span class="tab-txt">Plus</span><span class="dock-badge" id="more-badge" hidden></span></button>
+    </nav>
+    <div class="more-sheet" id="more-sheet" hidden role="dialog" aria-label="Plus de lieux et d'outils">
+      <div class="more-grid">
+        <button class="more-btn dock-btn" data-panel="goals" title="Parcours du marchand, rang de réputation et objectifs">🏆 Parcours</button>
+        <button class="more-btn dock-btn" data-panel="trading" title="Liste de suivi, alertes de prix, ordres permanents et bilan">⭐ Suivi <span class="dock-badge" id="trading-badge" hidden></span></button>
+        <button class="more-btn dock-btn" data-panel="auction">🏷️ Hôtel de vente</button>
+        <button class="more-btn dock-btn" data-panel="buyhouse">💰 Hôtel d'achat</button>
+        <button class="more-btn dock-btn" data-panel="jobs">🔨 Atelier</button>
+        <button class="more-btn dock-btn" data-panel="npcs">🧑‍💼 Marchands</button>
+        <button class="more-btn" data-more="palette">🔍 Rechercher</button>
+        <button class="more-btn" data-more="notes">🔔 Notifications</button>
+        <button class="more-btn" data-more="a11y">⚙️ Réglages</button>
+        <button class="more-btn dock-help" id="btn-help" title="Raccourcis clavier et aide (touche ?)">❓ Aide</button>
+      </div>
+      <p class="more-networth" id="more-networth"></p>
+      <button class="btn btn-ghost more-reset" id="btn-reset-save">Effacer la sauvegarde</button>
+    </div>
     <div class="quick-tools" role="toolbar" aria-label="Outils rapides">
+      <button class="qt-btn" id="btn-town-recenter" type="button" title="Recadrer la vue sur vous" aria-label="Recadrer la vue">🎯</button>
       <button class="qt-btn" id="btn-palette" type="button" title="Rechercher une commande, un objet, un marchand (Ctrl+K ou K)" aria-label="Recherche de commandes">🔍 <kbd>Ctrl K</kbd></button>
       <button class="qt-btn" id="btn-notes" type="button" title="Notifications : ventes faites par les marchands, alertes, crédit" aria-label="Notifications">🔔<span class="qt-badge" id="notes-badge" hidden>0</span></button>
       <div class="notes-panel" id="notes-panel" hidden role="region" aria-label="Notifications"></div>
@@ -231,10 +239,48 @@
       });
       window.dispatchEvent(new CustomEvent('panel-changed', { detail: { panel: target } }));
     };
+    (function () {
+      var TITLES = { inventory: 'Sac', auction: 'Hôtel de vente', buyhouse: "Hôtel d'achat", market: 'Halle des prix', jobs: 'Atelier', npcs: 'Marchands', trading: 'Suivi & ordres', goals: 'Parcours', history: 'Carnet' };
+      var TAB = { town: 'town', inventory: 'inventory', market: 'market', history: 'history' };
+      function sheet(open) {
+        var sh = document.getElementById('more-sheet'); var b = document.getElementById('btn-more');
+        if (!sh || !b) return;
+        sh.hidden = !open; b.setAttribute('aria-expanded', String(open));
+      }
+      window.toggleMoreSheet = function (open) { sheet(open == null ? document.getElementById('more-sheet').hidden : open); };
+      window.addEventListener('panel-changed', function (e) {
+        var panel = (e.detail && e.detail.panel) || 'town';
+        var t = document.getElementById('interior-title'); if (t && TITLES[panel]) t.textContent = TITLES[panel];
+        var cur = TAB[panel] || 'more';
+        document.querySelectorAll('#tabbar .tab-btn').forEach(function (b) {
+          var id = b.dataset.nav || b.dataset.panel || 'more';
+          if (id === cur) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+        });
+        sheet(false);
+      });
+      document.addEventListener('click', function (e) {
+        var t = e.target.closest ? e.target : null; if (!t) return;
+        if (t.closest('#btn-more')) { window.toggleMoreSheet(); return; }
+        if (t.closest('[data-nav="town"]')) { window.showWorldPanel('town'); return; }
+        var m = t.closest('[data-more]');
+        if (m) {
+          sheet(false);
+          if (m.dataset.more === 'palette') document.getElementById('btn-palette').click();
+          else if (m.dataset.more === 'notes') setTimeout(function () { document.getElementById('btn-notes').click(); }, 0);
+          else if (m.dataset.more === 'a11y') window.openA11y && window.openA11y();
+          return;
+        }
+        if (t.closest('#more-sheet .dock-btn, #btn-help')) { sheet(false); return; }
+        var sh = document.getElementById('more-sheet');
+        if (sh && !sh.hidden && !t.closest('#more-sheet')) sheet(false);
+      });
+    })();
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;
       var modal = document.getElementById('modal-overlay');
       if (modal && !modal.classList.contains('hidden')) { modal.classList.add('hidden'); return; }
+      var sh = document.getElementById('more-sheet');
+      if (sh && !sh.hidden) { window.toggleMoreSheet(false); return; }
       window.showWorldPanel('town');
     });
   </script>

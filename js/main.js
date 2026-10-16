@@ -118,12 +118,25 @@ function suggestedBuyPrice(itemId) {
 function updateMoneyDisplay() {
   const el = document.getElementById('money-value');
   if (el) el.textContent = formatMoney(game.player.money);
+  const im = document.getElementById('interior-money');
+  if (im) im.textContent = formatMoney(game.player.money);
+  syncMoreBadge();
   const nw = document.getElementById('networth-chip');
   if (nw && game.getNetWorth) {
     const w = game.getNetWorth();
     nw.innerHTML = `Patrimoine <strong>${formatMoney(w.total)} €</strong>`;
+    const mn = document.getElementById('more-networth');
+    if (mn) mn.innerHTML = `Patrimoine <strong>${formatMoney(w.total)} €</strong>`;
     nw.title = `Patrimoine : argent ${formatMoney(w.cash)} € + stock ${formatMoney(w.stock)} € + annonces ${formatMoney(w.listed)} € + offres ${formatMoney(w.locked)} € + établi ${formatMoney(w.bench)} €${w.debt ? ` − crédit ${formatMoney(w.debt)} €` : ''}. Cliquez pour voir votre parcours.`;
   }
+}
+/** Pastille du bouton « Plus » : alertes du Suivi + notifications non lues. */
+function syncMoreBadge() {
+  const mb = document.getElementById('more-badge');
+  if (!mb) return;
+  const n = ['trading-badge', 'notes-badge'].map(id => document.getElementById(id)).filter(b => b && !b.hidden).reduce((t, b) => t + (parseInt(b.textContent, 10) || 1), 0);
+  mb.hidden = n === 0;
+  mb.textContent = n > 99 ? '99+' : String(n);
 }
 function setStatus(msg) {
   const el = document.getElementById('status-message');

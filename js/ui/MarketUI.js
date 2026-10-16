@@ -21,6 +21,9 @@ export class MarketUI {
     this.sortEl = document.getElementById('market-sort');
     this.query = '';
     this.sort = 'name';
+    this.view = 'all';          // all | deals | watched (puces de filtre)
+    this.layout = (() => { try { return localStorage.getItem('ct-market-layout') || 'list'; } catch (e) { return 'list'; } })();
+    this._mountListUi();
 
     this._fillCategories();
     if (this.categorySelect) this.categorySelect.addEventListener('change', () => this.render());
@@ -38,6 +41,78 @@ export class MarketUI {
     }
   }
 
+  /** Puces « Tout / Bonnes affaires / Suivis ★ », bascule liste ↔ tableau, encart « bonne affaire », état du marché repliable. */
+  _mountListUi() {
+    const panel = document.getElementById('panel-market');
+    if (!panel || document.getElementById('market-chips')) return;
+    const header = panel.querySelector('.panel-header');
+    const chips = document.createElement('div');
+    chips.className = 'market-chips';
+    chips.id = 'market-chips';
+    chips.setAttribute('role', 'group');
+    chips.setAttribute('aria-label', 'Filtrer les marchandises');
+    chips.innerHTML = [['all', 'Tout'], ['deals', 'Bonnes affaires'], ['watched', 'Suivis ★']]
+      .map(([v, l]) => `<button class="chip-filter" data-market-view="${v}" aria-pressed="${v === this.view}">${l}</button>`).join('') +
+      `<button class="chip-filter chip-layout" id="market-layout" aria-pressed="${this.layout === 'table'}" title="Basculer entre la liste et le tableau détaillé">${this.layout === 'table' ? '☰ Liste' : '▦ Tableau'}</button>`;
+    header.insertAdjacentElement('afterend', chips);
+    chips.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.id === 'market-layout') {
+        this.layout = this.layout === 'table' ? 'list' : 'table';
+        try { localStorage.setItem('ct-market-layout', this.layout); } catch (err) { /* stockage indisponible */ }
+        b.textContent = this.layout === 'table' ? '☰ Liste' : '▦ Tableau';
+        b.setAttribute('aria-pressed', String(this.layout === 'table'));
+      } else {
+        this.view = b.dataset.marketView;
+        chips.querySelectorAll('[data-market-view]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      }
+      this.render();
+    });
+    const deal = document.createElement('div');
+    deal.id = 'market-deal';
+    chips.insertAdjacentElement('afterend', deal);
+    // État du marché (santé, événements, fil, aide) : replié sur mobile, ouvert sur grand écran
+    const health = document.getElementById('economy-health');
+    if (health) {
+      const det = document.createElement('details');
+      det.className = 'market-state';
+      det.id = 'market-state';
+      det.open = false;
+      det.innerHTML = '<summary>📊 État du marché et événements</summary>';
+      health.parentNode.insertBefore(det, health);
+      const hint = panel.querySelector('.trade-hint');
+      [health, document.getElementById('market-events'), document.getElementById('npc-feed'), hint].filter(Boolean).forEach(el => det.appendChild(el));
+    }
+  }
+
+  _isDeal(row) {
+    return (row.discountIfBuyBestSellPct != null && row.discountIfBuyBestSellPct >= 8)
+      || (row.marginIfSellToBestBuyPct != null && row.marginIfSellToBestBuyPct >= 15)
+      || (row.bestSell != null && row.bestBuy != null && row.bestBuy > row.bestSell);
+  }
+
+  /** Meilleure affaire du moment (données réelles) : revente immédiate, sinon plus forte remise. */
+  _bestDeal(rows) {
+    const arb = rows.filter(r => r.bestSell != null && r.bestBuy != null && r.bestBuy > r.bestSell)
+      .sort((a, b) => (b.bestBuy - b.bestSell) / b.bestSell - (a.bestBuy - a.bestSell) / a.bestSell)[0];
+    if (arb) return { row: arb, text: `Acheter dès ${formatMoney(arb.bestSell)} € à l'Hôtel de vente, revendre ${formatMoney(arb.bestBuy)} € à l'Hôtel d'achat (+${Math.round((arb.bestBuy / arb.bestSell - 1) * 100)} % avant frais)` };
+    const disc = rows.filter(r => r.bestSell != null && r.average > 0 && r.bestSell < r.average * 0.95)
+      .sort((a, b) => a.bestSell / a.average - b.bestSell / b.average)[0];
+    if (disc) return { row: disc, text: `Annonce à ${formatMoney(disc.bestSell)} €, ${Math.round((1 - disc.bestSell / disc.average) * 100)} % sous le prix moyen (${formatMoney(disc.average)} €)` };
+    return null;
+  }
+
+  _renderDeal(allRows) {
+    const el = document.getElementById('market-deal');
+    if (!el) return;
+    const d = this._bestDeal(allRows);
+    if (!d) { el.innerHTML = ''; return; }
+    const item = getItemById(d.row.item.id);
+    el.innerHTML = `<div class="mk-deal"><div><strong>💡 Bonne affaire : ${item?.icon || ''} ${item?.name || d.row.item.id}</strong><p>${d.text}</p></div>
+      <button class="btn btn-secondary" data-compare="${d.row.item.id}">Comparer</button></div>`;
+  }
+
   _fillCategories() {
     if (!this.categorySelect) return;
     const cats = [...new Set(ITEMS.map(i => i.category))];
@@ -51,8 +126,10 @@ export class MarketUI {
     if (!this.tbody) return;
 
     const category = this.categorySelect?.value || 'all';
-    let rows = this.getMarketRows()
+    const allRows = this.getMarketRows();
+    let rows = allRows
       .filter(row => category === 'all' || row.item.category === category)
+      .filter(row => this.view === 'all' || (this.view === 'deals' ? this._isDeal(row) : this.isWatched(row.item.id)))
       .filter(row => {
         if (!this.query) return true;
         const hay = `${row.item.name} ${row.item.icon || ''} ${row.item.category} ${row.item.rarity}`.toLowerCase();
@@ -62,17 +139,21 @@ export class MarketUI {
     rows = this._sortRows(rows);
     this._renderHealth();
     this._renderEvents();
+    this._renderDeal(allRows);
+    const table = document.getElementById('market-table');
+    table?.classList.toggle('mk-list', this.layout !== 'table');
+    document.getElementById('panel-market')?.classList.toggle('mk-list-mode', this.layout !== 'table');
 
     if (rows.length === 0) {
       this.tbody.innerHTML = `
         <tr class="empty-row">
-          <td colspan="11">Aucune donnée de marché</td>
+          <td colspan="11">${this.view === 'watched' ? 'Aucun objet suivi : touchez ☆ pour suivre un objet.' : this.view === 'deals' ? 'Pas de bonne affaire en ce moment.' : 'Aucune donnée de marché'}</td>
         </tr>
       `;
       return;
     }
 
-    this.tbody.innerHTML = rows.map(row => this._renderRow(row)).join('');
+    this.tbody.innerHTML = rows.map(row => (this.layout === 'table' ? this._renderRow(row) : this._renderCard(row))).join('');
     this.tbody.querySelectorAll('[data-watch]').forEach(btn => {
       btn.addEventListener('click', () => this.onToggleWatch?.(btn.dataset.watch));
     });
@@ -174,6 +255,36 @@ export class MarketUI {
         <td>${sparkline(row.history)}</td>
       </tr>
     `;
+  }
+
+  /** Carte de la liste (maquette « Halle des prix ») : nom, prix + tendance, offre / demande, moyenne. */
+  _renderCard(row) {
+    const item = getItemById(row.item.id);
+    const name = item?.name || row.item.id;
+    const arrow = { up: ['▲', 'up', 'en hausse'], down: ['▼', 'down', 'en baisse'] }[row.trend] || ['=', 'stable', 'stable'];
+    const price = row.bestSell != null ? row.bestSell : row.average;
+    const watched = this.isWatched(row.item.id);
+    const star = this.onToggleWatch
+      ? `<button class="watch-star ${watched ? 'on' : ''}" data-watch="${row.item.id}" title="${watched ? 'Retirer du suivi' : 'Suivre cet objet (alertes de prix)'}" aria-label="${watched ? 'Ne plus suivre' : 'Suivre'} ${name}" aria-pressed="${watched}">${watched ? '★' : '☆'}</button>`
+      : '';
+    const you = row.ownedQty > 0
+      ? `<span>Vous ×${row.ownedQty}${row.marginIfSellToBestBuy != null ? ` · ${marginHtml(row.marginIfSellToBestBuy, row.marginIfSellToBestBuyPct)}` : ''}</span>`
+      : (row.discountIfBuyBestSell != null && row.bestSell != null ? dealBadge(row.bestSell, row.average) : '');
+    return `
+      <tr class="mk-row ${this._isDeal(row) ? 'row-deal' : ''}" data-item-row="${row.item.id}" data-item-id="${row.item.id}"><td colspan="11">
+        <div class="mk-card">
+          <div class="mk-name">${star}<span class="mk-title">${item?.icon || ''} ${name}</span></div>
+          <div class="mk-price trend-${arrow[1]}" title="${row.bestSell != null ? 'Annonce la moins chère' : 'Prix moyen'} · tendance ${arrow[2]}"><span aria-hidden="true">${arrow[0]}</span> ${formatMoney(price)} €<span class="sr-only"> (${arrow[2]})</span></div>
+          <div class="mk-supply">${supplyCellHtml(row.supply)}${row.explanation ? priceWhyChip(row.explanation) : ''}</div>
+          <div class="mk-avg">moy. ${formatMoney(row.average)} €</div>
+          <div class="mk-meta">
+            <span>🛒 ${row.bestSell != null ? `dès ${formatMoney(row.bestSell)} €` : '—'}${row.sellCount ? ` (${row.sellCount})` : ''}</span>
+            <span>💰 ${row.bestBuy != null ? `jusqu'à ${formatMoney(row.bestBuy)} €` : '—'}${row.buyCount ? ` (${row.buyCount})` : ''}</span>
+            ${you}
+          </div>
+          <div class="mk-tools">${sparkline(row.history, { width: 80, height: 24 })}<button class="btn-link" data-compare="${row.item.id}" title="Comparer les marchands" aria-label="Comparer les marchands pour ${name}">⚖️</button><button class="btn-link" data-chart="${row.item.id}" title="Historique des prix" aria-label="Historique des prix de ${name}">📈</button></div>
+        </div>
+      </td></tr>`;
   }
 
   /** Durée restante en temps de jeu (jours / heures de jeu). */

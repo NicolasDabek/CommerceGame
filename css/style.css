@@ -425,7 +425,7 @@ body {
 }
 
 .slot-name {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-align: center;
   padding: 0 4px;
@@ -443,7 +443,7 @@ body {
   right: 6px;
   background: var(--accent);
   color: white;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
   padding: 1px 6px;
   border-radius: 999px;
@@ -452,7 +452,7 @@ body {
 }
 
 .slot-avg-price {
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--money);
   margin-top: 2px;
@@ -965,7 +965,7 @@ body {
   display: inline-block;
   padding: 2px 7px;
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.01em;
 }
@@ -1039,7 +1039,7 @@ tr.row-deal td:first-child {
   box-shadow: 0 0 0 2px rgba(108, 92, 231, 0.35);
 }
 .slot-margin {
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   font-weight: 800;
   margin-top: 2px;
 }
@@ -1099,7 +1099,7 @@ tr.row-deal td:first-child {
   cursor: help;
 }
 .eco-label {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
@@ -1134,7 +1134,7 @@ tr.row-deal td:first-child {
   margin-top: 3px;
   padding: 1px 6px;
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   white-space: nowrap;
   cursor: help;
@@ -1158,7 +1158,7 @@ tr.row-deal td:first-child {
   font-size: 0.85rem;
 }
 .npc-intent small { color: var(--text-secondary); }
-.npc-status .mini-chip { font-size: 0.74rem; padding: 3px 7px; cursor: help; }
+.npc-status .mini-chip { font-size: 0.75rem; padding: 3px 7px; cursor: help; }
 .mini-chip.chip-good { border-color: rgba(0, 184, 148, 0.45); }
 .mini-chip.chip-warn { border-color: rgba(253, 203, 110, 0.6); color: var(--warning); }
 .mini-chip.chip-bad { border-color: rgba(225, 112, 85, 0.7); color: var(--danger); }
@@ -1168,7 +1168,7 @@ tr.row-deal td:first-child {
    ============================================ */
 .sd-chip {
   display: inline-block;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 800;
   padding: 1px 7px;
   border-radius: 999px;
@@ -1181,7 +1181,7 @@ tr.row-deal td:first-child {
 .sd-balanced { background: rgba(0, 184, 148, 0.12); color: #55efc4; border-color: rgba(0, 184, 148, 0.4); }
 .sd-surplus { background: rgba(116, 185, 255, 0.14); color: #74b9ff; border-color: rgba(116, 185, 255, 0.45); }
 .sd-cell { display: flex; flex-direction: column; gap: 3px; min-width: 110px; cursor: help; }
-.sd-cell small { font-size: 0.72rem; }
+.sd-cell small { font-size: 0.75rem; }
 .sd-bar { height: 4px; background: var(--bg-input); border-radius: 4px; overflow: hidden; border: 0; }
 .sd-bar span { display: block; height: 100%; background: currentColor; border-radius: 4px; }
 .sd-bar.sd-shortage span { background: var(--danger); }
@@ -1198,7 +1198,7 @@ tr.row-deal td:first-child {
 .dock-badge {
   display: inline-block; min-width: 16px; padding: 0 5px; margin-left: 3px;
   border-radius: 999px; background: var(--danger); color: #fff;
-  font-size: 0.68rem; font-weight: 800; line-height: 16px; text-align: center;
+  font-size: 0.75rem; font-weight: 800; line-height: 16px; text-align: center;
 }
 .dock-badge[hidden] { display: none; }
 
@@ -1227,7 +1227,7 @@ tr.row-deal td:first-child {
 .job-card .goal-foot { margin-top: auto; }
 .job-card.completed { opacity: 0.6; }
 .job-card.scavenge-card { border-color: rgba(108, 92, 231, 0.5); }
-.jobs-small { font-size: 0.78rem !important; opacity: 0.9; }
+.jobs-small { font-size: 0.75rem !important; opacity: 0.9; }
 .prof-card { border-color: rgba(253, 203, 110, 0.35); }
 .prof-level { font-weight: 800; color: var(--warning); }
 .prof-bar { height: 6px; border-radius: 6px; background: var(--bg-input); overflow: hidden; }
@@ -1239,13 +1239,13 @@ tr.row-deal td:first-child {
 .repair-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .repair-opt {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 7px; display: flex; flex-direction: column; gap: 3px; font-size: 0.78rem; cursor: help;
+  padding: 7px; display: flex; flex-direction: column; gap: 3px; font-size: 0.75rem; cursor: help;
 }
 .repair-opt small { color: var(--text-secondary); }
 .repair-opt.locked { opacity: 0.6; }
 .repair-opt .btn { margin-top: 4px; }
 .deal-card { border-color: rgba(253, 203, 110, 0.45); }
-.cond-chip { font-weight: 800; padding: 0 6px; border-radius: 999px; font-size: 0.78rem; }
+.cond-chip { font-weight: 800; padding: 0 6px; border-radius: 999px; font-size: 0.75rem; }
 .cond-damaged { background: rgba(225, 112, 85, 0.2); color: #ff9f84; }
 .cond-worn { background: rgba(253, 203, 110, 0.15); color: var(--warning); }
 .cond-good { background: rgba(0, 184, 148, 0.15); color: #55efc4; }
@@ -1256,7 +1256,7 @@ tr.row-deal td:first-child {
 /* Suivi & ordres */
 .trading-root { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
 .trading-add { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
-.trading-add label { display: flex; flex-direction: column; gap: 3px; font-size: 0.78rem; color: var(--text-secondary); }
+.trading-add label { display: flex; flex-direction: column; gap: 3px; font-size: 0.75rem; color: var(--text-secondary); }
 .input-xs { width: 84px; padding: 3px 6px; }
 .trading-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 12px; align-items: start; }
 .alert-inputs { display: flex; flex-direction: column; gap: 4px; }
@@ -1398,7 +1398,7 @@ kbd { display: inline-block; min-width: 18px; padding: 1px 6px; border-radius: 4
 .neg-history summary { cursor: pointer; color: var(--text-secondary); }
 .neg-rounds { margin: 6px 0 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
 .neg-rounds li { background: var(--bg-input); border-radius: var(--radius-sm); padding: 4px 8px; }
-.neg-round-n { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--bg-card); font-size: 0.72rem; margin-right: 4px; }
+.neg-round-n { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--bg-card); font-size: 0.75rem; margin-right: 4px; }
 
 /* IA des marchands */
 .npc-mind { margin: 8px 0; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--bg-input); border: 1px solid var(--border); }
@@ -1416,14 +1416,14 @@ kbd { display: inline-block; min-width: 18px; padding: 1px 6px; border-radius: 4
 .quick-tools { position: fixed; right: 16px; bottom: 16px; z-index: 30; display: flex; gap: 8px; align-items: center; }
 .qt-btn { position: relative; border: 1px solid var(--border); background: rgba(36, 40, 54, 0.95); color: var(--text-primary); border-radius: 999px; padding: 8px 12px; font-weight: 700; cursor: pointer; font-size: 0.9rem; }
 .qt-btn:hover { background: var(--bg-hover); }
-.qt-btn kbd { font-size: 0.7rem; }
-.qt-badge { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 0.72rem; display: grid; place-items: center; padding: 0 4px; }
+.qt-btn kbd { font-size: 0.75rem; }
+.qt-badge { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 0.75rem; display: grid; place-items: center; padding: 0 4px; }
 .qt-badge[hidden] { display: none; }
 .notes-panel { position: absolute; right: 0; bottom: 48px; width: min(400px, 90vw); max-height: 60vh; overflow: auto; background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); box-shadow: var(--shadow); padding: 10px; }
 .notes-panel[hidden] { display: none; }
 .notes-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
 .notes-filters { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
-.chip-btn { border: 1px solid var(--border); background: var(--bg-input); color: var(--text-secondary); border-radius: 999px; padding: 2px 10px; font-size: 0.78rem; cursor: pointer; }
+.chip-btn { border: 1px solid var(--border); background: var(--bg-input); color: var(--text-secondary); border-radius: 999px; padding: 2px 10px; font-size: 0.75rem; cursor: pointer; }
 .chip-btn.active { background: var(--accent-soft); color: var(--text-primary); border-color: var(--accent); }
 .notes-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .notes-list li { display: grid; grid-template-columns: 24px 1fr auto; gap: 6px; align-items: start; padding: 6px 8px; border-radius: var(--radius-sm); background: var(--bg-input); font-size: 0.85rem; }
@@ -1472,9 +1472,9 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
 .neg-tell { margin: 6px 0; padding: 6px 10px; border-left: 3px solid var(--accent, #3d8bfd); background: rgba(61,139,253,.08); border-radius: 6px; font-style: italic; }
 .neg-tactics { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .neg-tactics button[data-risk="high"] { border-color: #d97706; }
-.neg-tactic-used { display: inline-block; padding: 2px 8px; border-radius: 999px; background: rgba(16,185,129,.15); font-size: .85em; }
+.neg-tactic-used { display: inline-block; padding: 2px 8px; border-radius: 999px; background: rgba(16,185,129,.15); font-size: max(12px, .85em); }
 .neg-tactic-used.ko { background: rgba(239,68,68,.15); }
-.neg-journal { margin-top: 8px; font-size: .88em; }
+.neg-journal { margin-top: 8px; font-size: max(12px, .88em); }
 .neg-journal li, #haggle-journal li { margin: 2px 0; }
 .row-tools { display: inline-flex; gap: 2px; margin-left: 4px; }
 .btn-link { background: none; border: 0; cursor: pointer; padding: 2px 4px; border-radius: 4px; font-size: 1em; }
@@ -1486,8 +1486,8 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
 .req-item button { grid-row: 1 / span 3; grid-column: 2; }
 .npc-feed { margin: 8px 0; }
 .npc-feed-box summary { cursor: pointer; font-weight: 600; }
-.npc-feed-box ul { margin: 6px 0 0; padding-left: 18px; font-size: .9em; }
-.chip-clan { font-size: .75em; padding: 1px 6px; border-radius: 999px; background: rgba(61,139,253,.18); }
+.npc-feed-box ul { margin: 6px 0 0; padding-left: 18px; font-size: max(12px, .9em); }
+.chip-clan { font-size: max(12px, .75em); padding: 1px 6px; border-radius: 999px; background: rgba(61,139,253,.18); }
 .compare-table td, .compare-table th { padding: 4px 6px; vertical-align: top; }
 .chart-zoom { display: flex; gap: 6px; margin-bottom: 6px; }
 .price-chart { width: 100%; height: auto; max-height: 260px; }
@@ -1495,14 +1495,201 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
 .chart-dot { fill: #3d8bfd; }
 .chart-dot:hover { r: 5; fill: #d97706; }
 .chart-fair { stroke: #10b981; stroke-dasharray: 5 4; }
-.chart-label { font-size: 10px; fill: currentColor; opacity: .7; }
+.chart-label { font-size: 12px; fill: currentColor; opacity: .7; }
 .legend-fair { color: #10b981; }
 @media (max-width: 640px) {
   .modal { width: 96vw !important; max-width: 96vw !important; max-height: 92vh; overflow: auto; }
-  .data-table { font-size: .82em; }
+  .data-table { font-size: max(12px, .82em); }
   .compare-table th:nth-child(4), .compare-table td:nth-child(4) { display: none; }
   #market-table { display: block; overflow-x: auto; }
   .req-item { grid-template-columns: 1fr; }
   .req-item button { grid-row: auto; grid-column: auto; justify-self: start; }
   .neg-tactics button { flex: 1 1 45%; }
 }
+
+/* ======================================================================
+   Refonte UI/UX (audit) : en-tête 2 lignes, carte de quête d'une ligne,
+   barre d'onglets à 5 entrées, cibles tactiles 44 px, texte ≥ 12 px,
+   Halle des prix en liste.
+   ====================================================================== */
+:root { --tabbar-h: 64px; --touch: 44px; }
+small { font-size: max(12px, 0.85em); }
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ---------- En-tête du monde ---------- */
+.world-hud {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 6;
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; grid-template-areas: "title controls status right" "quest quest quest quest";
+  align-items: center; gap: 8px 14px; padding: 10px 16px;
+  background: linear-gradient(180deg, rgba(16, 18, 26, .92) 60%, rgba(16, 18, 26, 0)); pointer-events: none;
+}
+.world-hud > * { pointer-events: auto; }
+.hud-title { grid-area: title; display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.hud-title .logo { font-size: 1.15rem; white-space: nowrap; }
+#game-time { font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; }
+.hud-controls { grid-area: controls; display: flex; align-items: center; gap: 8px; }
+.hud-status { grid-area: status; font-size: 0.8rem; color: #c5c8d4; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-right { grid-area: right; display: flex; align-items: center; gap: 8px; }
+.world-hud .career-hud { grid-area: quest; }
+.speed-controls { padding: 3px; gap: 3px; border-radius: 12px; }
+.speed-controls .speed-btn { min-width: 44px; min-height: 44px; padding: 0 8px; border-radius: 10px; font-size: 0.85rem; }
+.eco-chip { min-height: 44px; }
+.networth-chip { min-height: 44px; border: 0; font: inherit; font-size: 0.82rem; }
+.money-display { min-height: 44px; }
+
+/* ---------- Carte de quête : une ligne ---------- */
+.career-hud {
+  position: static; width: auto; max-width: 560px; justify-self: start;
+  display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px;
+  background: rgba(29, 32, 64, 0.94); border: 1px solid #3a3f78; border-radius: 12px; font-size: 0.85rem;
+}
+.career-hud[hidden], body.in-panel .career-hud { display: none; }
+.hud-line { flex: 1; min-width: 0; min-height: 44px; text-align: left; background: none; border: 0; color: var(--text-primary); font: inherit; font-weight: 600; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0; }
+.hud-line .hud-val { color: var(--text-secondary); font-weight: 400; }
+.hud-go { min-height: 44px; padding: 0 16px; border-radius: 10px; white-space: nowrap; }
+.hud-x { min-width: 44px; min-height: 44px; margin-left: 0; border-radius: 10px; }
+
+/* ---------- Barre d'onglets (5 entrées) ---------- */
+.world-dock.tabbar {
+  position: fixed; left: 50%; right: auto; bottom: 12px; transform: translateX(-50%); z-index: 26;
+  display: grid; grid-template-columns: repeat(5, minmax(72px, 1fr)); gap: 4px; padding: 4px;
+  background: rgba(27, 30, 58, 0.96); border: 1px solid #333a6e; border-radius: 16px; width: min(560px, calc(100vw - 24px));
+}
+.tab-btn {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  min-height: 52px; min-width: 44px; padding: 4px 2px; border: 0; border-radius: 12px; background: transparent;
+  color: var(--text-secondary); font-family: var(--font-main); font-size: 0.75rem; font-weight: 700; cursor: pointer;
+}
+.tab-btn .tab-ico { font-size: 1.25rem; line-height: 1; }
+.tab-btn:hover, .tab-btn:focus-visible { background: rgba(255, 255, 255, 0.06); color: var(--text-primary); }
+.tab-btn[aria-current="page"] { color: #a99cff; background: rgba(108, 92, 231, 0.18); }
+.tab-btn .dock-badge { position: absolute; top: 4px; right: calc(50% - 22px); }
+.dock-badge { font-size: 0.75rem; min-width: 18px; line-height: 18px; }
+body:not(.in-panel) #interior-overlay { --tabbar-h: 0px; }
+#interior-overlay { bottom: calc(var(--tabbar-h) + 18px); }
+
+/* Feuille « Plus » */
+.more-sheet {
+  position: fixed; z-index: 27; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabbar-h) + 24px);
+  width: min(560px, calc(100vw - 24px)); max-height: calc(100vh - var(--tabbar-h) - 120px); overflow: auto;
+  background: var(--bg-card, #2a2f40); border: 1px solid #3a3f78; border-radius: 16px; padding: 12px; box-shadow: 0 12px 40px rgba(0, 0, 0, .5);
+}
+.more-sheet[hidden] { display: none; }
+.more-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.more-btn { position: relative; min-height: 48px; padding: 8px 12px; text-align: left; border: 1px solid var(--border); border-radius: 12px; background: rgba(36, 40, 54, .95); color: var(--text-primary); font: inherit; font-weight: 700; cursor: pointer; }
+.more-btn:hover, .more-btn:focus-visible { border-color: var(--accent); }
+.more-btn .dock-badge { position: static; margin-left: 6px; }
+.more-networth { margin: 10px 2px 6px; color: var(--text-secondary); }
+.more-networth strong { color: var(--money); }
+.more-reset { min-height: 44px; width: 100%; }
+
+/* Outils rapides (recherche, notifications, recadrer) au-dessus de la barre d'onglets */
+.quick-tools { bottom: calc(var(--tabbar-h) + 24px); right: 12px; flex-direction: column; align-items: flex-end; }
+.qt-btn { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.qt-btn kbd { font-size: 0.75rem; }
+.notes-panel { bottom: 0; right: 56px; }
+body.in-panel #btn-town-recenter { display: none; }
+#town-inspect { bottom: calc(var(--tabbar-h) + 24px); right: 70px; }
+
+/* ---------- Étiquettes de la place (taille fixe : sert au calcul anti-chevauchement) ---------- */
+.town-label { position: absolute; transform: translate(-50%, -100%); box-sizing: border-box; background: rgba(20, 22, 32, .82); color: #fff; font-size: 12px; line-height: 16px; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+.town-label i { display: block; font-style: normal; font-size: 12px; line-height: 16px; font-weight: 700; color: #fdcb6e; }
+
+/* ---------- Intérieurs : barre « ← titre · argent » ---------- */
+.interior-bar { gap: 10px; padding: 8px 12px; }
+.interior-back { min-width: 44px; min-height: 44px; font-size: 1.3rem; padding: 0 10px; }
+.interior-title { margin: 0; font-family: var(--font-display); font-size: 1.15rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.interior-cash { margin-left: auto; }
+.interior-body .panel-header h2 { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Halle des prix : liste ---------- */
+.market-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.chip-filter { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid #3a3f78; background: transparent; color: var(--text-primary); font: inherit; font-weight: 600; cursor: pointer; }
+.chip-filter[aria-pressed="true"] { background: #6d5ce8; border-color: #6d5ce8; color: #fff; }
+.chip-layout { margin-left: auto; }
+.market-state { margin: 0 0 12px; border: 1px solid var(--border); border-radius: 12px; padding: 0 12px; }
+.market-state > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 700; }
+.market-state[open] { padding-bottom: 12px; }
+.mk-deal { display: flex; align-items: center; gap: 12px; justify-content: space-between; margin: 0 0 12px; padding: 12px 14px; border: 1px solid #4ade80; border-radius: 12px; background: rgba(29, 32, 64, .9); }
+.mk-deal p { margin: 2px 0 0; font-size: 0.85rem; color: var(--text-secondary); }
+.mk-deal .btn { min-height: 44px; flex-shrink: 0; }
+#market-table.mk-list, #market-table.mk-list tbody, #market-table.mk-list tr, #market-table.mk-list td { display: block; width: 100%; }
+#market-table.mk-list thead { display: none; }
+#market-table.mk-list { border: 0; background: none; }
+#market-table.mk-list tr { margin: 0 0 8px; }
+#market-table.mk-list td { padding: 0; border: 0; }
+#market-table.mk-list tr.empty-row td { padding: 16px; color: var(--text-secondary); }
+.mk-card {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name price" "supply avg" "meta tools";
+  gap: 4px 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: #1d2040; border: 1px solid transparent;
+}
+tr.row-deal .mk-card { border-color: rgba(74, 222, 128, .45); }
+tr.row-deal td:first-child { border-left: 0; }
+.mk-name { grid-area: name; display: flex; align-items: center; gap: 4px; min-width: 0; }
+.mk-title { font-weight: 800; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-price { grid-area: price; font-weight: 800; font-size: 1rem; text-align: right; white-space: nowrap; }
+.mk-price.trend-up { color: #4ade80; }
+.mk-price.trend-down { color: #f87171; }
+.mk-supply { grid-area: supply; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; font-size: 0.8rem; }
+.mk-supply .sd-cell { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mk-supply .sd-bar { display: none; }
+.mk-avg { grid-area: avg; font-size: 0.8rem; color: var(--text-secondary); text-align: right; white-space: nowrap; }
+.mk-meta { grid-area: meta; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.8rem; color: var(--text-secondary); }
+.mk-tools { grid-area: tools; display: flex; align-items: center; gap: 2px; justify-content: flex-end; }
+.watch-star { min-width: 44px; min-height: 44px; }
+.btn-link { min-width: 44px; min-height: 44px; }
+
+/* ---------- Mobile / tablette ---------- */
+@media (max-width: 820px) {
+  .world-hud { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title right" "controls controls" "quest quest"; padding: 10px 12px; gap: 8px; }
+  .hud-controls { justify-content: space-between; }
+  .hud-title .logo { font-size: 1.1rem; }
+  .networth-chip { display: none; }
+  .money-display { font-size: 1.05rem; padding: 6px 12px; border-radius: 12px; }
+  .hud-status { position: fixed; left: 12px; right: 12px; bottom: calc(var(--tabbar-h) + 2px); z-index: 7; text-align: center; font-size: 0.75rem; pointer-events: none; text-shadow: 0 1px 2px #000; }
+  body.in-panel .hud-status { display: none; }
+  .career-hud { max-width: none; justify-self: stretch; }
+  .world-dock.tabbar { left: 0; right: 0; bottom: 0; transform: none; width: auto; border-radius: 0; border-width: 1px 0 0; padding: 0 0 env(safe-area-inset-bottom, 0); gap: 0; grid-template-columns: repeat(5, 1fr); }
+  .tab-btn { min-height: 58px; border-radius: 0; }
+  :root { --tabbar-h: 58px; }
+  #interior-overlay { bottom: var(--tabbar-h); }
+  .more-sheet { left: 0; right: 0; transform: none; width: auto; bottom: var(--tabbar-h); border-radius: 16px 16px 0 0; }
+  .quick-tools { bottom: calc(var(--tabbar-h) + 28px); }
+  .qt-btn kbd { display: none; }
+  .notes-panel { position: fixed; left: 8px; right: 8px; width: auto; bottom: calc(var(--tabbar-h) + 8px); }
+  #town-inspect { right: 64px; left: 12px; width: auto; bottom: calc(var(--tabbar-h) + 28px); }
+  .interior-keys { display: none; }
+  .interior-body { padding: 12px; }
+  .chip-layout { margin-left: 0; }
+  /* Cibles tactiles : 44 px minimum */
+  button, .btn, select, .select, input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), summary, .tab, .category-btn, .chip-btn, [role="button"], .watch-star, .qt-btn { min-height: 44px; }
+  button, .btn, .tab, .category-btn, .chip-btn, [role="button"] { min-width: 44px; }
+  .check-label { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; }
+  input[type="checkbox"], input[type="radio"] { width: 22px; height: 22px; }
+  a[href] { display: inline-flex; align-items: center; min-height: 44px; }
+  .modal-close { min-width: 44px; min-height: 44px; }
+}
+@media (max-width: 400px) {
+  .speed-controls .speed-btn { min-width: 44px; padding: 0 4px; }
+  .eco-chip { padding: 0 8px; }
+  .chip-filter { padding: 0 12px; }
+  .hud-go { padding: 0 12px; }
+}
+/* Liste de la Halle : la page défile d'un bloc, colonne centrée sur grand écran */
+#panel-market.mk-list-mode { max-width: 880px; width: 100%; margin: 0 auto; }
+#panel-market.mk-list-mode .table-container { flex: none; overflow: visible; background: none; padding: 0; border: 0; }
+#panel-market .panel-header .filters-bar { flex-wrap: wrap; }
+@media (max-width: 820px) {
+  .hud-line .hud-val { display: none; }
+  body.in-panel .quick-tools { display: none; }
+  #panel-market .panel-header .filters-bar > * { flex: 1 1 140px; min-width: 0; }
+}
+#interior-overlay { background: rgba(20, 22, 43, 0.97); }
+@media (max-width: 820px) {
+  .panel-header { flex-wrap: wrap; gap: 8px; }
+  #panel-market .panel-header .filters-bar { width: 100%; }
+  .panel-tip { padding: 6px 12px; font-size: 0.8rem; gap: 6px; }
+  .panel-tip span { flex: 1 1 100%; }
+  .mk-card { padding: 8px 10px; gap: 2px 10px; }
+}
+@media (max-width: 820px) { #panel-market .market-chips { order: -1; } }

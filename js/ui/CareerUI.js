@@ -167,10 +167,13 @@ export class CareerUI {
     } else {
       const ch = career.currentChapter;
       const s = career.nextStep;
+      const n = Math.min(ch.doneCount + 1, ch.steps.length);
+      const esc = (t) => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      const tip = s ? `${ch.title} · ${ch.doneCount}/${ch.steps.length} faites. ${s.title} ${fmtValue(s)} — ${s.how}` : ch.title;
+      // Carte d'une ligne : la description complète reste en info-bulle et dans Parcours (clic sur le texte).
       this.hudEl.innerHTML = `
-        <div class="hud-step-title">${ch.icon} ${ch.title} · ${ch.doneCount}/${ch.steps.length}</div>
-        ${s ? `<div class="hud-step"><strong>${s.title}</strong> <span class="text-muted">${fmtValue(s)}</span></div><div class="hud-step-how">${s.how}</div>` : ''}
-        <div class="hud-step-actions">${s ? `<button class="btn btn-small btn-primary" data-go="${s.panel}">Y aller</button>` : ''}<button class="btn btn-small btn-ghost" data-go="goals">Parcours</button><button class="hud-x" data-hud-close title="Masquer (réaffichable avec la touche ?)">✕</button></div>`;
+        <button class="hud-line" data-go="goals" title="${esc(tip)} (cliquez pour voir le parcours)"><span class="sr-only">${esc(ch.title)} : </span><span aria-hidden="true">${ch.icon}</span> ${n}/${ch.steps.length} · ${esc(s ? s.title : ch.title)}${s && fmtValue(s) ? ` <span class="hud-val">${fmtValue(s)}</span>` : ''}</button>
+        ${s ? `<button class="btn btn-primary hud-go" data-go="${s.panel}">Y aller</button>` : ''}<button class="hud-x" data-hud-close title="Masquer (réaffichable avec la touche ?)" aria-label="Masquer la carte">✕</button>`;
     }
     this.hudEl.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => this.onGo(b.dataset.go)));
     this.hudEl.querySelector('[data-hud-close]')?.addEventListener('click', () => { this.prefs?.set('hudHidden', true); this.renderHud(); });
