@@ -9,6 +9,11 @@
  * (au moins 1 jour facturé). Remboursement anticipé possible. À l'échéance, prélèvement
  * automatique si le solde suffit ; sinon retard : pénalité, réputation en baisse et
  * 50 % du produit de vos ventes saisi jusqu'au remboursement.
+ *
+ * Défaut (analyse GD, P2 : être mauvais payeur ne doit pas rapporter) : pénalité de 2 %/jour
+ * (max 30 %), réputation −6 puis −2/jour (frais d'annonce plus chers), saisie du stock au bout
+ * de 5 jours de retard (racheté par le Comptoir à 70 % de sa valeur, sans création d'argent),
+ * et plus de crédit pendant 14 jours après un remboursement en retard.
  */
 
 import { NPCS } from '../data/npcs.js';
@@ -20,10 +25,13 @@ export const CREDIT_TUNING = {
   reserveKeep: 600,         // le Comptoir garde toujours 600 € pour réguler le marché
   npcDepositAbove: 1.2,     // un marchand prête au-delà de 120 % de son capital de départ…
   npcDepositShare: 0.5,     // … la moitié de cet excédent
-  latePenaltyRate: 0.01,    // pénalité par jour de retard (× capital)…
-  latePenaltyMax: 0.2,      // … plafonnée à 20 % du capital
-  lateRepFirst: -3,
-  lateRepDaily: -1,
+  latePenaltyRate: 0.02,    // pénalité par jour de retard (× capital)…
+  latePenaltyMax: 0.3,      // … plafonnée à 30 % du capital
+  lateRepFirst: -6,
+  lateRepDaily: -2,
+  seizeStockAfterDays: 5,   // saisie du stock après 5 jours de retard…
+  seizeStockValue: 0.7,     // … racheté par le Comptoir à 70 % de sa valeur (payé par sa trésorerie)
+  banDaysAfterLate: 14,     // pas de nouveau crédit pendant 14 jours après un retard
   onTimeRep: 2,
   seizeShare: 0.5,          // part du produit des ventes saisie en cas de retard
   seizeAfterDays: 3         // au-delà, le Comptoir prélève ce qu'il peut sur le solde
@@ -38,6 +46,7 @@ export class Credit {
     this.history = saved.history || [];
     this.stats = { taken: 0, repaid: 0, onTime: 0, late: 0, interestPaid: 0, seized: 0, ...(saved.stats || {}) };
     this._seq = saved.seq || 1;
+    this.bannedUntil = saved.bannedUntil ?? null;   // absent des anciennes sauvegardes
     this._seizing = false;
   }
 
@@ -65,8 +74,13 @@ export class Credit {
     return { total: r2(sources.reduce((t, s) => t + s.amount, 0)), sources };
   }
 
+  /** Interdit de crédit (retard récent) ? */
+  banned() {
+    return this.bannedUntil != null && this._day() < this.bannedUntil;
+  }
+
   limit() {
-    if (this.loan) return 0;
+    if (this.loan || this.banned()) return 0;
     return r2(Math.min(this.rank().creditLimit, this.pool().total));
   }
 
@@ -87,6 +101,7 @@ export class Credit {
     const T = CREDIT_TUNING;
     const a = r2(Number(String(amount).replace(',', '.')));
     if (this.loan) return { success: false, error: 'Vous avez déjà un crédit en cours : remboursez-le d\'abord' };
+    if (this.banned()) return { success: false, error: `Retard de remboursement récent : le Comptoir ne vous prête plus avant le jour ${this.bannedUntil}` };
     if (!(a >= T.minAmount)) return { success: false, error: `Montant minimum : ${T.minAmount} €` };
     const rank = this.rank();
     if (rank.creditLimit <= 0) return { success: false, error: 'Réputation négative : le Comptoir refuse de vous prêter' };
@@ -175,7 +190,10 @@ export class Credit {
     if (onTime) {
       this.stats.onTime += 1;
       this.game.player.addReputation(CREDIT_TUNING.onTimeRep);
-    } else this.stats.late += 1;
+    } else {
+      this.stats.late += 1;
+      this.bannedUntil = this._day() + CREDIT_TUNING.banDaysAfterLate;
+    }
     this.history.unshift({
       id: loan.id, principal: loan.principal, interest: Math.max(0, interest), days: loan.days,
       takenDay: loan.takenDay, closedDay: this._day(), onTime, overdueDays: loan.overdueDays
@@ -214,7 +232,44 @@ export class Credit {
     this.game.player.addReputation(loan.overdueDays === 1 ? T.lateRepFirst : T.lateRepDaily);
     let seized = 0;
     if (loan.overdueDays >= T.seizeAfterDays) seized = this._pay(this.game.player.money, { seized: true });
-    return { type: 'overdue', days: loan.overdueDays, seized };
+    let seizedItems = 0;
+    if (this.loan && loan.overdueDays >= T.seizeStockAfterDays) {
+      const r = this.seizeStock();
+      seized = r2(seized + r.amount);
+      seizedItems = r.items;
+    }
+    return { type: 'overdue', days: loan.overdueDays, seized, seizedItems };
+  }
+
+  /**
+   * Saisie du stock : le Comptoir rachète vos objets à 70 % de leur valeur (de sa trésorerie) jusqu'à
+   * couvrir la dette ; le produit rembourse aussitôt les prêteurs. L'argent change de main, il n'est pas créé.
+   */
+  seizeStock() {
+    const loan = this.loan;
+    const reserve = this.game.reserve;
+    if (!loan || !reserve) return { amount: 0, items: 0 };
+    const value = (s) => r2((this.game.getAdjustedMarketPrice?.(s.itemId, s.quality ?? 50, s.perfection ?? 50) || 0) * CREDIT_TUNING.seizeStockValue);
+    const stacks = [...this.game.player.inventory.items].filter(s => s.quantity > 0).sort((a, b) => value(b) - value(a));
+    let amount = 0; let items = 0;
+    for (const s of stacks) {
+      const unit = value(s);
+      if (unit <= 0) continue;
+      while (this.loan && s.quantity > 0 && this.outstanding() > 0.004) {
+        const paid = reserve.withdraw(unit);
+        if (paid < unit) { if (paid > 0) reserve.deposit(paid, 'loans'); return { amount, items }; }
+        const removed = this.game.player.inventory.remove(s.itemId, 1, s.quality, s.perfection);
+        if (!removed) { reserve.deposit(paid, 'loans'); break; }
+        reserve.addStock(s.itemId, 1);
+        this.game.player.addMoney(paid);
+        this._pay(paid, { seized: true });
+        amount = r2(amount + paid);
+        items += 1;
+      }
+      if (!this.loan) break;
+    }
+    this.stats.seizedItems = (this.stats.seizedItems || 0) + items;
+    return { amount, items };
   }
 
   /** Saisie sur les ventes du joueur pendant un retard. */
@@ -249,11 +304,12 @@ export class Credit {
         fullTermTotal: r2(loan.principal * (1 + loan.rate * loan.days) + (loan.penalty || 0) - (loan.paid || 0))
       } : null,
       history: this.history,
+      bannedUntil: this.banned() ? this.bannedUntil : null,
       stats: { ...this.stats }
     };
   }
 
   toJSON() {
-    return { loan: this.loan, history: this.history, stats: { ...this.stats }, seq: this._seq };
+    return { loan: this.loan, history: this.history, stats: { ...this.stats }, seq: this._seq, bannedUntil: this.bannedUntil };
   }
 }

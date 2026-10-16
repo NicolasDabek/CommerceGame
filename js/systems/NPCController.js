@@ -56,11 +56,11 @@ export const NPC_TUNING = {
   refAverageWeight: 0.6,     // prix de référence = 60 % moyenne du marché + 40 % valeur normale
   productionCost: 0.55,      // coût de fabrication (× valeur normale), payé au Comptoir
   producerCost: 0.45,
-  listingFeeRate: 0.5,       // les PNJ paient la moitié des frais du joueur
+  listingFeeRate: 1,         // les PNJ paient les mêmes frais que le joueur (analyse GD, P1)
   actionBase: 4,             // budget d'actions par jour : 4 + agressivité × 6
   actionAggr: 6,
   cooldownDays: 0.5,         // délai avant de remettre en vente un objet retiré
-  arbitrageMargin: 0.06,     // marge minimale d'un arbitrage (après taxe)
+  arbitrageMargin: 0.10,     // marge minimale d'un arbitrage après taxe : 10 % (analyse GD, P1 — laisse de la marge au joueur)
   repairCostRatio: 0.12,     // coût matériaux d'une remise en état (× valeur normale)
   repairsPerDay: 2,
   damagedQuality: 35         // sous cet état, un objet est « abîmé »

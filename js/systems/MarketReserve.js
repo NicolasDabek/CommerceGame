@@ -33,7 +33,7 @@ export const RESERVE_TUNING = {
   aidThreshold: 150,       // un PNJ sous ce capital reçoit une aide…
   aidAmount: 15,           // … de ce montant, payée par la trésorerie (pas créée)
   npcSalesTax: 0.03,       // taxe sur les ventes des PNJ
-  npcListingFeeRate: 0.5   // les PNJ paient 50 % des frais de mise en vente du joueur
+  npcListingFeeRate: 1     // les PNJ paient les mêmes frais de mise en vente que le joueur
 };
 
 function round2(n) {

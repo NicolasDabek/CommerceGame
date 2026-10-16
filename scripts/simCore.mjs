@@ -134,12 +134,14 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000, bo
 
       for (let day = 1; day <= days; day++) {
         const end = virtualNow + msPerDay;
-        let botDone = false;
+        // Le robot joue en milieu de journée (ou plusieurs fois par jour s'il le demande : actsPerDay)
+        const acts = botPlayer?.actsPerDay || 1;
+        let botActs = 0;
         while (virtualNow < end) {
           virtualNow += TICK_MS;
           game.tick();
-          // Le robot joue en milieu de journée
-          if (botPlayer && !botDone && virtualNow >= end - msPerDay / 2) { botPlayer.act(day); botDone = true; }
+          const slot = acts === 1 ? end - msPerDay / 2 : end - msPerDay + (msPerDay / acts) * (botActs + 0.5);
+          if (botPlayer && botActs < acts && virtualNow >= slot) { botPlayer.act(day, botActs === acts - 1); botActs += 1; }
         }
         if (game.offers.length > 400) game.offers = game.offers.filter(o => o.status === 'active');
         if (game.transactions.length > 2000) game.transactions.length = 2000;

@@ -236,9 +236,18 @@ function openCreateSellModal() {
       const qty = Number(qtyInput.value) || 1;
       const price = Number(priceInput.value) || 0;
       const duration = Number(durationEl.value) || 1;
-      const fee = Offer.calculateListingFee(price, qty, duration) * (game.player?.getFeeMultiplier?.() ?? 1);
+      // calculateListingFee applique déjà la remise de rang (GamePatch) : ne pas la compter deux fois
+      const fee = Offer.calculateListingFee(price, qty, duration);
       const rounded = Math.round(fee * 100) / 100;
-      if (feeEl) feeEl.innerHTML = `Frais estimés : <strong>${formatMoney(rounded)} €</strong> (débités tout de suite · objets retirés du sac)`;
+      // Marge nette après frais (analyse GD, P4) : prix de vente − frais − coût d'achat moyen
+      const stack = game.player.inventory.items.find(s => s.itemId === itemId && s.quality === q && s.perfection === p);
+      let marginHtml = '';
+      if (stack?.avgBuyPrice != null && price > 0) {
+        const net = Math.round((price * qty - rounded - stack.avgBuyPrice * qty) * 100) / 100;
+        const pct = stack.avgBuyPrice > 0 ? Math.round((net / (stack.avgBuyPrice * qty)) * 100) : 0;
+        marginHtml = ` · Marge nette si vendu à ce prix : <strong class="${net >= 0 ? 'text-success' : 'text-danger'}">${net >= 0 ? '+' : ''}${formatMoney(net)} € (${pct >= 0 ? '+' : ''}${pct} %)</strong> <span class="text-muted">(coût moyen ${formatMoney(stack.avgBuyPrice)} € l'unité)</span>`;
+      }
+      if (feeEl) feeEl.innerHTML = `Frais estimés : <strong>${formatMoney(rounded)} €</strong> (débités tout de suite · objets retirés du sac)${marginHtml}`;
       syncQtyMax();
     };
     select.addEventListener('change', updateSuggestedPrice);

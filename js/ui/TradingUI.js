@@ -195,7 +195,7 @@ export class TradingUI {
             <span>À payer maintenant pour solder</span><strong class="text-money">${formatMoney(l.outstanding)} €</strong>
             <span>Échéance</span><strong>${overdue ? `dépassée depuis ${l.overdueDays} j` : l.daysLeft > 0 ? `jour ${l.dueDay} (dans ${l.daysLeft} j) — ${formatMoney(l.fullTermTotal)} € si vous attendez` : 'aujourd\'hui'}</strong>
           </div>
-          ${overdue ? '<p class="neg-note neg-warn">Retard : pénalité de 1 %/jour (plafonnée à 20 %), −1 réputation par jour, 50 % de vos ventes saisies ; au 3ᵉ jour, le Comptoir prélève votre solde.</p>' : '<p class="text-muted">À l\'échéance, le montant dû est prélevé automatiquement si votre solde suffit. Remboursé à temps : +2 réputation.</p>'}
+          ${overdue ? '<p class="neg-note neg-warn">Retard : pénalité de 2 %/jour (plafonnée à 30 %), −6 puis −2 réputation par jour, 50 % de vos ventes saisies ; au 3ᵉ jour, le Comptoir prélève votre solde ; au 5ᵉ, il saisit votre stock (racheté à 70 % de sa valeur). Puis 14 jours sans crédit.</p>' : (c.bannedUntil ? `<p class="neg-note neg-warn">Retard récent : plus de crédit avant le jour ${c.bannedUntil}.</p>` : '') + '<p class="text-muted">À l\'échéance, le montant dû est prélevé automatiquement si votre solde suffit. Remboursé à temps : +2 réputation. En retard : pénalités, saisie des ventes puis du stock, et 14 jours sans crédit.</p>'}
           <button class="btn btn-primary" data-tr="repay">Rembourser ${formatMoney(l.outstanding)} €</button>
         </div>`;
     } else {

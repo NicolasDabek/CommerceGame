@@ -152,7 +152,7 @@ Les frais d'annonce baissent de 0,8 % par point de réputation (62 % minimum). R
 - Un prêt à la fois, 3 ou 7 jours, plafond et taux selon le rang. **Aucun argent créé** : les fonds viennent de la trésorerie du Comptoir
   (au-delà de 600 €) et des marchands les plus riches ; capital et intérêts leur reviennent.
 - Remboursement anticipé possible (au moins 1 jour d'intérêts) ; prélèvement automatique à l'échéance ; à temps : +2 réputation.
-- Retard : +1 %/jour (max 20 %), −3 puis −1 réputation/jour, 50 % des ventes saisies, prélèvement du solde dès le 3ᵉ jour.
+- Retard : +2 %/jour (max 30 %), −6 puis −2 réputation/jour, 50 % des ventes saisies, prélèvement du solde dès le 3ᵉ jour, saisie du stock (rachat par le Comptoir à 70 %) dès le 5ᵉ, puis 14 jours sans crédit.
 
 ## Parcours du marchand (bouton « Parcours »)
 

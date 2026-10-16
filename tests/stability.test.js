@@ -23,13 +23,27 @@ export function run() {
       const quiet = console.error;
       console.error = () => {};
       try {
-        for (const mode of ['trader', 'exploit']) {
+        for (const mode of ['trader', 'exploit', 'honest']) {
           const { summary } = await runSimulation({ days: 40, seeds: 1, bot: mode });
           const b = summary.bot;
           assert(b.bestRunGainPerDay < 10, `${mode} : gain ${b.bestRunGainPerDay} €/jour`);
           assert(b.worthEnd < b.worthStart * 1.3, `${mode} : patrimoine ${b.worthStart} → ${b.worthEnd}`);
           assert(summary.moneyBand[0] >= 0.85 && summary.moneyBand[1] <= 1.15, `${mode} : masse monétaire ${summary.moneyBand}`);
         }
+      } finally {
+        console.error = quiet;
+      }
+    }],
+    ['Classement des robots (analyse GD, §3) : honnête rentable > trader ≥ mauvais payeur > exploit', async () => {
+      const quiet = console.error;
+      console.error = () => {};
+      try {
+        const r = {};
+        for (const mode of ['honest', 'trader', 'exploit']) r[mode] = (await runSimulation({ days: 120, seeds: 2, bot: mode })).summary.bot;
+        const gain = (b) => (b.worthEnd - b.worthStart) / 120;
+        assert(gain(r.honest) > 0.2 && gain(r.honest) < 10, `honnête : ${gain(r.honest).toFixed(2)} €/jour (modeste mais positif)`);
+        assert(r.honest.worthEnd > r.trader.worthEnd, `honnête ${r.honest.worthEnd} > trader ${r.trader.worthEnd}`);
+        assert(r.trader.worthEnd > r.exploit.worthEnd, `trader ${r.trader.worthEnd} > exploit ${r.exploit.worthEnd}`);
       } finally {
         console.error = quiet;
       }

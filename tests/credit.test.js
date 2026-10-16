@@ -97,6 +97,57 @@ export function run() {
         assertEqual(game.credit.stats.late, 1);
         assert(Math.abs(totalMoney(game) - (before + added)) < 0.02, 'argent conservé (hors argent ajouté par le test)');
       } finally { restore(); }
+    }],
+    ['défaut (analyse GD, P2) : saisie du stock au 5ᵉ jour par le Comptoir, argent conservé, puis 14 jours sans crédit', async () => {
+      const { game, restore } = await makeGame();
+      try {
+        game.reserve.treasury = 3000;
+        game.player.inventory.items.length = 0;
+        game.player.inventory.add('item_001', 4, 70, 60, 100);
+        game.borrow(300, 3);
+        game.player.money = 0; // tout l'argent est parti en stock : le prélèvement automatique échoue
+        const before = totalMoney(game);
+        const stockBefore = game.reserve.stock.item_001 || 0;
+        const rep0 = game.player.reputation;
+        game.credit.loan.dueDay = game.credit._day();
+        let ev;
+        for (let d = 0; d < CREDIT_TUNING.seizeStockAfterDays; d++) { ev = game.credit.onNewDay(); nextDay(game); }
+        assert(ev.seizedItems > 0, 'stock saisi');
+        assert(game.player.inventory.count('item_001') < 4, 'objets retirés du sac');
+        assert((game.reserve.stock.item_001 || 0) > stockBefore, 'objets au Comptoir');
+        assert(Math.abs(totalMoney(game) - before) < 0.05, `argent conservé (${before} → ${totalMoney(game)})`);
+        assert(game.player.reputation <= rep0 + CREDIT_TUNING.lateRepFirst + CREDIT_TUNING.lateRepDaily * (CREDIT_TUNING.seizeStockAfterDays - 1) + 0.001, 'réputation fortement entamée');
+        if (game.credit.loan) { game.player.money += 2000; game.credit.repay(); }
+        assertEqual(game.credit.loan, null, 'dette soldée');
+        assertEqual(game.credit.stats.late, 1, 'compté en retard');
+        assertEqual(game.credit.limit(), 0, 'plus de crédit');
+        assertEqual(game.borrow(100, 3).success, false, 'emprunt refusé');
+        for (let d = 0; d < CREDIT_TUNING.banDaysAfterLate; d++) nextDay(game);
+        assertEqual(game.credit.banned(), false, 'interdiction levée après 14 jours');
+        game.player.reputation = Math.max(game.player.reputation, rep0);
+        assert(game.credit.limit() > 0, 'crédit à nouveau possible');
+      } finally { restore(); }
+    }],
+    ['défaut : le mauvais payeur finit derrière le commerçant honnête (simulation)', async () => {
+      const { runSimulation } = await import('../scripts/simCore.mjs');
+      const quiet = console.error; console.error = () => {};
+      try {
+        const res = {};
+        for (const mode of ['honest', 'defaulter']) res[mode] = (await runSimulation({ days: 120, seeds: 2, bot: mode })).summary.bot;
+        assert(res.honest.worthEnd > res.honest.worthStart, `honnête rentable : ${res.honest.worthStart} → ${res.honest.worthEnd}`);
+        assert(res.defaulter.worthEnd < res.honest.worthEnd - 200, `mauvais payeur ${res.defaulter.worthEnd} < honnête ${res.honest.worthEnd}`);
+        assert(res.defaulter.worthEnd < res.defaulter.worthStart, `le défaut ne rapporte pas : ${res.defaulter.worthStart} → ${res.defaulter.worthEnd}`);
+      } finally { console.error = quiet; }
+    }],
+    ['ancienne sauvegarde de crédit (sans interdiction) : chargée', async () => {
+      const { Credit } = await import('../js/systems/Credit.js');
+      const { game, restore } = await makeGame();
+      try {
+        const c = new Credit(game, { loan: null, history: [], stats: { taken: 2, repaid: 2 }, seq: 3 });
+        assertEqual(c.bannedUntil, null);
+        assertEqual(c.banned(), false);
+        assertEqual(c.stats.seized, 0);
+      } finally { restore(); }
     }]
   ]);
 }
