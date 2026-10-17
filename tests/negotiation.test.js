@@ -1,7 +1,7 @@
 import { Offer } from '../js/models/Offer.js';
 import { NEGOTIATION_TUNING } from '../js/systems/Negotiation.js';
 import { assert, assertEqual, runSuite } from './assert.js';
-import { makeGame, totalMoney } from './helpers.js';
+import { makeGame, totalMoney, UNLOCK_ALL_REP } from './helpers.js';
 
 const NPC = 'npc_05';
 
@@ -29,7 +29,7 @@ function lowestAccepted(game, offer) {
 export function run() {
   return runSuite('marchandage', [
     ['achat : refus, contre-offre puis accord — argent conservé, objet reçu', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.player.money = 5000;
         const ref = game.npcController.refPrice('item_004', 50, 50);
@@ -59,7 +59,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['plancher : confiance et rang maximum ne descendent jamais sous 90 % de la référence', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.player.money = 5000;
         game.player.reputation = 120;
@@ -74,7 +74,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['essais limités par marchand et par jour, puis remis à zéro le lendemain', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.player.money = 5000;
         const tries = game.negotiation.triesPerDay();
@@ -93,7 +93,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['vente : le marchand paie un peu plus, plafonné à 104 % de la référence, argent conservé', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.player.inventory.add('item_004', 5, 50, 50, 3);
         const ref = game.npcController.refPrice('item_004', 50, 50);
@@ -117,7 +117,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['Comptoir et enchères en cours : pas de marchandage ; 2 accords max par marchand et par jour', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.player.money = 5000;
         const city = npcListing(game, 'item_004', 20, { owner: 'city' });
@@ -134,7 +134,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['annonce sans achat immédiat : prix demandé au-dessus du départ, achat direct possible', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.player.money = 5000;
         const ref = game.npcController.refPrice('item_004', 50, 50);
@@ -152,6 +152,26 @@ export function run() {
         const d = game.negotiate(cheap.id, cq.ask, 1);
         assert(d.success && d.direct, 'achat direct');
         assertEqual(game.negotiation.triesLeft('npc_08'), game.negotiation.triesPerDay(), 'aucun essai consommé');
+      } finally { restore(); }
+    }],
+    ['passe 2 : marchandage verrouillé au rang 0, achat au prix demandé possible ; −8 % minimum au rang 1', async () => {
+      const { game, restore } = await makeGame();
+      try {
+        game.player.money = 5000;
+        const ref = game.npcController.refPrice('item_008', 50, 50);
+        const offer = npcListing(game, 'item_008', Math.round(ref * 1.15 * 100) / 100);
+        const q = game.negotiation.quote(offer.id);
+        assert(/rang 1/.test(q.haggleBlocked || ''), `devis verrouillé : ${q.haggleBlocked}`);
+        const r = game.negotiate(offer.id, Math.round(q.ask * 0.95 * 100) / 100, 1);
+        assertEqual(r.success, false);
+        assert(r.locked, r.error);
+        const direct = game.negotiate(offer.id, q.ask, 1);
+        assert(direct.success && direct.outcome === 'accepted', direct.error || 'achat au prix demandé');
+        game.player.reputation = 8;
+        const lim = game.negotiation._limit(game.negotiation._context(offer.id));
+        assert(lim.flex >= NEGOTIATION_TUNING.minBuyFlex - 1e-9, `marge ${lim.flex} ≥ 8 %`);
+        assert(lim.estimate <= Math.max(lim.hardFloor, lim.ask * 0.92) + 0.011, `prix atteignable ${lim.estimate} ≤ demandé −8 % (${lim.ask})`);
+        assert(lim.limit >= lim.hardFloor - 1e-9, 'plancher de 90 % respecté');
       } finally { restore(); }
     }]
   ]);

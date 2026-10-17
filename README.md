@@ -22,7 +22,8 @@ npm test          # tests unitaires (économie, offre/demande, IA et métiers de
 npm run sim       # simulation headless de l'économie (120 jours, 3 graines)
 npm run sim -- --days=365 --seeds=5 --every=30
 npm run sim -- --json
-npm run sim -- --bot=trader     # + un robot joueur : trader (marchandage), exploit (crédit en boucle), defaulter (mauvais payeur)
+npm run sim -- --bot=honest     # + un robot joueur : honest (sans marchandage ni crédit), haggler (honnête + marchandage),
+                                # trader (marchandage, part du rang 1), exploit (crédit en boucle, rang 3), defaulter (mauvais payeur, rang 2)
 ```
 
 La simulation fait tourner les 15 PNJ sans navigateur ni réseau (horloge virtuelle, hasard déterministe)
@@ -52,8 +53,13 @@ Les panneaux d'hôtel de vente / d'achat, de marché et d'inventaire affichent l
   Tendances de catégorie et inflation oscillent autour de 1, dans des bornes étroites.
 - **Événements temporaires** : ils modifient les prix affichés le temps de leur durée (en jours de jeu), sans effet durable.
 - **Comptoir municipal** (`js/systems/MarketReserve.js`) : encaisse la taxe de 3 % sur les ventes des PNJ, leurs frais d'annonce
-  et leurs coûts de fabrication ; revend son stock quand un objet manque ou dépasse ~130 % de sa valeur normale ;
-  rachète ce qui est bradé sous ~75 % ; réinjecte son excédent en commandes publiques (90 %) et en aides aux marchands à sec.
+  et leurs coûts de fabrication ; revend son stock quand un objet manque ou dépasse ~170 % de sa valeur normale ;
+  rachète ce qui est bradé sous ~60 % ; réinjecte son excédent en commandes publiques (90 %) et en aides aux marchands à sec
+  (25 % de l'excédent, pour ceux sous 40 % de leur capital de départ).
+- **Commandes publiques (quêtes)** : un objet en rupture depuis plus de 7 jours (aucune annonce de marchand, ou pénurie
+  de la ville) fait l'objet d'une commande du Comptoir à **120 %** du prix normal (3 unités, 4 objets à la fois au plus),
+  affichée dans *Marchands → Commandes publiques du Comptoir* avec un bouton « Livrer ». Les producteurs de la spécialité
+  s'y mettent en priorité ; la ville consomme les objets livrés. L'argent vient de la trésorerie (rien n'est créé).
   Au-delà de 4 000 € de trésorerie, l'excédent est détruit (puits d'argent).
 - **PNJ producteurs et consommateurs** : ils consomment une partie de leur stock (surtout la nourriture) et fabriquent
   sous leur stock cible, ce qui crée offre et demande en continu.
@@ -137,15 +143,18 @@ s'il achète beaucoup un objet, les prix d'annonce montent un peu ; s'il en vend
 
 ## Rangs de réputation
 
-| Rang | Réputation | Marchandage | Crédit | Ordres permanents |
-|---|---|---|---|---|
-| 🌱 Nouveau venu | 0+ | 3 essais | 300 € · 1,5 %/j | — |
-| 🙂 Connu sur la place | 8+ | 3 essais, +1 % | 600 € · 1,4 %/j | — |
-| 🤝 Commerçant fiable | 18+ | 4 essais, +2 % | 1 000 € · 1,2 %/j | +1 |
-| ⭐ Marchand estimé | 35+ | 4 essais, +3 % | 1 600 € · 1 %/j | +1 |
-| 🏛️ Maison reconnue | 60+ | 5 essais, +4 % | 2 500 € · 0,8 %/j | +2 |
+| Rang | Réputation | Débloque | Marchandage | Crédit | Ordres permanents |
+|---|---|---|---|---|---|
+| 🌱 Nouveau venu | 0+ | Hôtel de vente, atelier, contrats et commandes | — | — | — |
+| 🙂 Connu sur la place | 8+ | **Marchandage** | 3 essais, +1 % | — | — |
+| 🤝 Commerçant fiable | 18+ | **Crédit du Comptoir** | 4 essais, +2 % | 1 000 € · 1,2 %/j | — |
+| ⭐ Marchand estimé | 35+ | **Ordres permanents, comparateur de marchands** | 4 essais, +3 % | 1 600 € · 1 %/j | +1 |
+| 🏛️ Maison reconnue | 60+ | | 5 essais, +4 % | 2 500 € · 0,8 %/j | +2 |
 
-Les frais d'annonce baissent de 0,8 % par point de réputation (62 % minimum). Réputation négative : pas de crédit.
+Les systèmes verrouillés restent visibles (« 🔒 rang N » dans les onglets et la feuille « Plus »). Les frais d'annonce
+baissent de 0,8 % par point de réputation (62 % minimum) et de **20 % au moins dès le rang 1**. Un marchandage réussi à
+l'achat rapporte au moins −8 % sur le prix demandé (toujours borné par le plancher de 90 % de la référence).
+Réputation négative : pas de crédit.
 
 ## Crédit du Comptoir (Suivi → Crédit)
 

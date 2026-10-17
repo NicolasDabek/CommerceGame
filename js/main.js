@@ -127,6 +127,13 @@ function updateMoneyDisplay() {
     nw.innerHTML = `Patrimoine <strong>${formatMoney(w.total)} €</strong>`;
     const mn = document.getElementById('more-networth');
     if (mn) mn.innerHTML = `Patrimoine <strong>${formatMoney(w.total)} €</strong>`;
+    // Systèmes encore verrouillés (déblocage par rang, analyse GD passe 2)
+    const ml = document.getElementById('more-locks');
+    if (ml && game.getRankView) {
+      const locked = (game.getRankView().features || []).filter(f => !f.unlocked);
+      ml.hidden = !locked.length;
+      ml.innerHTML = locked.length ? `<span class="locks-title">À débloquer :</span> ${locked.map(f => `<span class="lock-chip" title="Débloqué au rang ${f.rank} — ${f.title} (${f.minRep} de réputation)">🔒 ${f.label} · rang ${f.rank}</span>`).join(' ')}` : '';
+    }
     nw.title = `Patrimoine : argent ${formatMoney(w.cash)} € + stock ${formatMoney(w.stock)} € + annonces ${formatMoney(w.listed)} € + offres ${formatMoney(w.locked)} € + établi ${formatMoney(w.bench)} €${w.debt ? ` − crédit ${formatMoney(w.debt)} €` : ''}. Cliquez pour voir votre parcours.`;
   }
 }
@@ -512,6 +519,7 @@ function initUI() {
       }
     },
     getCreditView: () => (game.getCreditView ? game.getCreditView() : null),
+    getFeatures: () => (game.getRankView ? game.getRankView().features || [] : []),
     getCreditQuote: (amount, days) => (game.getCreditQuote ? game.getCreditQuote(amount, days) : null)
   });
   careerUI = new CareerUI({

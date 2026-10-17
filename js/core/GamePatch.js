@@ -145,6 +145,8 @@ export function enhanceGame(game) {
       const loanEvent = game.credit?.onNewDay();
       if (loanEvent?.type === 'autoRepaid') game.uiCallbacks?.onStatus?.(`Crédit remboursé automatiquement : −${loanEvent.amount.toFixed(2)} €`);
       else if (loanEvent?.type === 'overdue') game.uiCallbacks?.onStatus?.(`Crédit en retard (${loanEvent.days} j) : réputation en baisse, 50 % de vos ventes saisies${loanEvent.seized ? ` · ${loanEvent.seized.toFixed(2)} € prélevés` : ''}`);
+      // Nouvelles commandes publiques du Comptoir (postées dans Game.onDayChange) : annonce au joueur
+      (game.reserve?.lastActions || []).filter(a => a.type === 'public').forEach(a => game.uiCallbacks?.onStatus?.(`🏛️ Commande publique : le Comptoir achète ${a.qty} × ${a.icon} ${a.name} à ${a.price.toFixed(2).replace('.', ',')} € pièce (+20 %) — voir Marchands`));
       const posted = game.npcRequests?.onNewDay() || [];
       posted.forEach(r => game.uiCallbacks?.onStatus?.(`📜 Demande de ${game.npcController.getNpcName(r.npcId)} : ${r.qty} × ${getItemById(r.itemId)?.icon || ''} ${getItemById(r.itemId)?.name || r.itemId} à ${r.price.toFixed(2).replace('.', ',')} € pièce (${r.reason})`));
       game.career?.check();
@@ -229,6 +231,17 @@ export function enhanceGame(game) {
   game.getNegotiationQuote = (offerId) => game.negotiation.quote(offerId);
   game.getNegotiationChance = (offerId, price, qty) => game.negotiation.estimateChance(offerId, price, qty);
   game.getNpcRequests = () => game.npcRequests.view();
+  // ---------- Commandes publiques du Comptoir (pénuries chroniques, analyse GD passe 2) ----------
+  game.getPublicOrders = () => (game.reserve?.publicOrdersView ? game.reserve.publicOrdersView(game).map(po => ({ ...po, owned: game.player.inventory.count(po.itemId) })) : []);
+  game.deliverPublicOrder = (offerId) => {
+    const offer = game.offers.find(o => o.id === offerId && o.status === 'active' && o.publicOrder);
+    if (!offer) return { success: false, error: 'Commande publique terminée' };
+    const qty = Math.min(offer.quantity, game.player.inventory.count(offer.itemId));
+    if (qty <= 0) return { success: false, error: 'Vous n\'avez pas cet objet' };
+    const r = game.fulfillBuyOffer(offerId, qty);
+    if (r && r.success !== false) { game.career?.check(); game._notifyUI?.(); return { success: true, qty, total: Math.round(offer.price * qty * 100) / 100 }; }
+    return r || { success: false, error: 'Livraison impossible' };
+  };
   game.deliverNpcRequest = (id) => { const r = game.npcRequests.deliver(id); if (r.success) { game.career?.check(); game._notifyUI?.(); } return r; };
   /** Fil du marché : échanges entre marchands (sans le joueur ni le Comptoir). */
   game.getNpcTradeFeed = (limit = 8) => game.transactions

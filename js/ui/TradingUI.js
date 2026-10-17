@@ -24,6 +24,7 @@ export class TradingUI {
     this.getFair = options.getFair || (() => 0);
     this.getCreditView = options.getCreditView || null;
     this.getCreditQuote = options.getCreditQuote || null;
+    this.getFeatures = options.getFeatures || (() => []);
     this.actions = options.actions || {};
     this.root = document.getElementById('trading-root');
     this.badgeEl = document.getElementById('trading-badge');
@@ -44,20 +45,32 @@ export class TradingUI {
     // Ne pas effacer une saisie en cours (rafraîchissement automatique)
     const active = document.activeElement;
     if (active && this.root.contains(active) && /^(INPUT|SELECT)$/.test(active.tagName)) return;
+    // Déblocage par rang (analyse GD passe 2) : un onglet verrouillé affiche « 🔒 rang N »
+    const feats = Object.fromEntries((this.getFeatures() || []).map(f => [f.id, f]));
+    const lock = (id) => (feats[id] && !feats[id].unlocked ? feats[id] : null);
+    const lockTag = (id) => (lock(id) ? ` <small class="lock-tag" title="Débloqué au rang ${lock(id).rank} (${lock(id).title})">🔒 rang ${lock(id).rank}</small>` : '');
+    const hasLoan = !!this.getCreditView?.()?.loan;
     const tabs = `
       <div class="tabs trading-tabs">
         <button class="tab ${this.tab === 'watch' ? 'active' : ''}" data-tr-tab="watch">Suivi &amp; alertes${view.unread ? ` <span class="dock-badge">${view.unread}</span>` : ''}</button>
-        <button class="tab ${this.tab === 'orders' ? 'active' : ''}" data-tr-tab="orders">Ordres permanents (${view.activeOrders}/${view.orderSlots})</button>
+        <button class="tab ${this.tab === 'orders' ? 'active' : ''} ${lock('standingOrders') ? 'tab-locked' : ''}" data-tr-tab="orders">Ordres permanents${lock('standingOrders') ? lockTag('standingOrders') : ` (${view.activeOrders}/${view.orderSlots})`}</button>
         <button class="tab ${this.tab === 'journal' ? 'active' : ''}" data-tr-tab="journal">Bilan</button>
-        ${this.getCreditView ? `<button class="tab ${this.tab === 'credit' ? 'active' : ''}" data-tr-tab="credit" title="Emprunter au Comptoir municipal">Crédit${this._loanBadge()}</button>` : ''}
+        ${this.getCreditView ? `<button class="tab ${this.tab === 'credit' ? 'active' : ''} ${lock('credit') && !hasLoan ? 'tab-locked' : ''}" data-tr-tab="credit" title="Emprunter au Comptoir municipal">Crédit${lock('credit') && !hasLoan ? lockTag('credit') : this._loanBadge()}</button>` : ''}
       </div>`;
     let body = '';
-    if (this.tab === 'orders') body = this._orders(view);
+    if (this.tab === 'orders' && lock('standingOrders') && !view.orders.length) body = this._locked(lock('standingOrders'), 'Placez chaque jour une offre d\'achat automatique au prix que vous choisissez.');
+    else if (this.tab === 'orders') body = this._orders(view);
     else if (this.tab === 'journal') body = this._journal(view);
+    else if (this.tab === 'credit' && lock('credit') && !hasLoan) body = this._locked(lock('credit'), 'Empruntez au Comptoir pour saisir une affaire, remboursez à temps pour gagner de la réputation.');
     else if (this.tab === 'credit' && this.getCreditView) body = this._credit(this.getCreditView());
     else body = this._watch(view);
     this.root.innerHTML = tabs + body;
     this._wire();
+  }
+
+  _locked(f, text) {
+    return `<div class="locked-feature" role="note"><p class="locked-title">🔒 ${f.label} : débloqué au rang ${f.rank} — ${f.title} (${f.minRep} de réputation)</p>
+      <p class="text-muted">${text}</p><p class="text-muted">Chaque vente rapporte +1 réputation ; les contrats, les commandes et les chapitres du parcours aussi.</p></div>`;
   }
 
   _watch(view) {

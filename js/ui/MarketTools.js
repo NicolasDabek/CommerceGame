@@ -39,7 +39,9 @@ export class MarketTools {
       const h = e.target.closest?.('[data-chart]');
       if (h) { e.preventDefault(); this.openChart(h.dataset.chart); return; }
       const d = e.target.closest?.('[data-deliver]');
-      if (d) { e.preventDefault(); this.deliver(d.dataset.deliver); }
+      if (d) { e.preventDefault(); this.deliver(d.dataset.deliver); return; }
+      const po = e.target.closest?.('[data-deliver-public]');
+      if (po) { e.preventDefault(); this.deliverPublic(po.dataset.deliverPublic); }
     });
   }
 
@@ -62,13 +64,28 @@ export class MarketTools {
     const el = document.getElementById('npc-requests');
     if (!el || !this.game.getNpcRequests) return;
     const list = this.game.getNpcRequests();
-    el.innerHTML = `<h3 class="section-title">📜 Demandes des marchands <small class="text-muted">(${list.length})</small></h3>` + (list.length ? `<ul class="req-list">${list.map(r => `
+    const pub = this.game.getPublicOrders ? this.game.getPublicOrders() : [];
+    // Commandes publiques du Comptoir : pénurie de plus de 7 jours, payées 120 % du prix normal (quêtes)
+    const pubHtml = pub.length ? `<div class="public-orders" id="public-orders"><h3 class="section-title">🏛️ Commandes publiques du Comptoir <small class="text-muted">(${pub.length})</small></h3><ul class="req-list">${pub.map(p => `
+      <li class="req-item quest-public ${p.owned > 0 ? 'ready' : ''}" data-public-order="${esc(p.offerId)}">
+        <span class="req-what">${p.icon} <strong>${p.qty} × ${esc(p.itemName)}</strong> pour la ville <span class="chip chip-quest">Quête</span></span>
+        <span class="req-price">${money(p.price)} € pièce (+${p.premiumPct} % sur le prix normal ${money(p.fair)} €) · total ${money(p.total)} €</span>
+        <span class="text-muted req-why">rupture depuis ${p.shortDays} j · vous en avez ${p.owned}</span>
+        <button class="btn btn-sm ${p.owned > 0 ? 'btn-primary' : 'btn-secondary'}" data-deliver-public="${esc(p.offerId)}" ${p.owned > 0 ? '' : 'disabled title="Achetez ou fabriquez cet objet pour le livrer"'}>Livrer</button>
+      </li>`).join('')}</ul></div>` : '';
+    el.innerHTML = pubHtml + `<h3 class="section-title">📜 Demandes des marchands <small class="text-muted">(${list.length})</small></h3>` + (list.length ? `<ul class="req-list">${list.map(r => `
       <li class="req-item ${r.have ? 'ready' : ''}" data-request="${esc(r.id)}">
         <span class="req-what">${r.icon} <strong>${r.qty} × ${esc(r.itemName)}</strong> Q${r.minQuality}+ pour <strong>${esc(r.npcName)}</strong></span>
         <span class="req-price">${money(r.price)} € pièce · total ${money(r.total)} €</span>
         <span class="text-muted req-why">${esc(r.reason || '')} · ${r.daysLeft > 0 ? `encore ${r.daysLeft} j` : 'dernier jour'}</span>
         <button class="btn btn-sm ${r.have ? 'btn-primary' : 'btn-secondary'}" data-deliver="${esc(r.id)}" ${r.have ? '' : 'disabled title="Vous n\'avez pas assez d\'objets dans cet état"'}>Livrer</button>
       </li>`).join('')}</ul>` : '<p class="text-muted">Aucune demande pour l\'instant : les marchands en publient quand un objet qu\'ils aiment vient à manquer.</p>');
+  }
+
+  deliverPublic(offerId) {
+    const r = this.game.deliverPublicOrder(offerId);
+    this.setStatus(r.success ? `🏛️ Commande publique livrée : ${r.qty} objet(s), +${money(r.total)} €` : `❌ ${r.error}`);
+    this.refresh?.();
   }
 
   deliver(id) {
@@ -87,6 +104,15 @@ export class MarketTools {
 
   openCompare(itemId) {
     const item = getItemById(itemId);
+    const lock = (this.game.getRankView?.().features || []).find(f => f.id === 'compare' && !f.unlocked);
+    if (lock) {
+      this.Modal.open({
+        title: `⚖️ Comparer les marchands — ${item?.icon || ''} ${item?.name || itemId}`,
+        bodyHTML: `<div class="locked-feature" role="note"><p class="locked-title">🔒 ${lock.label} : débloqué au rang ${lock.rank} — ${lock.title} (${lock.minRep} de réputation)</p><p class="text-muted">En attendant, l'historique des prix et l'hôtel de vente montrent les meilleures annonces.</p></div>`,
+        buttons: [{ label: '📈 Historique', className: 'btn-secondary', onClick: () => this.openChart(itemId) }, { label: 'Fermer', className: 'btn-secondary', onClick: () => this.Modal.close() }]
+      });
+      return;
+    }
     const c = this.game.getMerchantComparison(itemId);
     const row = (r) => `<tr><td>${esc(r.npcName)}<br><small class="text-muted">${esc(r.style)} · confiance ${Math.round((r.trust || 0) * 100)} %</small></td>
       <td class="text-money">${money(r.price)} €</td><td>Q${r.quality ?? '—'} ×${r.quantity}</td><td><small>${esc(r.flexLabel || '')}</small><br><small class="text-muted">${esc(r.tell)}</small></td>

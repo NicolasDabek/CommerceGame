@@ -96,6 +96,7 @@ export class NPCController {
     this.getPlayerAlliance = options.getPlayerAlliance || (() => null);
     /** Vue offre / demande d'un objet (SupplyDemand.getView) — optionnelle. */
     this.getSupplyView = options.getSupplyView || null;
+    this.publicOrderFor = options.publicOrderFor || null;
     /** true quand la consommation est gérée par la ville (SupplyDemand) */
     this.externalConsumption = !!options.externalConsumption;
     this._bookCache = null;
@@ -222,9 +223,10 @@ export class NPCController {
       if (view.status === 'surplus') surplus = true;
       if (view.status === 'shortage' || view.status === 'tight') surplus = false;
     }
+    const publicOrder = !!this.publicOrderFor?.(itemId);
     return {
-      book, fair, view,
-      shortage: shortage && !surplus,
+      book, fair, view, publicOrder,
+      shortage: (shortage && !surplus) || publicOrder,
       surplus,
       anticipate: !!view?.anticipate,
       playerFlow: view?.playerFlow || 0
@@ -286,13 +288,29 @@ export class NPCController {
     const signals = pool.map(item => ({ item, sig: this.marketSignal(item.id) }));
     // Un producteur anticipe : il produit aussi quand une de ses spécialités manque à la ville
     const cityNeeds = producer && signals.some(x => x.sig.shortage || x.sig.anticipate);
+    // Commande publique du Comptoir (rupture chronique) : un producteur de la spécialité s'y met en priorité
+    const ordered = producer ? signals.filter(x => x.sig.publicOrder && this._qtyOf(state, x.item.id) === 0) : [];
+    if (ordered.length && stock < target * 1.6) {
+      const item = ordered[Math.floor(Math.random() * ordered.length)].item;
+      const unitCost = round2(this.getFairPrice(item.id) * NPC_TUNING.producerCost);
+      const qty = Math.min(2, Math.floor((state.capital * (1 - profile.reserve)) / Math.max(0.01, unitCost)));
+      if (qty >= 1) {
+        const cost = round2(unitCost * qty);
+        state.capital = round2(state.capital - cost);
+        this.onNpcSpend(npc.id, cost, 'production');
+        this.giveItemToNpc(npc.id, item.id, qty, Math.round(rand(45, 88)), Math.round(rand(35, 80)));
+        state.produced = (state.produced || 0) + qty;
+        this._remember(state, `Fabrique ${item.icon} ×${qty} (commande publique)`);
+        return qty;
+      }
+    }
     if (stock >= target * 0.7 && !(cityNeeds && stock < target * 1.3)) return 0;
     const maxUnits = producer ? 3 : 1;
     const units = Math.max(1, Math.min(maxUnits, Math.ceil(target * 1.3) - stock));
     const weighted = signals.map(({ item, sig }) => {
       const cov = sig.view?.coverage;
       const covWeight = cov == null ? 1 : 1 / Math.max(0.5, Math.min(cov, 30)) * 8;
-      return { item, w: (sig.shortage ? 3 : 1) * (sig.anticipate ? 1.6 : 1) * (sig.surplus ? 0.2 : 1) * covWeight * (1 / Math.sqrt(item.basePrice)) };
+      return { item, w: (sig.shortage ? 3 : 1) * (sig.publicOrder ? 4 : 1) * (sig.anticipate ? 1.6 : 1) * (sig.surplus ? 0.2 : 1) * covWeight * (1 / Math.sqrt(item.basePrice)) };
     });
     const totalW = weighted.reduce((s, x) => s + x.w, 0);
     let r = Math.random() * totalW;

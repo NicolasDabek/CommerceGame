@@ -95,6 +95,55 @@ export function run() {
       assertEqual(back.treasury, 321);
       assertEqual(back.stock.item_004, 4);
       assertEqual(back.stats.taxes, 7);
+    }],
+    ['passe 2 : bande élargie (plafond 1,7, plancher 0,6) et subventions réduites', () => {
+      assertEqual(RESERVE_TUNING.ceiling, 1.7);
+      assertEqual(RESERVE_TUNING.floor, 0.6);
+      assertEqual(RESERVE_TUNING.subsidyShare, 0.25);
+      assertEqual(RESERVE_TUNING.subsidyBelow, 0.4);
+    }],
+    ['passe 2 : rupture de plus de 7 jours → commande publique à 120 %, quête livrable, argent conservé, sauvegardée', async () => {
+      const { makeGame, totalMoney, drainItem } = await import('./helpers.js');
+      const { game, restore } = await makeGame();
+      try {
+        const id = 'item_008';
+        drainItem(game, id);
+        game.reserve.treasury = 2000;
+        const day = game.timeManager.getCurrentDay();
+        game.reserve.outSince[id] = day - RESERVE_TUNING.publicOrderAfterDays;
+        const m0 = totalMoney(game);
+        game.reserve.publicOrdersDaily(game);
+        const offer = game.offers.find(o => o.status === 'active' && o.publicOrder && o.itemId === id);
+        assert(offer, 'commande publique créée');
+        const fair = game.economy.getFairValue(id);
+        assertEqual(offer.price, Math.round(fair * RESERVE_TUNING.publicOrderPrice * 100) / 100, 'prix à 120 %');
+        assert(Math.abs(totalMoney(game) - m0) < 0.02, 'trésorerie bloquée, pas créée');
+        const quests = game.getPublicOrders();
+        assertEqual(quests.length >= 1, true, 'quête visible');
+        assertEqual(quests[0].premiumPct, 20);
+        // Moins de 7 jours : pas de commande
+        game.reserve.outSince.item_004 = day - 3;
+        drainItem(game, 'item_004');
+        game.reserve.publicOrdersDaily(game);
+        assert(!game.offers.some(o => o.status === 'active' && o.publicOrder && o.itemId === 'item_004'), 'pas avant 7 jours');
+        // Le joueur livre
+        game.player.inventory.add(id, 2, 60, 60, fair);
+        const cash = game.player.money;
+        const r = game.deliverPublicOrder(offer.id);
+        assert(r.success, r.error);
+        assertEqual(game.player.money, Math.round((cash + offer.price * 2) * 100) / 100, 'payé 120 %');
+        assert(Math.abs(totalMoney(game) - m0 - 0) < 0.05, 'argent conservé');
+        assertEqual(game.reserve.stats.publicOrderUnits, 2);
+        // Sauvegarde : drapeau et suivi conservés
+        const json = JSON.parse(JSON.stringify({ offer, reserve: game.reserve.toJSON() }));
+        assertEqual(json.offer.publicOrder, true);
+        const back = MarketReserve.fromJSON(json.reserve);
+        assert(back.publicOrders[id], 'commande rechargée');
+        assertEqual(back.outSince[id], game.reserve.outSince[id]);
+        // Ancienne sauvegarde sans ces champs
+        const old = MarketReserve.fromJSON({ treasury: 100, stock: {}, stats: {} });
+        assertEqual(Object.keys(old.publicOrders).length, 0);
+      } finally { restore(); }
     }]
   ]);
 }

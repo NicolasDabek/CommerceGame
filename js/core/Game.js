@@ -72,6 +72,8 @@ export class Game {
       getFairPrice: (itemId) => this.economy.getFairValue(itemId),
       // Offre / demande : couverture du stock, pénuries, achats du joueur
       getSupplyView: (itemId) => this.supplyDemand.getView(itemId, this.economy),
+      // Commande publique du Comptoir en cours sur cet objet (les producteurs s'y intéressent)
+      publicOrderFor: (itemId) => this.reserve?.publicOrders?.[itemId] || null,
       externalConsumption: true,
       // Frais d'annonce et coûts de fabrication des PNJ → trésorerie du Comptoir municipal
       onNpcSpend: (npcId, amount, reason) => this.reserve.deposit(amount, reason),
@@ -369,8 +371,14 @@ export class Game {
         }
       }
     } else if (tx.buyerId === RESERVE_ID) {
-      this.reserve.addStock(tx.itemId, tx.quantity);
       const reserveOffer = tx.buyOfferId ? this.offers.find(o => o.id === tx.buyOfferId) : null;
+      if (reserveOffer?.publicOrder) {
+        // Commande publique : la ville en manque consomme aussitôt les objets livrés
+        this.reserve.stats.used = (this.reserve.stats.used || 0) + tx.quantity;
+        this.reserve.notePublicDelivery(reserveOffer, tx.quantity);
+      } else {
+        this.reserve.addStock(tx.itemId, tx.quantity);
+      }
       const statKey = reserveOffer?.procurement ? 'procurement' : 'bought';
       this.reserve.stats[statKey] = Math.round(((this.reserve.stats[statKey] || 0) + tx.total) * 100) / 100;
       if (tx.type === 'matching' && tx.buyOfferId) {

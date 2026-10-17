@@ -1,7 +1,7 @@
 import { CREDIT_TUNING } from '../js/systems/Credit.js';
 import { rankFor } from '../js/core/Ranks.js';
 import { assert, assertEqual, runSuite } from './assert.js';
-import { makeGame, totalMoney } from './helpers.js';
+import { makeGame, totalMoney, UNLOCK_ALL_REP } from './helpers.js';
 
 function nextDay(game) {
   game.timeManager.gameTimeMs += game.timeManager.msPerGameDay;
@@ -10,13 +10,13 @@ function nextDay(game) {
 export function run() {
   return runSuite('crédit', [
     ['emprunt : l\'argent vient du Comptoir et des marchands aisés, rien n\'est créé', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: 18 });
       try {
         game.reserve.treasury = 1200;
         const before = totalMoney(game);
         const cash = game.player.money;
         const view = game.getCreditView();
-        assertEqual(view.rankLimit, 300, 'plafond Nouveau venu');
+        assertEqual(view.rankLimit, 1000, 'plafond Commerçant fiable');
         const r = game.borrow(250, 3);
         assert(r.success, r.error);
         assertEqual(game.player.money, Math.round((cash + 250) * 100) / 100);
@@ -25,14 +25,28 @@ export function run() {
         assertEqual(game.borrow(50, 3).success, false, 'un seul crédit à la fois');
       } finally { restore(); }
     }],
-    ['plafond selon le rang, refus si réputation négative ou montant trop haut', async () => {
-      const { game, restore } = await makeGame();
+    ['déblocage par rang (analyse GD passe 2) : pas de crédit avant le rang 2', async () => {
+      const { game, restore } = await makeGame({ reputation: 8 });
       try {
         game.reserve.treasury = 3000;
-        assertEqual(game.borrow(400, 7).success, false, 'au-dessus du plafond du rang');
+        assertEqual(game.credit.limit(), 0, 'rang 1 : plafond nul');
+        const r = game.borrow(100, 3);
+        assertEqual(r.success, false);
+        assert(/rang 2/.test(r.error), r.error);
+        assert(game.getCreditView().locked, 'vue : verrouillé');
         game.player.reputation = 18;
-        assertEqual(rankFor(18).creditLimit, 1000);
-        const ok = game.borrow(900, 7);
+        assert(game.borrow(100, 3).success, 'rang 2 : crédit ouvert');
+      } finally { restore(); }
+    }],
+    ['plafond selon le rang, refus si réputation négative ou montant trop haut', async () => {
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
+      try {
+        game.reserve.treasury = 3000;
+        game.player.reputation = 18;
+        assertEqual(game.borrow(1100, 7).success, false, 'au-dessus du plafond du rang');
+        game.player.reputation = UNLOCK_ALL_REP;
+        assertEqual(rankFor(UNLOCK_ALL_REP).creditLimit, 1600);
+        const ok = game.borrow(1500, 7);
         assert(ok.success, ok.error);
         game.credit.loan = null;
         game.player.reputation = -5;
@@ -42,7 +56,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['remboursement anticipé : au moins 1 jour d\'intérêts, payés aux prêteurs (+2 réputation)', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.reserve.treasury = 1500;
         const cash = game.player.money;
@@ -60,18 +74,18 @@ export function run() {
       } finally { restore(); }
     }],
     ['échéance : prélèvement automatique si le solde suffit', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.reserve.treasury = 1500;
         game.borrow(200, 3);
         for (let i = 0; i < 3; i++) { nextDay(game); game.credit.onNewDay(); }
         assertEqual(game.credit.loan, null, 'soldé');
         assertEqual(game.credit.stats.onTime, 1);
-        assertEqual(game.credit.history[0].interest, Math.round(200 * 0.015 * 3 * 100) / 100, 'intérêts sur 3 jours');
+        assertEqual(game.credit.history[0].interest, Math.round(200 * rankFor(UNLOCK_ALL_REP).creditRate * 3 * 100) / 100, 'intérêts sur 3 jours');
       } finally { restore(); }
     }],
     ['retard : pénalité, réputation en baisse, ventes saisies à 50 %, puis prélèvement', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.reserve.treasury = 1500;
         game.borrow(300, 3);
@@ -80,7 +94,7 @@ export function run() {
         game.credit.loan.dueDay = game.credit._day();
         const ev = game.credit.onNewDay();
         assertEqual(ev.type, 'overdue');
-        assertEqual(game.player.reputation, CREDIT_TUNING.lateRepFirst, 'réputation −3');
+        assertEqual(game.player.reputation, UNLOCK_ALL_REP + CREDIT_TUNING.lateRepFirst, 'réputation en baisse');
         const owed = game.credit.outstanding();
         game.credit.onTransaction({ sellerId: 'player', buyerId: 'npc_01', total: 100 });
         // La vente simulée n'a pas crédité le joueur : la saisie ne prend que ce qu'il possède
@@ -99,7 +113,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['défaut (analyse GD, P2) : saisie du stock au 5ᵉ jour par le Comptoir, argent conservé, puis 14 jours sans crédit', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.reserve.treasury = 3000;
         game.player.inventory.items.length = 0;
@@ -141,7 +155,7 @@ export function run() {
     }],
     ['ancienne sauvegarde de crédit (sans interdiction) : chargée', async () => {
       const { Credit } = await import('../js/systems/Credit.js');
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         const c = new Credit(game, { loan: null, history: [], stats: { taken: 2, repaid: 2 }, seq: 3 });
         assertEqual(c.bannedUntil, null);

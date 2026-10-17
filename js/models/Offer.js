@@ -121,7 +121,9 @@ export class Offer {
       currentBid: this.currentBid,
       currentBidderId: this.currentBidderId,
       bids: this.bids,
-      avgCost: this.avgCost
+      avgCost: this.avgCost,
+      procurement: this.procurement || undefined,
+      publicOrder: this.publicOrder || undefined
     };
   }
 

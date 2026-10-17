@@ -22,10 +22,15 @@ export const RESERVE_TUNING = {
   procurementPrice: 0.9,   // commandes publiques à 90 % de la valeur normale
   procurementShare: 1,   // part de l'excédent dépensée chaque jour
   procurementMaxOffers: 10,
-  subsidyShare: 0.5,       // part de l'excédent restant reversée aux marchands en difficulté
-  subsidyBelow: 0.6,       // … ceux sous 60 % de leur capital de départ
-  ceiling: 1.3,            // revend à 130 % de la valeur normale si rupture / trop cher
-  floor: 0.75,             // rachète à 75 % de la valeur normale si bradé
+  subsidyShare: 0.25,      // part de l'excédent restant reversée aux marchands en difficulté (passe 2 : 0,5 → 0,25)
+  subsidyBelow: 0.4,       // … ceux sous 40 % de leur capital de départ (passe 2 : 0,6 → 0,4)
+  ceiling: 1.7,            // revend à 170 % de la valeur normale si rupture / trop cher (passe 2 : 1,3 → 1,7)
+  floor: 0.6,              // rachète à 60 % de la valeur normale si bradé (passe 2 : 0,75 → 0,6)
+  publicOrderAfterDays: 7, // pénurie depuis plus de 7 jours → commande publique…
+  publicOrderPrice: 1.2,   // … à 120 % du prix normal…
+  publicOrderQty: 3,       // … pour 3 unités par jour au plus…
+  publicOrderMax: 4,       // … et 4 objets à la fois au plus
+  publicOrderKeep: 400,    // trésorerie minimale gardée hors commandes publiques
   lot: 2,                  // quantité par intervention
   maxStockPerItem: 6,
   startStockPerItem: 2,
@@ -49,6 +54,12 @@ export class MarketReserve {
       ...(saved.stats || {})
     };
     this.lastActions = saved.lastActions || [];
+    // Commandes publiques en cours (quêtes) : itemId → { itemId, since, day, price, qty, offerId, filled }
+    this.publicOrders = saved.publicOrders || {};
+    // Rupture suivie par objet : premier jour sans aucune annonce de marchand (ou pénurie de la ville)
+    this.outSince = saved.outSince || {};
+    if (this.stats.publicOrders == null) this.stats.publicOrders = 0;
+    if (this.stats.publicOrderUnits == null) this.stats.publicOrderUnits = 0;
   }
 
   _starterStock() {
@@ -149,6 +160,7 @@ export class MarketReserve {
     game.offers.forEach(o => {
       if (o.status !== 'active' || o.ownerId !== RESERVE_ID) return;
       if (o.type === 'buy') {
+        if (o.publicOrder && o.durationDays > 1 && !this._expired(game, o)) return; // commande publique : reste ouverte jusqu'à son terme
         if (o.quantity > 0) this.treasury = round2(this.treasury + o.price * o.quantity);
       } else {
         if (o.currentBid != null && o.currentBidderId) return; // enchère en cours : elle ira à son terme
@@ -156,6 +168,97 @@ export class MarketReserve {
       }
       o.status = 'cancelled';
     });
+  }
+
+  _expired(game, offer) {
+    const now = game.timeManager?.now?.() ?? Date.now();
+    return offer.expiresAt != null && now >= offer.expiresAt;
+  }
+
+  /**
+   * Commandes publiques (analyse GD passe 2) : un objet en pénurie depuis plus de 7 jours
+   * fait l'objet d'une commande du Comptoir à 120 % du prix normal, visible comme quête.
+   * L'argent est prélevé sur la trésorerie (bloqué dans l'offre d'achat) : aucune création monétaire.
+   */
+  publicOrdersDaily(game) {
+    const t = RESERVE_TUNING;
+    const sd = game.supplyDemand;
+    const day = game.timeManager?.getCurrentDay?.() ?? game.currentDay ?? 1;
+    const now = game.timeManager?.now?.() ?? Date.now();
+    const msPerGameDay = game.timeManager?.msPerGameDay;
+    const actions = [];
+    // Rupture = aucune annonce de vente d'un marchand ou du joueur, ou pénurie mesurée par la ville
+    const listed = new Set(game.offers.filter(o => o.status === 'active' && o.type === 'sell' && o.ownerId !== RESERVE_ID && o.quantity > 0).map(o => o.itemId));
+    ITEMS.forEach(item => {
+      const sdShort = sd?.items?.[item.id]?.shortSince != null;
+      const out = !listed.has(item.id) || sdShort;
+      if (out && this.outSince[item.id] == null) this.outSince[item.id] = day;
+      if (!out) delete this.outSince[item.id];
+    });
+    const shortDays = (id) => (this.outSince[id] == null ? 0 : day - this.outSince[id]);
+    // Clôt les commandes résolues (pénurie terminée) ou dont l'offre n'est plus active
+    Object.keys(this.publicOrders).forEach(id => {
+      const po = this.publicOrders[id];
+      const offer = game.offers.find(o => o.id === po.offerId);
+      const stillShort = shortDays(id) >= t.publicOrderAfterDays;
+      if (offer && offer.status === 'active') {
+        po.filled = Math.max(0, po.qty - offer.quantity);
+        if (!stillShort) {
+          if (offer.quantity > 0) this.treasury = round2(this.treasury + offer.price * offer.quantity);
+          offer.status = 'cancelled';
+        } else return;
+      }
+      if (!stillShort) delete this.publicOrders[id];
+    });
+    const candidates = ITEMS
+      .filter(item => shortDays(item.id) >= t.publicOrderAfterDays)
+      .sort((a, b) => this.outSince[a.id] - this.outSince[b.id]);
+    for (const item of candidates) {
+      const existing = this.publicOrders[item.id];
+      const live = existing && game.offers.find(o => o.id === existing.offerId && o.status === 'active');
+      if (live) continue;
+      const open = Object.values(this.publicOrders).filter(po => game.offers.some(o => o.id === po.offerId && o.status === 'active')).length;
+      if (open >= t.publicOrderMax) break;
+      const price = round2(game.economy.getFairValue(item.id) * t.publicOrderPrice);
+      const qty = Math.min(t.publicOrderQty, Math.floor((this.treasury - t.publicOrderKeep) / Math.max(0.01, price)));
+      if (qty < 1) continue;
+      this.treasury = round2(this.treasury - price * qty);
+      const offer = new Offer({
+        type: 'buy', itemId: item.id, quantity: qty, price,
+        ownerId: RESERVE_ID, durationDays: 2, createdAt: now, msPerGameDay
+      });
+      offer.procurement = true;
+      offer.publicOrder = true;
+      game.offers.push(offer);
+      this.publicOrders[item.id] = { itemId: item.id, since: this.outSince[item.id], day, price, qty, offerId: offer.id, filled: 0, delivered: existing?.delivered || 0 };
+      this.stats.publicOrders += 1;
+      game.matchingEngine.match(offer, game.offers);
+      actions.push({ type: 'public', itemId: item.id, qty, price });
+    }
+    return actions;
+  }
+
+  /** Livraison sur une commande publique : la ville consomme aussitôt les objets (pénurie). */
+  notePublicDelivery(offer, qty) {
+    const po = offer && this.publicOrders[offer.itemId];
+    this.stats.publicOrderUnits = (this.stats.publicOrderUnits || 0) + qty;
+    if (po && po.offerId === offer.id) po.delivered = (po.delivered || 0) + qty;
+  }
+
+  /** Vue « quêtes » : commandes publiques ouvertes. */
+  publicOrdersView(game) {
+    const day = game.timeManager?.getCurrentDay?.() ?? game.currentDay ?? 1;
+    return Object.values(this.publicOrders).map(po => {
+      const offer = game.offers.find(o => o.id === po.offerId && o.status === 'active');
+      if (!offer || offer.quantity <= 0) return null;
+      const item = getItemById(po.itemId);
+      const fair = game.economy.getFairValue(po.itemId);
+      return {
+        id: `po_${po.itemId}`, offerId: offer.id, itemId: po.itemId, itemName: item?.name || po.itemId, icon: item?.icon || '',
+        price: offer.price, fair: round2(fair), premiumPct: Math.round((offer.price / Math.max(0.01, fair) - 1) * 100),
+        qty: offer.quantity, total: round2(offer.price * offer.quantity), shortDays: day - po.since, delivered: po.delivered || 0
+      };
+    }).filter(Boolean).sort((a, b) => b.shortDays - a.shortDays);
   }
 
   /**
@@ -168,6 +271,7 @@ export class MarketReserve {
     const now = game.timeManager?.now?.() ?? Date.now();
     const msPerGameDay = game.timeManager?.msPerGameDay;
     this._settleOwnOffers(game);
+    actions.push(...this.publicOrdersDaily(game));
     let budget = round2(this.treasury * t.buyBudgetShare);
 
     for (const item of ITEMS) {
@@ -263,7 +367,7 @@ export class MarketReserve {
     }
 
     this.stats.interventions += actions.length;
-    this.lastActions = actions.slice(-8).map(a => {
+    this.lastActions = [...actions.filter(a => a.type === 'public'), ...actions.filter(a => a.type !== 'public').slice(-8)].map(a => {
       const item = getItemById(a.itemId);
       return { ...a, name: item?.name || a.itemId, icon: item?.icon || '' };
     });
@@ -275,7 +379,9 @@ export class MarketReserve {
       treasury: this.treasury,
       stock: { ...this.stock },
       stats: { ...this.stats },
-      lastActions: this.lastActions
+      lastActions: this.lastActions,
+      publicOrders: this.publicOrders,
+      outSince: this.outSince
     };
   }
 

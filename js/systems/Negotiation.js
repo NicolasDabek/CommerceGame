@@ -16,7 +16,7 @@
 import { NPCS } from '../data/npcs.js';
 import { getItemById } from '../data/items.js';
 import { Transaction } from '../models/Transaction.js';
-import { rankFor } from '../core/Ranks.js';
+import { rankFor, isFeatureUnlocked, lockedMessage } from '../core/Ranks.js';
 
 export const NEGOTIATION_TUNING = {
   baseFlex: 0.03,          // marge de base (3 %)
@@ -28,6 +28,7 @@ export const NEGOTIATION_TUNING = {
   dryFlex: 0.04,           // trésorerie à sec : il a besoin de vendre
   collectorFlex: -0.05,    // collectionneur sur ses favoris
   maxFlex: 0.16,
+  minBuyFlex: 0.08,        // analyse GD passe 2 : un marchandage réussi à l'achat donne au moins −8 % (borné par le plancher)
   floorRef: 0.9,           // jamais sous 90 % du prix de référence
   ceilRef: 1.04,           // jamais au-dessus de 104 % du prix de référence (vente au PNJ)
   sellFlexFactor: 0.6,     // un PNJ acheteur lâche moins qu'un PNJ vendeur
@@ -165,6 +166,9 @@ export class Negotiation {
     const rank = this._rank();
     if (rank.haggleBonus) { flex += rank.haggleBonus; reasons.push(`rang ${rank.title} ${rank.haggleBonus > 0 ? '+' : ''}${Math.round(rank.haggleBonus * 100)} %`); }
     if (personalityBonus[npc.personality]) flex += personalityBonus[npc.personality];
+    // Analyse GD passe 2 : à l'achat, la marge de base est d'au moins 8 % ; la mémoire du marchand
+    // (offres trop basses / bon client), le lot entier et les arguments s'appliquent ensuite
+    if (kind === 'buy' && flex < T.minBuyFlex) { flex = T.minBuyFlex; reasons.push('marchandage : au moins −8 %'); }
     const mem = this._memory(npc.id);
     if (mem.bluffs > 0.5) { const f = Math.min(T.bluffFlexMax, mem.bluffs * T.bluffFlex); flex -= f; reasons.push(`se souvient de vos offres trop basses −${(f * 100).toFixed(1).replace('.', ',')} %`); }
     if (mem.deals > 0) { const f = Math.min(T.dealFlexMax, mem.deals * T.dealFlex); flex += f; if (f >= 0.004) reasons.push('bon client'); }
@@ -245,7 +249,8 @@ export class Negotiation {
     let blocked = null;
     let haggleBlocked = null;
     if (kind === 'buy' && offer.currentBid != null) blocked = 'Une enchère est en cours : attendez la fin ou surenchérissez';
-    if (this.triesLeft(npc.id) <= 0) haggleBlocked = `${npc.name} ne veut plus discuter aujourd'hui`;
+    if (!this.unlocked()) haggleBlocked = lockedMessage('haggle');
+    else if (this.triesLeft(npc.id) <= 0) haggleBlocked = `${npc.name} ne veut plus discuter aujourd'hui`;
     else if (this.dealsLeft(npc.id) <= 0) haggleBlocked = `Déjà ${NEGOTIATION_TUNING.dealsPerNpc} accords avec ${npc.name} aujourd'hui`;
     let maxQty = offer.quantity;
     if (kind === 'sell') {
@@ -402,6 +407,7 @@ export class Negotiation {
     const session = this._session(offerId, npc);
     if (session.walked) return { success: false, error: `${npc.name} a coupé court aujourd'hui` };
     if (session.tactic) return { success: false, error: 'Un seul argument par discussion' };
+    if (!this.unlocked()) return { success: false, locked: true, error: lockedMessage('haggle') };
     if (this.triesLeft(npc.id) <= 0) return { success: false, error: `${npc.name} ne veut plus discuter aujourd'hui` };
     const mem = this._memory(npc.id);
     const style = styleFor(npc);
@@ -470,6 +476,11 @@ export class Negotiation {
    * Propose un prix unitaire.
    * @returns {{success:boolean, outcome:'accepted'|'counter'|'refused', message:string, price?:number, counter?:number}}
    */
+  /** Le marchandage se débloque au rang 1 (analyse GD passe 2). */
+  unlocked() {
+    return isFeatureUnlocked('haggle', this.game.player?.reputation || 0);
+  }
+
   propose(offerId, price, quantity = 1, { acceptCounter = false } = {}) {
     const T = NEGOTIATION_TUNING;
     const ctx = this._context(offerId);
@@ -487,6 +498,7 @@ export class Negotiation {
     if (kind === 'buy' && p > lim.ask + 0.005) return { success: false, error: `Inutile de payer plus que le prix demandé (${lim.ask.toFixed(2)} €)` };
     if (kind === 'sell' && p < lim.ask - 0.005) return { success: false, error: `Son offre est déjà de ${lim.ask.toFixed(2)} € : demandez au moins autant` };
     const direct = Math.abs(p - lim.ask) < 0.005;
+    if (!direct && !this.unlocked()) return { success: false, locked: true, error: lockedMessage('haggle') };
     if (!direct && this.dealsLeft(npc.id) <= 0) return { success: false, error: `Déjà ${T.dealsPerNpc} accords avec ${npc.name} aujourd'hui — achat au prix demandé seulement` };
 
     const counterEntry = this.counters[offerId];

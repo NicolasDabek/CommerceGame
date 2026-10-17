@@ -16,13 +16,18 @@ export function installMemoryStorage() {
   };
 }
 
-/** Jeu complet (Game + GamePatch) avec un stockage mémoire. */
-export async function makeGame() {
+/**
+ * Jeu complet (Game + GamePatch) avec un stockage mémoire.
+ * `reputation` : réputation de départ (ex. 35 = rang 3, tous les systèmes débloqués — analyse GD passe 2).
+ */
+export const UNLOCK_ALL_REP = 35;
+export async function makeGame({ reputation = null } = {}) {
   const restore = installMemoryStorage();
   const { Game } = await import('../js/core/Game.js');
   const { enhanceGame } = await import('../js/core/GamePatch.js');
   const game = new Game();
   enhanceGame(game);
+  if (reputation != null) game.player.reputation = reputation;
   return { game, restore };
 }
 

@@ -7,7 +7,7 @@
 
 import { getItemById } from '../data/items.js';
 import { Offer } from '../models/Offer.js';
-import { rankFor } from '../core/Ranks.js';
+import { rankFor, isFeatureUnlocked, lockedMessage } from '../core/Ranks.js';
 
 const MAX_WATCH = 10;
 const MAX_ALERTS = 30;
@@ -215,7 +215,13 @@ export class TradingDesk {
     return base + (rankFor(this.game.player?.reputation || 0).orderSlots || 0);
   }
 
+  /** Les ordres permanents se débloquent au rang 3 (analyse GD passe 2). */
+  ordersUnlocked() {
+    return isFeatureUnlocked('standingOrders', this.game.player?.reputation || 0);
+  }
+
   addStandingOrder({ itemId, price, quantity, minQuality = 0 }) {
+    if (!this.ordersUnlocked()) return { success: false, locked: true, error: lockedMessage('standingOrders') };
     const item = getItemById(itemId);
     const p = r2(Number(String(price).replace(',', '.')));
     const q = Math.floor(Number(quantity));

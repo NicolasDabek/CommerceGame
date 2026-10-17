@@ -1,9 +1,9 @@
 import { Offer } from '../js/models/Offer.js';
 import { Transaction } from '../js/models/Transaction.js';
 import { CHAPTERS } from '../js/systems/Career.js';
-import { rankFor, getRankView, RANKS } from '../js/core/Ranks.js';
+import { rankFor, getRankView, RANKS, feeMultiplierFor, isFeatureUnlocked, featureView } from '../js/core/Ranks.js';
 import { assert, assertEqual, runSuite } from './assert.js';
-import { makeGame, totalMoney, installMemoryStorage } from './helpers.js';
+import { makeGame, totalMoney, installMemoryStorage, UNLOCK_ALL_REP } from './helpers.js';
 
 function npcBuy(game, itemId, price, qty, owner) {
   const o = new Offer({ type: 'buy', itemId, quantity: qty, price, ownerId: owner, durationDays: 1, createdAt: game.timeManager.now(), msPerGameDay: game.timeManager.msPerGameDay });
@@ -13,6 +13,22 @@ function npcBuy(game, itemId, price, qty, owner) {
 
 export function run() {
   return runSuite('parcours-rangs', [
+    ['passe 2 : déblocage par rang (HDV/atelier/commandes → marchandage → crédit → ordres et comparateur) et frais −20 % au rang 1', () => {
+      assertEqual(isFeatureUnlocked('haggle', 0), false);
+      assertEqual(isFeatureUnlocked('haggle', 8), true);
+      assertEqual(isFeatureUnlocked('credit', 17), false);
+      assertEqual(isFeatureUnlocked('credit', 18), true);
+      assertEqual(isFeatureUnlocked('standingOrders', 34), false);
+      assertEqual(isFeatureUnlocked('compare', 35), true);
+      assertEqual(isFeatureUnlocked('auction', 0), true, 'hôtel de vente toujours ouvert');
+      assertEqual(featureView(0).filter(f => !f.unlocked).length, 4);
+      assertEqual(feeMultiplierFor(0), 1);
+      assert(Math.abs(feeMultiplierFor(8) - 0.8) < 1e-9, `rang 1 : ${feeMultiplierFor(8)}`);
+      assert(feeMultiplierFor(60) <= 0.8, 'rangs supérieurs au moins aussi bien');
+      assert(feeMultiplierFor(-10) > 1, 'réputation négative : frais majorés');
+      const v = getRankView(0);
+      assert(v.table[1].unlocks.includes('Marchandage'), 'tableau des rangs : débloque le marchandage');
+    }],
     ['rangs : paliers, avantages et résumé de progression corrigé', async () => {
       assertEqual(rankFor(0).title, 'Nouveau venu');
       assertEqual(rankFor(18).title, 'Commerçant fiable');
@@ -22,8 +38,9 @@ export function run() {
       assertEqual(v.next.title, 'Commerçant fiable');
       assertEqual(v.toNext, 8);
       assertEqual(v.table.length, RANKS.length);
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
+        game.player.reputation = 8;
         const slots = game.tradingDesk.slots();
         game.player.reputation = 18;
         assertEqual(game.tradingDesk.slots(), slots + 1, 'ordre permanent en plus au rang 2');
@@ -33,7 +50,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['parcours : chapitre 1 terminé → récompense versée une seule fois, chapitre 2 débloqué', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         const c = game.career;
         let v = c.getView();
@@ -56,7 +73,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['compteurs : achat sous la moyenne, vente avec marge, pénurie approvisionnée, partenaires', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         const c = game.career;
         c.counters.shortageSales = 0;
@@ -73,7 +90,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['patrimoine : argent + stock au prix du marché + offres − crédit', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.player.inventory.items = [];
         game.player.money = 1000;
@@ -90,7 +107,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['vente groupée : remplit les offres les mieux payées d\'abord, argent conservé', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.offers.forEach(o => { if (o.itemId === 'item_004') o.status = 'cancelled'; });
         game.player.inventory.items = [];
@@ -126,7 +143,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['sauvegarde : marchandage, crédit et parcours rechargés ; ancienne sauvegarde migrée', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.reserve.treasury = 1500;
         game.borrow(100, 7);

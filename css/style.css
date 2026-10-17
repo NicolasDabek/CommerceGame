@@ -1693,3 +1693,17 @@ tr.row-deal td:first-child { border-left: 0; }
   .mk-card { padding: 8px 10px; gap: 2px 10px; }
 }
 @media (max-width: 820px) { #panel-market .market-chips { order: -1; } }
+
+/* ===== Analyse GD passe 2 : commandes publiques (quêtes) et systèmes débloqués par rang ===== */
+.public-orders { margin-bottom: 10px; }
+.req-item.quest-public { border: 1px solid rgba(245, 158, 11, .55); background: rgba(245, 158, 11, .10); }
+.req-item.quest-public.ready { background: rgba(16, 185, 129, .14); }
+.chip-quest { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 12px; background: rgba(245, 158, 11, .25); color: #fcd34d; }
+.lock-tag { font-size: 12px; color: #c7cdd8; margin-left: 4px; }
+.tab.tab-locked { opacity: .8; }
+.locked-feature { padding: 12px 14px; border-radius: 10px; border: 1px dashed #4b5366; background: rgba(127, 127, 127, .08); }
+.locked-feature .locked-title { font-weight: 600; margin: 0 0 6px; }
+.more-locks { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0 0; font-size: 13px; }
+.more-locks[hidden] { display: none; }
+.more-locks .locks-title { color: #c7cdd8; }
+.lock-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; background: rgba(127, 127, 127, .16); color: #e5e7eb; font-size: 12px; }

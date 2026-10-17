@@ -5,7 +5,7 @@ import { pickGoal, GOALS } from '../js/systems/NpcMind.js';
 import { priceChartSvg } from '../js/ui/MarketTools.js';
 import { NPCS } from '../js/data/npcs.js';
 import { assert, assertEqual, runSuite } from './assert.js';
-import { makeGame, totalMoney } from './helpers.js';
+import { makeGame, totalMoney, UNLOCK_ALL_REP } from './helpers.js';
 
 function listing(game, owner, price, { qty = 3, quality = 50, itemId = 'item_004' } = {}) {
   const o = new Offer({ type: 'sell', itemId, quantity: qty, price, buyoutPrice: price, ownerId: owner, durationDays: 1, quality, perfection: 50, createdAt: game.timeManager.now(), msPerGameDay: game.timeManager.msPerGameDay });
@@ -17,7 +17,7 @@ const npcOf = (pers) => NPCS.find(n => n.personality === pers);
 export function run() {
   return runSuite('v7', [
     ['argument vrai (quantité) : marge en plus, jamais sous le plancher, un seul par discussion', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         const npc = npcOf('agressif');
         const ref = game.npcController.refPrice('item_004', 50, 50);
@@ -35,7 +35,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['argument faux (défaut sur un objet en bon état) : confiance, humeur et patience en baisse', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         const npc = npcOf('épicier');
         const st = game.npcController.npcStates[npc.id];
@@ -51,7 +51,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['concurrent moins cher : vrai seulement si un autre marchand vend moins cher', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         const [a, b] = [npcOf('agressif'), npcOf('prudent')];
         const ref = game.npcController.refPrice('item_004', 50, 50);
@@ -66,7 +66,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['devis : attitude lisible, arguments proposés, carnet sauvegardé et rechargé', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         const npc = npcOf('agressif');
         const ref = game.npcController.refPrice('item_004', 50, 50);
@@ -82,7 +82,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['demande de marchand : livrer conserve l\'argent, +réputation, +confiance', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         const npc = NPCS[0];
         const ctl = game.npcController;
@@ -106,7 +106,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['demandes : publiées en pénurie, bornées, expirent ; ancienne sauvegarde OK', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         const ctl = game.npcController;
         const orig = ctl.marketSignal.bind(ctl);
@@ -127,7 +127,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['IA : un événement sur sa spécialité change son objectif (vendre en hausse, racheter en baisse)', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         const ctl = game.npcController;
         const npc = NPCS.find(n => n.preferredCategories.length);
@@ -148,7 +148,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['IA : ne casse pas les prix d\'un marchand du même clan, s\'aligne', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         const ctl = game.npcController;
         const a = NPCS.find(n => n.clanId && NPCS.some(m => m.id !== n.id && m.clanId === n.clanId));
@@ -167,7 +167,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['interface : comparateur trié, courbe SVG avec zoom', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         const [a, b] = [npcOf('agressif'), npcOf('prudent')];
         const ref = game.npcController.refPrice('item_004', 50, 50);

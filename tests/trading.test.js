@@ -1,7 +1,7 @@
 import { TradingDesk } from '../js/systems/TradingDesk.js';
 import { Offer } from '../js/models/Offer.js';
 import { assert, assertEqual, runSuite } from './assert.js';
-import { makeGame } from './helpers.js';
+import { makeGame, UNLOCK_ALL_REP } from './helpers.js';
 
 function npcSell(game, itemId, price, owner = 'npc_05') {
   const now = game.timeManager.now();
@@ -13,7 +13,7 @@ function npcSell(game, itemId, price, owner = 'npc_05') {
 export function run() {
   return runSuite('suivi-ordres', [
     ['liste de suivi : alerte déclenchée une seule fois au franchissement', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.offers.forEach(o => { if (o.itemId === 'item_004') o.status = 'cancelled'; });
         const desk = game.tradingDesk;
@@ -38,8 +38,16 @@ export function run() {
         assertEqual(desk.unreadCount(), 0);
       } finally { restore(); }
     }],
+    ['ordres permanents verrouillés avant le rang 3 (analyse GD passe 2)', async () => {
+      const { game, restore } = await makeGame({ reputation: 18 });
+      try {
+        const r = game.tradingDesk.addStandingOrder({ itemId: 'item_012', price: 4, quantity: 1 });
+        assertEqual(r.success, false);
+        assert(/rang 3/.test(r.error), r.error);
+      } finally { restore(); }
+    }],
     ['ordre d\'achat permanent : placé, rempli, renouvelé chaque jour', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.offers.forEach(o => { if (o.itemId === 'item_012') o.status = 'cancelled'; });
         const desk = game.tradingDesk;
@@ -58,8 +66,9 @@ export function run() {
         desk.renewOrders();
         assert(order.lastOfferId !== first.id, 'renouvelé');
         // Places limitées
-        desk.addStandingOrder({ itemId: 'item_010', price: 7, quantity: 1 });
-        const third = desk.addStandingOrder({ itemId: 'item_004', price: 10, quantity: 1 });
+        const extra = ['item_010', 'item_004', 'item_002', 'item_006', 'item_008'];
+        let third = null;
+        for (const id of extra) { third = desk.addStandingOrder({ itemId: id, price: 3, quantity: 1 }); if (!third.success) break; }
         assert(!third.success && /ordres permanents/.test(third.error), 'limite de places');
         // Pause → offre annulée et remboursée
         const live = game.offers.find(o => o.id === order.lastOfferId);
@@ -68,7 +77,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['bilan : marge réalisée, atelier, contrats, frais', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         const desk = game.tradingDesk;
         game.offers.forEach(o => { if (o.itemId === 'item_013') o.status = 'cancelled'; });
@@ -92,7 +101,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['sauvegarde du suivi et des ordres', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.tradingDesk.toggleWatch('item_001');
         game.tradingDesk.setAlert('item_001', 100, 250);

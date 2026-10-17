@@ -17,7 +17,7 @@
  */
 
 import { NPCS } from '../data/npcs.js';
-import { rankFor, RANKS } from '../core/Ranks.js';
+import { rankFor, RANKS, isFeatureUnlocked, lockedMessage } from '../core/Ranks.js';
 
 export const CREDIT_TUNING = {
   durations: [3, 7],
@@ -74,13 +74,18 @@ export class Credit {
     return { total: r2(sources.reduce((t, s) => t + s.amount, 0)), sources };
   }
 
+  /** Le crédit se débloque au rang 2 (analyse GD passe 2). */
+  unlocked() {
+    return isFeatureUnlocked('credit', this.game.player?.reputation || 0);
+  }
+
   /** Interdit de crédit (retard récent) ? */
   banned() {
     return this.bannedUntil != null && this._day() < this.bannedUntil;
   }
 
   limit() {
-    if (this.loan || this.banned()) return 0;
+    if (this.loan || this.banned() || !this.unlocked()) return 0;
     return r2(Math.min(this.rank().creditLimit, this.pool().total));
   }
 
@@ -101,6 +106,7 @@ export class Credit {
     const T = CREDIT_TUNING;
     const a = r2(Number(String(amount).replace(',', '.')));
     if (this.loan) return { success: false, error: 'Vous avez déjà un crédit en cours : remboursez-le d\'abord' };
+    if (!this.unlocked() && (this.game.player?.reputation || 0) >= 0) return { success: false, locked: true, error: lockedMessage('credit') };
     if (this.banned()) return { success: false, error: `Retard de remboursement récent : le Comptoir ne vous prête plus avant le jour ${this.bannedUntil}` };
     if (!(a >= T.minAmount)) return { success: false, error: `Montant minimum : ${T.minAmount} €` };
     const rank = this.rank();
@@ -305,6 +311,7 @@ export class Credit {
       } : null,
       history: this.history,
       bannedUntil: this.banned() ? this.bannedUntil : null,
+      locked: this.unlocked() ? null : lockedMessage('credit'),
       stats: { ...this.stats }
     };
   }

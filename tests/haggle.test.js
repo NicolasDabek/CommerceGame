@@ -2,7 +2,7 @@ import { Offer } from '../js/models/Offer.js';
 import { NEGOTIATION_TUNING, styleFor, HAGGLE_STYLES } from '../js/systems/Negotiation.js';
 import { NPCS } from '../js/data/npcs.js';
 import { assert, assertEqual, runSuite } from './assert.js';
-import { makeGame, totalMoney } from './helpers.js';
+import { makeGame, totalMoney, UNLOCK_ALL_REP } from './helpers.js';
 
 function listing(game, owner, price, qty = 3) {
   const o = new Offer({ type: 'sell', itemId: 'item_004', quantity: qty, price, buyoutPrice: price, ownerId: owner, durationDays: 1, quality: 50, perfection: 50, createdAt: game.timeManager.now(), msPerGameDay: game.timeManager.msPerGameDay });
@@ -21,7 +21,7 @@ export function run() {
       assert(HAGGLE_STYLES.generous.patience > HAGGLE_STYLES.stubborn.patience, 'arrangeant plus patient');
     }],
     ['plusieurs tours : concessions de plus en plus petites, jamais sous la limite', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.player.money = 5000;
         const npc = npcOf('épicier');
@@ -46,7 +46,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['patience épuisée : il coupe court, mais sa dernière contre-offre reste valable', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.player.money = 5000;
         const npc = npcOf('opportuniste');
@@ -69,7 +69,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['mémoire : les offres trop basses réduisent sa marge, oubliées peu à peu, sauvegardées', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         game.player.money = 5000;
         const npc = npcOf('agressif');
@@ -90,7 +90,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['chance estimée : croissante avec le prix, ~100 % au prix demandé ; prix conseillés', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         const npc = npcOf('artisan');
         game.npcController.npcStates[npc.id].trust = 0.5;
@@ -108,7 +108,7 @@ export function run() {
       } finally { restore(); }
     }],
     ['lot entier : marge +2 %, plancher de 90 % toujours respecté', async () => {
-      const { game, restore } = await makeGame();
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {
         const npc = npcOf('épicier');
         const st = game.npcController.npcStates[npc.id];

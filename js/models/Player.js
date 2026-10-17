@@ -4,6 +4,7 @@
  */
 
 import { Inventory } from './Inventory.js';
+import { feeMultiplierFor } from '../core/Ranks.js';
 
 export class Player {
   constructor(data = {}) {
@@ -74,7 +75,7 @@ export class Player {
   }
 
   getFeeMultiplier() {
-    return Math.max(0.62, Math.min(1.28, 1 - this.reputation * 0.008));
+    return feeMultiplierFor(this.reputation);
   }
 
   getTrustScore() {

@@ -117,7 +117,7 @@ export class CareerUI {
     const pct = (r) => `${String(Math.round(r * 1000) / 10).replace('.', ',')} %`;
     const rows = rank.table.map(r => `
       <tr class="${r.current ? 'row-current' : ''} ${r.reached ? '' : 'row-locked'}">
-        <td>${r.icon} <strong>${r.title}</strong><br><small class="text-muted">${r.text}</small></td>
+        <td>${r.icon} <strong>${r.title}</strong><br><small class="text-muted">${r.text}</small>${r.unlocks?.length ? `<br><small class="text-success">🔓 Débloque : ${r.unlocks.join(', ')}</small>` : r.id === 0 ? '<br><small class="text-muted">Hôtel de vente, atelier, contrats et commandes</small>' : ''}</td>
         <td>${r.minRep}+</td>
         <td title="Multiplicateur des frais d'annonce">${Math.round(r.feeMultiplier * 100)} %</td>
         <td>${r.haggleTries} essais / marchand${r.haggleBonus ? `<br><small class="text-success">+${Math.round(r.haggleBonus * 100)} % de marge</small>` : ''}</td>

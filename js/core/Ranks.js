@@ -52,9 +52,44 @@ export function nextRank(reputation = 0) {
   return RANKS.find(r => r.minRep > rep) || null;
 }
 
-/** Multiplicateur des frais d'annonce (formule historique de Player.getFeeMultiplier). */
+/** Réduction des frais d'annonce dès le rang 1 (analyse GD passe 2 : −20 %). */
+export const RANK1_FEE_MULT = 0.8;
+
+/** Multiplicateur des frais d'annonce : formule historique, plafonnée à 80 % dès le rang 1. */
 export function feeMultiplierFor(reputation = 0) {
-  return Math.max(0.62, Math.min(1.28, 1 - (Number(reputation) || 0) * 0.008));
+  const rep = Number(reputation) || 0;
+  const linear = Math.max(0.62, Math.min(1.28, 1 - rep * 0.008));
+  return rep >= RANKS[1].minRep ? Math.min(linear, RANK1_FEE_MULT) : linear;
+}
+
+/**
+ * Déblocage progressif des systèmes par rang (analyse GD passe 2, §4.5).
+ * Rang 0 : hôtel de vente, atelier, commandes ; rang 1 : marchandage ; rang 2 : crédit ;
+ * rang 3 : ordres permanents et comparateur de marchands.
+ */
+export const FEATURE_RANK = { haggle: 1, credit: 2, standingOrders: 3, compare: 3 };
+export const FEATURE_LABEL = { haggle: 'Marchandage', credit: 'Crédit du Comptoir', standingOrders: 'Ordres permanents', compare: 'Comparateur de marchands' };
+
+/** Rang minimum d'un système (0 si toujours ouvert). */
+export function featureRank(feature) {
+  return FEATURE_RANK[feature] ?? 0;
+}
+
+export function isFeatureUnlocked(feature, reputation = 0) {
+  const need = featureRank(feature);
+  if (!need) return true;
+  return rankFor(reputation).id >= need;
+}
+
+/** Message lisible : « débloqué au rang N (titre, R réputation) ». */
+export function lockedMessage(feature) {
+  const r = RANKS[featureRank(feature)];
+  return `${FEATURE_LABEL[feature] || feature} : débloqué au rang ${r.id} (${r.title}, ${r.minRep} de réputation)`;
+}
+
+/** Systèmes débloqués / verrouillés pour une réputation donnée. */
+export function featureView(reputation = 0) {
+  return Object.keys(FEATURE_RANK).map(id => ({ id, label: FEATURE_LABEL[id], rank: FEATURE_RANK[id], title: RANKS[FEATURE_RANK[id]].title, minRep: RANKS[FEATURE_RANK[id]].minRep, unlocked: isFeatureUnlocked(id, reputation) }));
 }
 
 /** Vue complète pour l'interface : rang actuel, suivant, progression et tableau des avantages. */
@@ -71,8 +106,10 @@ export function getRankView(reputation = 0) {
     pct,
     toNext: next ? next.minRep - rep : 0,
     feeMultiplier: feeMultiplierFor(rep),
+    features: featureView(rep),
     table: RANKS.map(r => ({
       ...r,
+      unlocks: Object.keys(FEATURE_RANK).filter(f => FEATURE_RANK[f] === r.id).map(f => FEATURE_LABEL[f]),
       reached: rep >= r.minRep,
       current: r.id === rank.id,
       feeMultiplier: feeMultiplierFor(r.minRep)
