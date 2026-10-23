@@ -2,6 +2,7 @@
  * Interface — Inventaire avec fiche marché et vente rapide
  */
 
+import { itemTitle } from '../utils/escape.js';
 import { ITEMS, getItemById } from '../data/items.js';
 import { conditionLabel, conditionMultiplier, isRepairable } from '../core/condition.js';
 import { formatMoney, insightCardHtml, marginHtml } from './TradeInsights.js';
@@ -100,7 +101,7 @@ export class InventoryUI {
       el.innerHTML = `
         <span class="slot-rarity" style="background:${rarityColor}"></span>
         <span class="slot-icon">${item?.icon || '📦'}</span>
-        <span class="slot-name">${item?.name || slot.itemId}</span>
+        ${itemTitle(item?.name || slot.itemId, 'slot-name')}
         ${marginBit}
         <span class="slot-qty">${slot.quantity}</span>
       `;

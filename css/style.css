@@ -432,9 +432,6 @@ body {
   color: var(--text-secondary);
   line-height: 1.2;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .slot-qty {
@@ -1626,7 +1623,7 @@ body.in-panel #btn-town-recenter { display: none; }
 tr.row-deal .mk-card { border-color: rgba(74, 222, 128, .45); }
 tr.row-deal td:first-child { border-left: 0; }
 .mk-name { grid-area: name; display: flex; align-items: center; gap: 4px; min-width: 0; }
-.mk-title { font-weight: 800; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-title { font-weight: 800; font-size: 1rem; }
 .mk-price { grid-area: price; font-weight: 800; font-size: 1rem; text-align: right; white-space: nowrap; }
 .mk-price.trend-up { color: #4ade80; }
 .mk-price.trend-down { color: #f87171; }
@@ -1731,3 +1728,10 @@ body.in-panel #town-labels { visibility: hidden; }
 }
 /* 7) Étiquette « pour entrer » : voir world-override.css (texte clair, touchable) */
 .row-tools .mk-tool-txt, .mk-none .mk-tool-txt { font-size: 12px; color: var(--text-secondary); }
+
+/* ---------- Noms d'objets : 2 lignes max, nom complet en infobulle ---------- */
+.item-title {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; white-space: normal; overflow-wrap: anywhere; min-width: 0; max-width: 100%;
+  vertical-align: top;
+}

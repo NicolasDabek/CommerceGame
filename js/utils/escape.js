@@ -10,3 +10,9 @@ export function esc(text) {
 
 /** Alias explicite pour les valeurs d'attribut (title, aria-label…). */
 export const escapeAttr = esc;
+
+/** Nom d'objet sur 2 lignes max (CSS .item-title), nom complet en infobulle. */
+export function itemTitle(text, cls = '') {
+  const t = esc(text);
+  return `<span class="item-title${cls ? ' ' + cls : ''}" title="${t}">${t}</span>`;
+}

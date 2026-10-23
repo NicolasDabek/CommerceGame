@@ -3,6 +3,7 @@
  * Filtres, contexte marché et badges d'opportunité.
  */
 
+import { itemTitle } from '../utils/escape.js';
 import { ITEMS, getItemById } from '../data/items.js';
 import { formatMoney, dealBadge, marginHtml } from './TradeInsights.js';
 
@@ -163,7 +164,7 @@ export class AuctionHouseUI {
 
   _renderRow(offer) {
     const item = getItemById(offer.itemId);
-    const itemName = item ? `${item.icon || ''} ${item.name}` : offer.itemId;
+    const itemName = item ? `${item.icon || ''} ${itemTitle(item.name)}` : itemTitle(offer.itemId);
     const seller = this.resolveName(offer.ownerId);
     const remaining = offer.getRemainingText(gameNow());
     const going = effectivePrice(offer);

@@ -2,6 +2,7 @@
  * Interface — Historique des transactions
  */
 
+import { itemTitle } from '../utils/escape.js';
 import { getItemById } from '../data/items.js';
 
 export class HistoryUI {
@@ -71,7 +72,7 @@ export class HistoryUI {
 
   _renderRow(tx) {
     const item = getItemById(tx.itemId);
-    const itemName = item ? `${item.icon || ''} ${item.name}` : tx.itemId;
+    const itemName = item ? `${item.icon || ''} ${itemTitle(item.name)}` : itemTitle(tx.itemId);
     const date = new Date(tx.timestamp).toLocaleString('fr-FR', {
       day: '2-digit',
       month: '2-digit',

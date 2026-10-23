@@ -3,7 +3,7 @@
  */
 
 import { ITEMS, getItemById } from '../data/items.js';
-import { esc } from '../utils/escape.js';
+import { esc, itemTitle } from '../utils/escape.js';
 import { formatMoney, formatPct, sparkline, marginHtml, dealBadge, priceWhyChip, economyHealthHtml, supplyCellHtml } from './TradeInsights.js';
 
 export class MarketUI {
@@ -260,7 +260,7 @@ export class MarketUI {
       : '';
     return `
       <tr class="${dealClass}" data-item-row="${row.item.id}" data-item-id="${row.item.id}">
-        <td>${star}${item?.icon || ''} ${item?.name || row.item.id}<br><small class="text-muted">${row.item.category} · ${row.item.rarity}</small>
+        <td>${star}${item?.icon || ''} ${itemTitle(item?.name || row.item.id)}<br><small class="text-muted">${row.item.category} · ${row.item.rarity}</small>
           <span class="row-tools"><button class="btn-link" data-compare="${row.item.id}" title="Comparer les marchands" aria-label="Comparer les marchands pour ${item?.name || row.item.id}"><span aria-hidden="true">⚖️</span><small class="mk-tool-txt" aria-hidden="true">Comparer</small></button><button class="btn-link" data-chart="${row.item.id}" title="Historique des prix" aria-label="Historique des prix de ${item?.name || row.item.id}"><span aria-hidden="true">📈</span><small class="mk-tool-txt" aria-hidden="true">Historique</small></button></span></td>
         <td class="text-money">${formatMoney(row.average)} €${row.explanation ? `<br>${priceWhyChip(row.explanation)}` : ''}</td>
         <td>${supplyCellHtml(row.supply)}</td>
@@ -292,7 +292,7 @@ export class MarketUI {
     return `
       <tr class="mk-row ${this._isDeal(row) ? 'row-deal' : ''}" data-item-row="${row.item.id}" data-item-id="${row.item.id}"><td colspan="11">
         <div class="mk-card">
-          <div class="mk-name">${star}<span class="mk-title">${item?.icon || ''} ${name}</span></div>
+          <div class="mk-name">${star}<span class="mk-title item-title" title="${esc(name)}">${item?.icon || ''} ${esc(name)}</span></div>
           <div class="mk-price trend-${arrow[1]}" title="${row.bestSell != null ? 'Annonce la moins chère' : 'Prix moyen'} · tendance ${arrow[2]}"><span aria-hidden="true">${arrow[0]}</span> ${formatMoney(price)} €<span class="sr-only"> (${arrow[2]})</span></div>
           <div class="mk-supply">${supplyCellHtml(row.supply)}${row.explanation ? priceWhyChip(row.explanation) : ''}</div>
           <div class="mk-avg">moy. ${formatMoney(row.average)} €</div>
