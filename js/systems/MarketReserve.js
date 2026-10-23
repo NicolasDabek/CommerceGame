@@ -19,10 +19,10 @@ export const RESERVE_TUNING = {
   startTreasury: 900,
   targetTreasury: 1000,    // au-dessus, le Comptoir passe des commandes publiques
   treasuryCap: 4000,       // au-delà, l'excédent est dépensé (détruit)
-  procurementPrice: 0.9,   // commandes publiques à 90 % de la valeur normale
+  procurementPrice: 0.95,  // commandes publiques à 95 % de la valeur normale (passe 3b : 0,9 → 0,95)
   procurementShare: 1,   // part de l'excédent dépensée chaque jour
-  procurementMaxOffers: 10,
-  subsidyShare: 0.25,      // part de l'excédent restant reversée aux marchands en difficulté (passe 2 : 0,5 → 0,25)
+  procurementMaxOffers: 16, // passe 3b : 10 → 16 commandes par jour (l'excédent repart en achats plutôt qu'en subventions)
+  subsidyShare: 0.15,      // part de l'excédent reversée aux marchands en difficulté (passe 2 : 0,25 ; passe 3b : 0,15)
   subsidyBelow: 0.35,      // … ceux sous 35 % de leur capital de départ (passe 2 : 0,4 ; passe 3 : 0,35)
   maxInterventionsPerItem: 1, // passe 3 : au plus une intervention par produit et par jour
   ceiling: 1.7,            // revend à 170 % de la valeur normale si rupture / trop cher (passe 2 : 1,3 → 1,7)

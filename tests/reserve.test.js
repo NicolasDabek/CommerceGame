@@ -99,7 +99,7 @@ export function run() {
     ['passe 2 : bande élargie (plafond 1,7, plancher 0,6) et subventions réduites', () => {
       assertEqual(RESERVE_TUNING.ceiling, 1.7);
       assertEqual(RESERVE_TUNING.floor, 0.6);
-      assertEqual(RESERVE_TUNING.subsidyShare, 0.25);
+      assertEqual(RESERVE_TUNING.subsidyShare, 0.15); // passe 3b
       assertEqual(RESERVE_TUNING.subsidyBelow, 0.35); // passe 3 : 0,4 → 0,35
       assertEqual(RESERVE_TUNING.maxInterventionsPerItem, 1);
     }],

@@ -56,21 +56,28 @@ export function run() {
         assert(r.trader.loans >= 1, `trader : ${r.trader.loans} prêt(s) par partie (cible ≥ 1)`);
         assert(g.exploit < 0, `exploit : ${g.exploit} €/jour (doit rester négatif)`);
         assert(r.defaulter.worthEnd < r.defaulter.worthStart && r.defaulter.worthEnd < r.honest.worthEnd, `mauvais payeur ${r.defaulter.worthStart} → ${r.defaulter.worthEnd} (honnête ${r.honest.worthEnd})`);
-        for (const mode of ['honest', 'haggler', 'trader', 'defaulter']) {
+        for (const mode of ['honest', 'haggler', 'trader']) {
           const band = sums[mode].moneyBand;
           assert(band[0] >= 0.95 && band[1] <= 1.05, `${mode} : masse monétaire ${band} (±5 %)`);
         }
+        // Passe 3b : moins de subventions → les pénalités et la dette impayée du mauvais payeur finissent détruites
+        // au-delà du plafond du Comptoir : la masse peut baisser jusqu'à −10 %, jamais monter
+        const bandD = sums.defaulter.moneyBand;
+        assert(bandD[0] >= 0.9 && bandD[1] <= 1.05, `defaulter : masse monétaire ${bandD} (−10 % / +5 %)`);
         // L'exploit paie beaucoup d'intérêts, détruits au-delà du plafond du Comptoir : la masse peut baisser, jamais monter
         assert(sums.exploit.moneyBand[1] <= 1.05, `exploit : aucune création d'argent ${sums.exploit.moneyBand}`);
       } finally {
         console.error = quiet;
       }
     }],
-    ['Comptoir passe 2 : bande de prix élargie, pénuries chroniques ≤ 12 jours (passe 3), demande non servie ≤ 1/jour', async () => {
+    ['Comptoir passe 2–3b : bande de prix élargie, subventions ≤ 25 k€, pénuries chroniques ≤ 12 jours (passe 3), demande non servie ≤ 1/jour', async () => {
       const quiet = console.error;
       console.error = () => {};
       try {
-        const { summary: s } = await runSimulation({ days: 120, seeds: 3 });
+        const { summary: s, runs } = await runSimulation({ days: 120, seeds: 3 });
+        // Passe 3b : subventions ≤ 25 k€ par partie (part reversée 0,15, 16 commandes/jour à 95 %)
+        const subs = runs.reduce((t, r) => t + (r.reserveStats?.subsidies || 0), 0) / runs.length;
+        assert(subs <= 25000, `subventions ${Math.round(subs)} € par partie (cible ≤ 25 000)`);
         assert(s.priceLateBand[0] >= 0.75 && s.priceLateBand[1] <= 1.5, `bande tardive ${s.priceLateBand}`);
         assert(s.moneyBand[0] >= 0.95 && s.moneyBand[1] <= 1.05, `masse monétaire ${s.moneyBand}`);
         assert(s.shortageLongest <= 12, `plus longue pénurie ${s.shortageLongest} j`);
