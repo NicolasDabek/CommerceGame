@@ -100,7 +100,8 @@ export function run() {
       assertEqual(RESERVE_TUNING.ceiling, 1.7);
       assertEqual(RESERVE_TUNING.floor, 0.6);
       assertEqual(RESERVE_TUNING.subsidyShare, 0.25);
-      assertEqual(RESERVE_TUNING.subsidyBelow, 0.4);
+      assertEqual(RESERVE_TUNING.subsidyBelow, 0.35); // passe 3 : 0,4 → 0,35
+      assertEqual(RESERVE_TUNING.maxInterventionsPerItem, 1);
     }],
     ['passe 2 : rupture de plus de 7 jours → commande publique à 120 %, quête livrable, argent conservé, sauvegardée', async () => {
       const { makeGame, totalMoney, drainItem } = await import('./helpers.js');

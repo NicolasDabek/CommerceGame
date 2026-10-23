@@ -3,6 +3,8 @@
  */
 
 let txCounter = 0;
+/** Simulation headless : remet le compteur d'identifiants à zéro pour que chaque partie soit reproductible. */
+export function resetTxCounter() { txCounter = 0; }
 
 export class Transaction {
   /**

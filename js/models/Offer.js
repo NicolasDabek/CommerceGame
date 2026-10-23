@@ -3,6 +3,8 @@
  */
 
 let offerCounter = 0;
+/** Simulation headless : remet le compteur d'identifiants à zéro pour que chaque partie soit reproductible. */
+export function resetOfferCounter() { offerCounter = 0; }
 const REAL_DAY_MS = 24 * 60 * 60 * 1000;
 
 export class Offer {

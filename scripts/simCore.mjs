@@ -100,10 +100,15 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000, bo
     const { enhanceGame } = await import('../js/core/GamePatch.js');
     const { ITEMS } = await import('../js/data/items.js');
     const { createBot } = bot ? await import('./exploitBot.mjs') : {};
+    const { resetOfferCounter } = await import('../js/models/Offer.js');
+    const { resetTxCounter } = await import('../js/models/Transaction.js');
 
     for (let i = 0; i < seeds; i++) {
       const seed = seedBase + i * 7919;
       Math.random = mulberry32(seed);
+      // Passe 3 : identifiants remis à zéro → une partie donne le même résultat quel que soit l'ordre des simulations
+      resetOfferCounter();
+      resetTxCounter();
       mem.clear();
       virtualNow = Date.UTC(2026, 0, 1);
       const game = new Game();
@@ -268,3 +273,30 @@ export function summarize(runs, days, seeds, elapsedMs) {
     elapsedMs
   };
 }
+
+/**
+ * Analyse GD passe 3 : récapitulatif par robot, au format CSV, pour comparer les passes.
+ * Une ligne par robot (et « aucun » = PNJ seuls) : €/jour en début et fin de partie, gain total,
+ * subventions et interventions du Comptoir (moyenne par partie), pénuries, masse monétaire.
+ */
+export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'honest', 'haggler', 'trader', 'exploit', 'defaulter'] } = {}) {
+  const head = ['bot', 'days', 'seeds', 'eur_per_day', 'eur_per_day_early', 'eur_per_day_late', 'worth_start', 'worth_end', 'haggle_deals_per_day', 'loans', 'contracts', 'subsidies', 'interventions', 'shortages_per_day', 'shortage_longest', 'price_end', 'money_min', 'money_max'];
+  const lines = [head.join(',')];
+  const num = (v) => (v == null || Number.isNaN(v) ? '' : String(v));
+  for (const bot of bots) {
+    const { summary, runs } = await runSimulation({ days, seeds, bot: bot === 'none' ? null : bot });
+    const b = summary.bot;
+    const rs = runs.map(r => r.reserveStats || {});
+    const avgOf = (k) => Math.round(rs.reduce((t, x) => t + (x[k] || 0), 0) / Math.max(1, rs.length));
+    const contracts = b ? r2c(b.diag.reduce((t, d) => t + (d.contracts || 0), 0) / Math.max(1, b.diag.length)) : '';
+    lines.push([
+      bot, days, seeds,
+      b ? r2c((b.worthEnd - b.worthStart) / days) : '', b ? b.gainPerDayEarly : '', b ? b.gainPerDayLate : '',
+      b ? b.worthStart : '', b ? b.worthEnd : '', b ? b.haggleDealsPerDay : '', b ? b.loans : '', contracts,
+      avgOf('subsidies'), avgOf('interventions'), summary.shortagesPerDay, summary.shortageLongest, summary.priceEnd,
+      summary.moneyBand[0], summary.moneyBand[1]
+    ].map(num).join(','));
+  }
+  return lines.join('\n') + '\n';
+}
+function r2c(n) { return Math.round(n * 100) / 100; }

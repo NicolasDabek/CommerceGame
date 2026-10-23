@@ -23,7 +23,8 @@ export const RESERVE_TUNING = {
   procurementShare: 1,   // part de l'excédent dépensée chaque jour
   procurementMaxOffers: 10,
   subsidyShare: 0.25,      // part de l'excédent restant reversée aux marchands en difficulté (passe 2 : 0,5 → 0,25)
-  subsidyBelow: 0.4,       // … ceux sous 40 % de leur capital de départ (passe 2 : 0,6 → 0,4)
+  subsidyBelow: 0.35,      // … ceux sous 35 % de leur capital de départ (passe 2 : 0,4 ; passe 3 : 0,35)
+  maxInterventionsPerItem: 1, // passe 3 : au plus une intervention par produit et par jour
   ceiling: 1.7,            // revend à 170 % de la valeur normale si rupture / trop cher (passe 2 : 1,3 → 1,7)
   floor: 0.6,              // rachète à 60 % de la valeur normale si bradé (passe 2 : 0,75 → 0,6)
   publicOrderAfterDays: 7, // pénurie depuis plus de 7 jours → commande publique…
@@ -272,6 +273,8 @@ export class MarketReserve {
     const msPerGameDay = game.timeManager?.msPerGameDay;
     this._settleOwnOffers(game);
     actions.push(...this.publicOrdersDaily(game));
+    // Passe 3 : une intervention au maximum par produit et par jour (commande publique comprise)
+    const touched = new Set(actions.map(a => a.itemId));
     let budget = round2(this.treasury * t.buyBudgetShare);
 
     for (const item of ITEMS) {
@@ -281,6 +284,7 @@ export class MarketReserve {
 
       // Plafond : rupture ou prix trop haut → le comptoir revend un lot
       const ceilingPrice = round2(fair * t.ceiling);
+      if (touched.has(item.id)) continue;
       if (!book.citySell && stock > 0 && (book.bestSell == null || book.bestSell > ceilingPrice)) {
         const qty = Math.min(stock, t.lot);
         const offer = new Offer({
@@ -292,6 +296,8 @@ export class MarketReserve {
         game.offers.push(offer);
         game.matchingEngine.match(offer, game.offers);
         actions.push({ type: 'sell', itemId: item.id, qty, price: ceilingPrice });
+        touched.add(item.id);
+        continue;
       }
 
       // Plancher : objet bradé → le comptoir rachète (soutient le prix et la trésorerie des vendeurs)
@@ -311,6 +317,7 @@ export class MarketReserve {
           game.offers.push(offer);
           game.matchingEngine.match(offer, game.offers);
           actions.push({ type: 'buy', itemId: item.id, qty, price: floorPrice });
+          touched.add(item.id);
         }
       }
     }
@@ -322,7 +329,7 @@ export class MarketReserve {
       let procurementBudget = round2(excess * t.procurementShare);
       const active = new Set(game.offers.filter(o => o.status === 'active' && o.ownerId === RESERVE_ID && o.type === 'buy').map(o => o.itemId));
       const candidates = ITEMS
-        .filter(item => !active.has(item.id))
+        .filter(item => !active.has(item.id) && !touched.has(item.id))
         .map(item => {
           const book = this._book(game.offers, item.id);
           const consumable = item.category === 'Nourriture' || item.category === 'Ressources' ? 0.4 : 0;

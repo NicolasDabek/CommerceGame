@@ -27,8 +27,11 @@ export const NEGOTIATION_TUNING = {
   overstockFlex: 0.03,
   dryFlex: 0.04,           // trésorerie à sec : il a besoin de vendre
   collectorFlex: -0.05,    // collectionneur sur ses favoris
-  maxFlex: 0.16,
-  minBuyFlex: 0.08,        // analyse GD passe 2 : un marchandage réussi à l'achat donne au moins −8 % (borné par le plancher)
+  maxFlex: 0.08,           // passe 3 : rabais maximal −8 % (doc : −12 % ; à −12 % le marchandeur gagne encore ×2,2 l'honnête)
+  winPatience: 0.15,       // passe 3 : chaque marchandage réussi avec un PNJ abaisse sa patience de 15 %…
+  winPatienceDays: 3,      // … pendant 3 jours
+  winFlex: true,           // … et sa marge de concession d'autant
+  minBuyFlex: 0.05,        // passe 2 : −8 % ; passe 3 : −5 % (marge de base), le plafond passant à −8 %
   floorRef: 0.9,           // jamais sous 90 % du prix de référence
   ceilRef: 1.04,           // jamais au-dessus de 104 % du prix de référence (vente au PNJ)
   sellFlexFactor: 0.6,     // un PNJ acheteur lâche moins qu'un PNJ vendeur
@@ -106,6 +109,13 @@ export class Negotiation {
     return m;
   }
 
+  /** Marchandages réussis avec ce PNJ ces derniers jours (passe 3 : lassitude du marchand). */
+  _recentWins(mem) {
+    const day = this._day();
+    mem.wins = (mem.wins || []).filter(d => day - d < NEGOTIATION_TUNING.winPatienceDays);
+    return mem.wins.length;
+  }
+
   /** Séance de marchandage du jour sur une offre. */
   _session(offerId, npc) {
     const day = this._day();
@@ -113,7 +123,9 @@ export class Negotiation {
     if (!s || s.day !== day) {
       const style = styleFor(npc);
       const mem = this._memory(npc.id);
-      const patience = Math.max(2, style.patience - (mem.bluffs >= 3 ? 1 : 0) + (mem.deals >= 3 ? 1 : 0));
+      let patience = Math.max(2, style.patience - (mem.bluffs >= 3 ? 1 : 0) + (mem.deals >= 3 ? 1 : 0));
+      const wins = this._recentWins(mem);
+      if (wins > 0) patience = Math.max(1, Math.floor(patience * Math.pow(1 - NEGOTIATION_TUNING.winPatience, wins)));
       s = this.sessions[offerId] = { day, rounds: [], patience, patienceMax: patience, npcPrice: null, walked: false };
     }
     return s;
@@ -166,16 +178,20 @@ export class Negotiation {
     const rank = this._rank();
     if (rank.haggleBonus) { flex += rank.haggleBonus; reasons.push(`rang ${rank.title} ${rank.haggleBonus > 0 ? '+' : ''}${Math.round(rank.haggleBonus * 100)} %`); }
     if (personalityBonus[npc.personality]) flex += personalityBonus[npc.personality];
-    // Analyse GD passe 2 : à l'achat, la marge de base est d'au moins 8 % ; la mémoire du marchand
-    // (offres trop basses / bon client), le lot entier et les arguments s'appliquent ensuite
-    if (kind === 'buy' && flex < T.minBuyFlex) { flex = T.minBuyFlex; reasons.push('marchandage : au moins −8 %'); }
+    // Analyse GD passe 2 (−8 %), passe 3 (−5 %) : marge de base minimale à l'achat ; le bon client, le lot entier
+    // et les arguments s'ajoutent (plafond −8 %), puis les malus (offres trop basses, lassitude)
+    if (kind === 'buy' && flex < T.minBuyFlex) { flex = T.minBuyFlex; reasons.push(`marchandage : au moins −${Math.round(T.minBuyFlex * 100)} %`); }
     const mem = this._memory(npc.id);
-    if (mem.bluffs > 0.5) { const f = Math.min(T.bluffFlexMax, mem.bluffs * T.bluffFlex); flex -= f; reasons.push(`se souvient de vos offres trop basses −${(f * 100).toFixed(1).replace('.', ',')} %`); }
     if (mem.deals > 0) { const f = Math.min(T.dealFlexMax, mem.deals * T.dealFlex); flex += f; if (f >= 0.004) reasons.push('bon client'); }
     if (bundle) { flex += T.bundleFlex; reasons.push('lot entier : +2 %'); }
     if (tactic && tactic.bonus > 0) { flex += tactic.bonus; reasons.push(`argument « ${TACTICS[tactic.id]?.label || tactic.id} » +${(tactic.bonus * 100).toFixed(1).replace('.', ',')} %`); }
     if (kind === 'sell') flex *= T.sellFlexFactor;
+    // Passe 3 : lassitude — chaque marchandage réussi avec ce marchand (3 derniers jours) réduit sa marge de 15 % (après plafond)
+    const wins = this._recentWins(mem);
     flex = Math.max(0, Math.min(T.maxFlex, flex));
+    // Passe 3 : les malus (offres trop basses, lassitude) s'appliquent après le plafond, pour rester sensibles
+    if (mem.bluffs > 0.5) { const f = Math.min(T.bluffFlexMax, mem.bluffs * T.bluffFlex); flex = Math.max(0, flex - f); reasons.push(`se souvient de vos offres trop basses −${(f * 100).toFixed(1).replace('.', ',')} %`); }
+    if (wins > 0 && T.winFlex) { flex *= Math.pow(1 - T.winPatience, wins); reasons.push(`lassé de vos marchandages (${wins} récent${wins > 1 ? 's' : ''})`); }
     return { flex, reasons };
   }
 
@@ -545,6 +561,7 @@ export class Negotiation {
       session.rounds.push({ price: p, outcome: 'accepted' });
       this._log({ npcId: npc.id, itemId: offer.itemId, kind, outcome: 'accord', price: p, ask: lim.ask, qty, gain: r2(Math.abs(lim.ask - p) * qty), tactic: session.tactic?.valid ? session.tactic.id : null });
       mem.deals = Math.min(10, mem.deals + 1);
+      mem.wins = [...(mem.wins || []), this._day()].slice(-10);
       this.stats.deals += 1;
       const gain = r2(Math.abs(lim.ask - p) * qty);
       if (kind === 'buy') { this.stats.buyDeals += 1; this.stats.saved = r2(this.stats.saved + gain); }

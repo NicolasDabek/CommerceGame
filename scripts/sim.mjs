@@ -6,6 +6,8 @@
  *   npm run sim -- --json               # sortie JSON (pour comparer avant/après)
  *   npm run sim -- --bot=exploit        # + un joueur-robot qui cherche les boucles d'argent (marchandage, crédit)
  *   npm run sim -- --bot=defaulter      # + un joueur-robot qui emprunte sans rembourser
+ *   npm run sim -- --csv                # récapitulatif CSV par robot (passe 3) → reports/sim-bots.csv
+ *   npm run sim -- --csv=chemin.csv     # … vers un autre fichier
  *
  * Mesure jour par jour : niveau des prix (moyenne des prix / prix de base), masse monétaire
  * (joueur + PNJ + fonds bloqués + Comptoir municipal + caisse des contrats), stock PNJ,
@@ -27,6 +29,19 @@ const QUIET = !!args.quiet;
 // Les erreurs de sauvegarde (pas de vrai localStorage) n'ont pas d'intérêt ici
 const realError = console.error;
 console.error = (...a) => { if (!String(a[0] || '').includes('sauvegarde')) realError(...a); };
+
+if (args.csv) {
+  const { botSummaryCsv } = await import('./simCore.mjs');
+  const { writeFileSync, mkdirSync } = await import('node:fs');
+  const { dirname, resolve } = await import('node:path');
+  const out = resolve(typeof args.csv === 'string' ? args.csv : 'reports/sim-bots.csv');
+  const csv = await botSummaryCsv({ days: DAYS, seeds: SEEDS });
+  mkdirSync(dirname(out), { recursive: true });
+  writeFileSync(out, csv);
+  console.log(csv);
+  console.log(`CSV écrit : ${out}`);
+  process.exit(0);
+}
 
 const BOT = typeof args.bot === 'string' ? args.bot : (args.bot ? 'exploit' : null);
 const { summary, runs } = await runSimulation({ days: DAYS, seeds: SEEDS, bot: BOT });

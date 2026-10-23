@@ -128,8 +128,11 @@ export function run() {
         const o = npcListing(game, 'item_004', 20, { qty: 5 });
         const lim = lowestAccepted(game, o);
         assertEqual(game.negotiate(o.id, lim.limit, 1).outcome, 'accepted');
-        assertEqual(game.negotiate(o.id, lim.limit, 1).outcome, 'accepted');
-        const third = game.negotiate(o.id, lim.limit, 1);
+        // Passe 3 : après un accord, le marchand est un peu lassé (marge −15 %) → nouveau prix limite
+        const lim2 = lowestAccepted(game, o);
+        assert(lim2.limit >= lim.limit - 1e-9, 'lassitude : il ne lâche pas plus après un accord');
+        assertEqual(game.negotiate(o.id, lim2.limit, 1).outcome, 'accepted');
+        const third = game.negotiate(o.id, lim2.limit, 1);
         assertEqual(third.success, false, 'troisième accord refusé');
       } finally { restore(); }
     }],
@@ -154,7 +157,7 @@ export function run() {
         assertEqual(game.negotiation.triesLeft('npc_08'), game.negotiation.triesPerDay(), 'aucun essai consommé');
       } finally { restore(); }
     }],
-    ['passe 2 : marchandage verrouillé au rang 0, achat au prix demandé possible ; −8 % minimum au rang 1', async () => {
+    ['passe 2 : marchandage verrouillé au rang 0, achat au prix demandé possible ; −5 % minimum au rang 1 (passe 3)', async () => {
       const { game, restore } = await makeGame();
       try {
         game.player.money = 5000;
@@ -170,7 +173,7 @@ export function run() {
         game.player.reputation = 8;
         const lim = game.negotiation._limit(game.negotiation._context(offer.id));
         assert(lim.flex >= NEGOTIATION_TUNING.minBuyFlex - 1e-9, `marge ${lim.flex} ≥ 8 %`);
-        assert(lim.estimate <= Math.max(lim.hardFloor, lim.ask * 0.92) + 0.011, `prix atteignable ${lim.estimate} ≤ demandé −8 % (${lim.ask})`);
+        assert(lim.estimate <= Math.max(lim.hardFloor, lim.ask * 0.95) + 0.011, `prix atteignable ${lim.estimate} ≤ demandé −5 % (${lim.ask})`);
         assert(lim.limit >= lim.hardFloor - 1e-9, 'plancher de 90 % respecté');
       } finally { restore(); }
     }]
