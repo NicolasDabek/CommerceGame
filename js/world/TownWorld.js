@@ -161,6 +161,9 @@ export class TownWorld {
     this.renderer.domElement.addEventListener('pointerdown', this._onPointerDown);
     this.renderer.domElement.addEventListener('pointerup', this._onPointerUp);
     this.renderer.domElement.addEventListener('dblclick', this._onDblClick);
+    // L'étiquette du bâtiment à portée est touchable / cliquable : elle fait entrer
+    this._onLabelClick = (e) => { if (e.target.closest?.('.town-label.near')) { e.preventDefault(); this.enterNearest(); } };
+    document.getElementById('town-labels')?.addEventListener('click', this._onLabelClick);
   }
 
   _cssSize(w, h) {
@@ -482,6 +485,15 @@ export class TownWorld {
     this._nearBuilding = best;
   }
 
+  /** Écran tactile (mobile / tablette) : on affiche « Toucher pour entrer » plutôt que « E pour entrer ». */
+  _isTouch() {
+    if (this._touchMode != null) return this._touchMode;
+    try {
+      this._touchMode = !!(window.matchMedia?.('(hover: none) and (pointer: coarse)').matches || (navigator.maxTouchPoints > 0 && window.innerWidth <= 820));
+    } catch (e) { this._touchMode = false; }
+    return this._touchMode;
+  }
+
   /** Entre dans le bâtiment le plus proche du joueur (touche E). */
   enterNearest() {
     const b = this._nearBuilding;
@@ -540,6 +552,11 @@ export class TownWorld {
       return;
     }
     this._selectedId = data.id || null;
+    // Écran tactile : toucher le bâtiment à portée y entre directement (« Toucher pour entrer »)
+    if (data.kind === 'building' && data.panel && (event.pointerType === 'touch' || this._isTouch()) && this._nearBuilding?.id === data.id) {
+      this.enterBuilding(data.id);
+      return;
+    }
     if (data.kind === 'building' && data.panel) {
       this.onInspect({ type: 'building', id: data.id, name: data.name, panel: data.panel, clan: data.clan });
     } else if (data.kind === 'npc') {
@@ -652,7 +669,7 @@ export class TownWorld {
       if (!inView(p)) return;
       const near = b === this._nearBuilding;
       const sel = b.id === this._selectedId;
-      cands.push({ p, cls: `town-label building${near ? ' near' : ''}${sel ? ' selected' : ''}`, name: b.name, sub: near ? 'E pour entrer' : '', prio: near || sel ? 0 : 2 });
+      cands.push({ p, cls: `town-label building${near ? ' near' : ''}${sel ? ' selected' : ''}`, name: b.name, sub: near ? (this._isTouch() ? 'Toucher pour entrer' : 'E pour entrer') : '', prio: near || sel ? 0 : 2 });
     });
     let me = null;
     if (this.playerToken) {
@@ -721,6 +738,7 @@ export class TownWorld {
     this.renderer.domElement.removeEventListener('pointerdown', this._onPointerDown);
     this.renderer.domElement.removeEventListener('pointerup', this._onPointerUp);
     this.renderer.domElement.removeEventListener('dblclick', this._onDblClick);
+    document.getElementById('town-labels')?.removeEventListener('click', this._onLabelClick);
     this.controls.dispose();
     this.renderer.dispose();
     if (this.renderer.domElement.parentNode) {

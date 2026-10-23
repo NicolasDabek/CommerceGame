@@ -54,9 +54,12 @@ body.world-mode .footer {
 }
 .town-label.near,
 .town-label.selected {
-  background: rgba(108, 92, 231, 0.92);
+  background: rgba(76, 63, 191, 0.96);
   outline: 1px solid #fff;
 }
+/* Audit UI 2 : « E pour entrer » / « Toucher pour entrer » en clair (≥ 4,5:1) et touchable */
+.town-label.near i { color: #fff4d6; }
+.town-label.near { pointer-events: auto; cursor: pointer; }
 
 /* Fiche d'inspection (bâtiment, marchand, joueur) */
 #town-inspect h3 {

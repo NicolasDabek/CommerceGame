@@ -22,7 +22,7 @@
 
   --text-primary: #f5f6fa;
   --text-secondary: #a4b0be;
-  --text-muted: #747d8c;
+  --text-muted: #9aa3b2; /* audit UI 2 : ≥ 4,5:1 sur les fonds sombres (avant #747d8c ≈ 3,6:1) */
 
   --border: #3d4458;
   --border-light: #4a5168;
@@ -1359,7 +1359,7 @@ tr.row-deal td:first-child {
 .hud-step-title { font-weight: 800; color: var(--warning); margin-bottom: 4px; }
 .hud-step-how { color: var(--text-secondary); font-size: 0.8rem; margin: 4px 0 8px; }
 .hud-step-actions { display: flex; gap: 6px; align-items: center; }
-.hud-x { margin-left: auto; background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.9rem; }
+.hud-x { margin-left: auto; background: transparent; border: none; color: #c3cad6; cursor: pointer; font-size: 0.9rem; min-width: 44px; min-height: 44px; } /* audit UI 2 : ≥ 4,5:1 */
 .hud-x:hover { color: var(--text-primary); }
 .networth-chip { font-size: 0.82rem; color: var(--text-secondary); background: rgba(44, 49, 66, 0.85); padding: 4px 10px; border-radius: 999px; cursor: pointer; }
 .networth-chip strong { color: var(--money); }
@@ -1707,3 +1707,27 @@ tr.row-deal td:first-child { border-left: 0; }
 .more-locks[hidden] { display: none; }
 .more-locks .locks-title { color: #c7cdd8; }
 .lock-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; background: rgba(127, 127, 127, .16); color: #e5e7eb; font-size: 12px; }
+
+/* ===== Audit UI UX 2 ===== */
+/* 1) Panneau ouvert : fond opaque, la place et ses étiquettes ne transparaissent plus */
+#interior-overlay.open { background: var(--bg-panel); }
+body.in-panel #town-labels { visibility: hidden; }
+/* 4) Boutons de l'astuce (« Compris », « Plus d'astuces ») : cibles de 44 px */
+.panel-tip .btn-small { min-height: 44px; padding: 0 14px; }
+/* 6) Outils des cartes produits : icône + texte court */
+.mk-tools .btn-link, .row-tools .btn-link { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 6px; color: var(--text-secondary); }
+.mk-tools .mk-tool-txt, .mk-trend .mk-tool-txt { font-size: 12px; color: var(--text-secondary); }
+.mk-trend { display: inline-flex; align-items: center; gap: 4px; color: var(--text-secondary); }
+/* 5) Filtres sur mobile : une rangée de puces défilante + bouton « Filtres » */
+.chip-more-filters { display: none; }
+@media (max-width: 820px) {
+  #panel-market .market-chips { flex-shrink: 0; min-height: 46px; flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+  #panel-market .market-chips::-webkit-scrollbar { display: none; }
+  #panel-market .market-chips .chip-filter { flex: 0 0 auto; white-space: nowrap; }
+  #panel-market .chip-more-filters { display: inline-flex; align-items: center; gap: 4px; }
+  #panel-market:not(.filters-open) .panel-header .filters-bar { display: none; }
+  .mk-tools .btn-link, .mk-tools .mk-trend { flex-direction: column; gap: 0; min-width: 44px; justify-content: center; line-height: 1.1; }
+  .mk-tools .mk-tool-txt { font-size: 12px; }
+}
+/* 7) Étiquette « pour entrer » : voir world-override.css (texte clair, touchable) */
+.row-tools .mk-tool-txt, .mk-none .mk-tool-txt { font-size: 12px; color: var(--text-secondary); }

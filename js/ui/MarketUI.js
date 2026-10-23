@@ -53,11 +53,29 @@ export class MarketUI {
     chips.setAttribute('aria-label', 'Filtrer les marchandises');
     chips.innerHTML = [['all', 'Tout'], ['deals', 'Bonnes affaires'], ['watched', 'Suivis ★']]
       .map(([v, l]) => `<button class="chip-filter" data-market-view="${v}" aria-pressed="${v === this.view}">${l}</button>`).join('') +
-      `<button class="chip-filter chip-layout" id="market-layout" aria-pressed="${this.layout === 'table'}" title="Basculer entre la liste et le tableau détaillé">${this.layout === 'table' ? '☰ Liste' : '▦ Tableau'}</button>`;
+      `<button class="chip-filter chip-layout" id="market-layout" aria-pressed="${this.layout === 'table'}" title="Basculer entre la liste et le tableau détaillé">${this.layout === 'table' ? '☰ Liste' : '▦ Tableau'}</button>` +
+      // Mobile (audit UI 2) : la recherche et les menus se replient derrière un bouton « Filtres »
+      '<button class="chip-filter chip-more-filters" id="market-filters-toggle" aria-expanded="false" aria-controls="market-filters">⚙️ Filtres<span class="filters-count" id="market-filters-count"></span></button>';
+    const bar = header.querySelector('.filters-bar');
+    if (bar) bar.id = bar.id || 'market-filters';
     header.insertAdjacentElement('afterend', chips);
+    const syncFiltersCount = () => {
+      const n = [document.getElementById('market-search')?.value?.trim(), document.getElementById('market-category')?.value !== 'all' ? 1 : '', document.getElementById('market-sort')?.value !== 'name' ? 1 : ''].filter(Boolean).length;
+      const c = document.getElementById('market-filters-count');
+      if (c) c.textContent = n ? ` (${n})` : '';
+    };
+    ['market-search', 'market-category', 'market-sort'].forEach(id => document.getElementById(id)?.addEventListener('input', syncFiltersCount));
+    ['market-category', 'market-sort'].forEach(id => document.getElementById(id)?.addEventListener('change', syncFiltersCount));
     chips.addEventListener('click', (e) => {
       const b = e.target.closest('button');
       if (!b) return;
+      if (b.id === 'market-filters-toggle') {
+        const open = !panel.classList.contains('filters-open');
+        panel.classList.toggle('filters-open', open);
+        b.setAttribute('aria-expanded', String(open));
+        if (open) document.getElementById('market-search')?.focus();
+        return;
+      }
       if (b.id === 'market-layout') {
         this.layout = this.layout === 'table' ? 'list' : 'table';
         try { localStorage.setItem('ct-market-layout', this.layout); } catch (err) { /* stockage indisponible */ }
@@ -242,7 +260,7 @@ export class MarketUI {
     return `
       <tr class="${dealClass}" data-item-row="${row.item.id}" data-item-id="${row.item.id}">
         <td>${star}${item?.icon || ''} ${item?.name || row.item.id}<br><small class="text-muted">${row.item.category} · ${row.item.rarity}</small>
-          <span class="row-tools"><button class="btn-link" data-compare="${row.item.id}" title="Comparer les marchands" aria-label="Comparer les marchands pour ${item?.name || row.item.id}">⚖️</button><button class="btn-link" data-chart="${row.item.id}" title="Historique des prix" aria-label="Historique des prix de ${item?.name || row.item.id}">📈</button></span></td>
+          <span class="row-tools"><button class="btn-link" data-compare="${row.item.id}" title="Comparer les marchands" aria-label="Comparer les marchands pour ${item?.name || row.item.id}"><span aria-hidden="true">⚖️</span><small class="mk-tool-txt" aria-hidden="true">Comparer</small></button><button class="btn-link" data-chart="${row.item.id}" title="Historique des prix" aria-label="Historique des prix de ${item?.name || row.item.id}"><span aria-hidden="true">📈</span><small class="mk-tool-txt" aria-hidden="true">Historique</small></button></span></td>
         <td class="text-money">${formatMoney(row.average)} €${row.explanation ? `<br>${priceWhyChip(row.explanation)}` : ''}</td>
         <td>${supplyCellHtml(row.supply)}</td>
         <td class="text-muted">${hiLo}</td>
@@ -278,11 +296,11 @@ export class MarketUI {
           <div class="mk-supply">${supplyCellHtml(row.supply)}${row.explanation ? priceWhyChip(row.explanation) : ''}</div>
           <div class="mk-avg">moy. ${formatMoney(row.average)} €</div>
           <div class="mk-meta">
-            <span>🛒 ${row.bestSell != null ? `dès ${formatMoney(row.bestSell)} €` : '—'}${row.sellCount ? ` (${row.sellCount})` : ''}</span>
-            <span>💰 ${row.bestBuy != null ? `jusqu'à ${formatMoney(row.bestBuy)} €` : '—'}${row.buyCount ? ` (${row.buyCount})` : ''}</span>
+            <span>🛒 ${row.bestSell != null ? `dès ${formatMoney(row.bestSell)} €` : '<span class="mk-none" title="Aucune annonce en vente" aria-label="Aucune annonce en vente">— <small class="mk-tool-txt" aria-hidden="true">aucune</small></span>'}${row.sellCount ? ` (${row.sellCount})` : ''}</span>
+            <span>💰 ${row.bestBuy != null ? `jusqu'à ${formatMoney(row.bestBuy)} €` : '<span class="mk-none" title="Aucune offre d\'achat" aria-label="Aucune offre d\'achat">— <small class="mk-tool-txt" aria-hidden="true">aucune</small></span>'}${row.buyCount ? ` (${row.buyCount})` : ''}</span>
             ${you}
           </div>
-          <div class="mk-tools">${sparkline(row.history, { width: 80, height: 24 })}<button class="btn-link" data-compare="${row.item.id}" title="Comparer les marchands" aria-label="Comparer les marchands pour ${name}">⚖️</button><button class="btn-link" data-chart="${row.item.id}" title="Historique des prix" aria-label="Historique des prix de ${name}">📈</button></div>
+          <div class="mk-tools"><span class="mk-trend" role="img" aria-label="${(row.history || []).length >= 2 ? `Tendance des derniers prix de ${name}` : `Tendance de ${name} : pas encore assez de ventes`}">${sparkline(row.history, { width: 80, height: 24 })}<small class="mk-tool-txt" aria-hidden="true">Tendance</small></span><button class="btn-link" data-compare="${row.item.id}" title="Comparer les marchands" aria-label="Comparer les marchands pour ${name}"><span aria-hidden="true">⚖️</span><small class="mk-tool-txt" aria-hidden="true">Comparer</small></button><button class="btn-link" data-chart="${row.item.id}" title="Historique des prix" aria-label="Historique des prix de ${name}"><span aria-hidden="true">📈</span><small class="mk-tool-txt" aria-hidden="true">Historique</small></button></div>
         </div>
       </td></tr>`;
   }
