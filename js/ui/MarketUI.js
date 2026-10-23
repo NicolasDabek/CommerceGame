@@ -3,6 +3,7 @@
  */
 
 import { ITEMS, getItemById } from '../data/items.js';
+import { esc } from '../utils/escape.js';
 import { formatMoney, formatPct, sparkline, marginHtml, dealBadge, priceWhyChip, economyHealthHtml, supplyCellHtml } from './TradeInsights.js';
 
 export class MarketUI {
@@ -127,8 +128,8 @@ export class MarketUI {
     const d = this._bestDeal(allRows);
     if (!d) { el.innerHTML = ''; return; }
     const item = getItemById(d.row.item.id);
-    el.innerHTML = `<div class="mk-deal"><div><strong>💡 Bonne affaire : ${item?.icon || ''} ${item?.name || d.row.item.id}</strong><p>${d.text}</p></div>
-      <button class="btn btn-secondary" data-compare="${d.row.item.id}">Comparer</button></div>`;
+    el.innerHTML = `<div class="mk-deal"><div><strong>💡 Bonne affaire : ${item?.icon || ''} ${esc(item?.name || d.row.item.id)}</strong><p>${esc(d.text)}</p></div>
+      <button class="btn btn-secondary" data-compare="${esc(d.row.item.id)}">Comparer</button></div>`;
   }
 
   _fillCategories() {

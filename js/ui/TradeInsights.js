@@ -3,6 +3,8 @@
  * S'appuie uniquement sur les données déjà calculées par le jeu (pas de réseau).
  */
 
+import { escapeAttr } from '../utils/escape.js';
+
 export function formatMoney(amount) {
   if (amount == null || Number.isNaN(Number(amount))) return '—';
   return Number(amount).toLocaleString('fr-FR', {
@@ -57,10 +59,6 @@ export function marginHtml(unitMargin, pct) {
   const sign = unitMargin >= 0 ? '+' : '';
   const pctBit = pct != null ? ` (${formatPct(pct)})` : '';
   return `<span class="${cls}">${sign}${formatMoney(unitMargin)} €${pctBit}</span>`;
-}
-
-function escapeAttr(text) {
-  return String(text ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
 /** Texte d'info-bulle listant les causes d'un prix (economy.explainPrice). */

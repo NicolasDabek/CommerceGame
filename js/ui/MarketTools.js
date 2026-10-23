@@ -6,9 +6,9 @@
  *  - graphique d'historique des prix avec zoom 7 j / 30 j / tout (modale SVG).
  */
 import { getItemById } from '../data/items.js';
+import { esc } from '../utils/escape.js';
 
 const money = (n) => (n == null || !isFinite(n) ? '—' : Number(n).toFixed(2).replace('.', ','));
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /** Construit le SVG du graphique (pur, testable). */
 export function priceChartSvg(series, { days = null, width = 520, height = 200, fair = null } = {}) {

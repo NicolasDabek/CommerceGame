@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from '../../lib/OrbitControls.js';
 import { NPCS, getClanById } from '../data/npcs.js';
+import { esc } from '../utils/escape.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const PLAYER_SPEED = 4.2;
@@ -655,7 +656,6 @@ export class TownWorld {
       v.project(this.camera);
       return { x: (v.x * 0.5 + 0.5) * w, y: (-v.y * 0.5 + 0.5) * h };
     };
-    const esc = (t) => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     // Zone libre : sous l'en-tête (et la carte de quête), au-dessus de la barre d'onglets
     const hostTop = this.container.getBoundingClientRect().top;
     const hud = document.querySelector('.world-hud');

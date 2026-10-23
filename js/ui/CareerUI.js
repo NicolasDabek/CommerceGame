@@ -4,6 +4,7 @@
  */
 import { formatMoney } from './TradeInsights.js';
 import { PANEL_TIPS } from '../systems/Career.js';
+import { esc } from '../utils/escape.js';
 
 const PANEL_NAMES = {
   inventory: 'Sac', auction: 'Hôtel de vente', buyhouse: 'Hôtel d\'achat', market: 'Halle des prix',
@@ -163,12 +164,11 @@ export class CareerUI {
     if (!career || hidden) { this.hudEl.hidden = true; return; }
     this.hudEl.hidden = false;
     if (career.finished) {
-      this.hudEl.innerHTML = `<span>🏆 ${career.title || 'Parcours terminé'}</span> <button class="hud-x" data-hud-close title="Masquer">✕</button>`;
+      this.hudEl.innerHTML = `<span>🏆 ${esc(career.title || 'Parcours terminé')}</span> <button class="hud-x" data-hud-close title="Masquer">✕</button>`;
     } else {
       const ch = career.currentChapter;
       const s = career.nextStep;
       const n = Math.min(ch.doneCount + 1, ch.steps.length);
-      const esc = (t) => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
       const tip = s ? `${ch.title} · ${ch.doneCount}/${ch.steps.length} faites. ${s.title} ${fmtValue(s)} — ${s.how}` : ch.title;
       // Carte d'une ligne : la description complète reste en info-bulle et dans Parcours (clic sur le texte).
       this.hudEl.innerHTML = `
@@ -186,7 +186,7 @@ export class CareerUI {
     const text = PANEL_TIPS[panel];
     if (!text || seen.includes(panel) || this.prefs?.get('tipsOff', false)) { this.tipEl.hidden = true; return; }
     this.tipEl.hidden = false;
-    this.tipEl.innerHTML = `<span>💡 ${text}</span> <button class="btn btn-small btn-ghost" data-tip-ok>Compris</button> <button class="btn btn-small btn-ghost" data-tip-off title="Ne plus afficher d'astuces">Plus d'astuces</button>`;
+    this.tipEl.innerHTML = `<span>💡 ${esc(text)}</span> <button class="btn btn-small btn-ghost" data-tip-ok>Compris</button> <button class="btn btn-small btn-ghost" data-tip-off title="Ne plus afficher d'astuces">Plus d'astuces</button>`;
     this.tipEl.querySelector('[data-tip-ok]')?.addEventListener('click', () => { this.prefs?.set('tipsSeen', [...seen, panel]); this.tipEl.hidden = true; });
     this.tipEl.querySelector('[data-tip-off]')?.addEventListener('click', () => { this.prefs?.set('tipsOff', true); this.tipEl.hidden = true; });
   }
