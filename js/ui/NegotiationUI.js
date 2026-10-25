@@ -2,7 +2,7 @@
  * Interface — Marchandage (fenêtre) et fenêtres d'achat partiel / vente groupée.
  * Les fenêtres réutilisent la modale de main.js (Modal.open / close).
  */
-import { formatMoney, qtyQuickButtons, wireQtyQuick, supplyChipHtml } from './TradeInsights.js';
+import { formatMoney, qtyQuickButtons, wireQtyQuick, supplyChipHtml, signedMoney } from './TradeInsights.js';
 import { getItemById } from '../data/items.js';
 
 const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
@@ -233,7 +233,7 @@ export function openBuyQtyModal({ game, Modal, setStatus, refresh, offerId, onNe
     let line = `Total : <strong>${formatMoney(total)} €</strong>`;
     if (insight?.bestBuy != null) {
       const m = r2((insight.bestBuy - offer.buyoutPrice) * qty);
-      line += ` · revente immédiate à la meilleure offre : <strong class="${m >= 0 ? 'text-success' : 'text-danger'}">${m >= 0 ? '+' : ''}${formatMoney(m)} €</strong>`;
+      line += ` · revente immédiate à la meilleure offre : <strong class="${m >= 0 ? 'text-success' : 'text-danger'}">${signedMoney(m)} €</strong>`;
     }
     totalEl.innerHTML = line;
   };
@@ -274,7 +274,7 @@ export function openBulkSellModal({ game, Modal, setStatus, refresh, itemId }) {
     const rows = plan.lines.map(l => `<tr><td>${l.buyer}</td><td>${l.qty}</td><td class="text-money">${formatMoney(l.price)} €</td></tr>`).join('');
     planEl.innerHTML = `
       <table class="data-table compact-table"><thead><tr><th>Acheteur</th><th>Qté</th><th>Prix</th></tr></thead><tbody>${rows}</tbody></table>
-      <p>Vendu : <strong>${plan.sold}</strong> / ${plan.owned} · total <strong class="text-money">${formatMoney(plan.total)} €</strong> · prix moyen ${formatMoney(plan.avgPrice)} €${plan.margin != null ? ` · marge <strong class="${plan.margin >= 0 ? 'text-success' : 'text-danger'}">${plan.margin >= 0 ? '+' : ''}${formatMoney(plan.margin)} €</strong>` : ''}${plan.remaining ? ` · ${plan.remaining} restent dans le sac` : ''}</p>`;
+      <p>Vendu : <strong>${plan.sold}</strong> / ${plan.owned} · total <strong class="text-money">${formatMoney(plan.total)} €</strong> · prix moyen ${formatMoney(plan.avgPrice)} €${plan.margin != null ? ` · marge <strong class="${plan.margin >= 0 ? 'text-success' : 'text-danger'}">${signedMoney(plan.margin)} €</strong>` : ''}${plan.remaining ? ` · ${plan.remaining} restent dans le sac` : ''}</p>`;
   };
   minEl.addEventListener('input', upd);
   upd();

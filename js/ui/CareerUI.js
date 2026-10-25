@@ -16,6 +16,12 @@ function fmtValue(step) {
   return `${Math.min(step.value, step.target)} / ${step.target}`;
 }
 
+/** UI passe 4 : intitulé d'étape adapté au mobile (barre d'onglets au lieu des bâtiments / raccourcis). */
+function stepTitle(s) {
+  const mobile = typeof matchMedia === 'function' && matchMedia('(max-width: 820px)').matches;
+  return (mobile && s.mobileTitle) || s.title;
+}
+
 export class CareerUI {
   constructor(options = {}) {
     this.getCareer = options.getCareer || (() => null);
@@ -96,7 +102,7 @@ export class CareerUI {
         <li class="step ${s.done ? 'done' : ''}">
           <div class="step-head">
             <span class="step-check">${s.done ? '✅' : '⬜'}</span>
-            <strong>${s.title}</strong>
+            <strong>${stepTitle(s)}</strong>
             <span class="step-val">${fmtValue(s)}</span>
           </div>
           <div class="goal-bar"><span style="width:${s.pct}%"></span></div>
@@ -169,10 +175,10 @@ export class CareerUI {
       const ch = career.currentChapter;
       const s = career.nextStep;
       const n = Math.min(ch.doneCount + 1, ch.steps.length);
-      const tip = s ? `${ch.title} · ${ch.doneCount}/${ch.steps.length} faites. ${s.title} ${fmtValue(s)} — ${s.how}` : ch.title;
+      const tip = s ? `${ch.title} · ${ch.doneCount}/${ch.steps.length} faites. ${stepTitle(s)} ${fmtValue(s)} — ${s.how}` : ch.title;
       // Carte d'une ligne : la description complète reste en info-bulle et dans Parcours (clic sur le texte).
       this.hudEl.innerHTML = `
-        <button class="hud-line" data-go="goals" title="${esc(tip)} (cliquez pour voir le parcours)"><span class="sr-only">${esc(ch.title)} : </span><span aria-hidden="true">${ch.icon}</span> ${n}/${ch.steps.length} · ${esc(s ? s.title : ch.title)}${s && fmtValue(s) ? ` <span class="hud-val">${fmtValue(s)}</span>` : ''}</button>
+        <button class="hud-line" data-go="goals" title="${esc(tip)} (cliquez pour voir le parcours)"><span class="sr-only">${esc(ch.title)} : </span><span aria-hidden="true">${ch.icon}</span> ${n}/${ch.steps.length} · ${esc(s ? stepTitle(s) : ch.title)}${s && fmtValue(s) ? ` <span class="hud-val">${fmtValue(s)}</span>` : ''}</button>
         ${s ? `<button class="btn btn-primary hud-go" data-go="${s.panel}">Y aller</button>` : ''}<button class="hud-x" data-hud-close title="Masquer (réaffichable avec la touche ?)" aria-label="Masquer la carte">✕</button>`;
     }
     this.hudEl.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => this.onGo(b.dataset.go)));
@@ -186,7 +192,8 @@ export class CareerUI {
     const text = PANEL_TIPS[panel];
     if (!text || seen.includes(panel) || this.prefs?.get('tipsOff', false)) { this.tipEl.hidden = true; return; }
     this.tipEl.hidden = false;
-    this.tipEl.innerHTML = `<span>💡 ${esc(text)}</span> <button class="btn btn-small btn-ghost" data-tip-ok>Compris</button> <button class="btn btn-small btn-ghost" data-tip-off title="Ne plus afficher d'astuces">Plus d'astuces</button>`;
+    // UI passe 4 : sur mobile, texte sur 2 lignes max (complet en info-bulle) et ✕ « Compris » à droite ; le choix est mémorisé (tipsSeen / tipsOff)
+    this.tipEl.innerHTML = `<span class="tip-text" title="${esc(text)}">💡 ${esc(text)}</span> <button class="btn btn-small btn-ghost tip-ok" data-tip-ok aria-label="Compris, masquer cette astuce" title="Compris (ne plus afficher ici)"><span class="tip-ok-label">Compris</span><span class="tip-ok-x" aria-hidden="true">✕</span></button> <button class="btn btn-small btn-ghost tip-off" data-tip-off title="Ne plus afficher d'astuces">Plus d'astuces</button>`;
     this.tipEl.querySelector('[data-tip-ok]')?.addEventListener('click', () => { this.prefs?.set('tipsSeen', [...seen, panel]); this.tipEl.hidden = true; });
     this.tipEl.querySelector('[data-tip-off]')?.addEventListener('click', () => { this.prefs?.set('tipsOff', true); this.tipEl.hidden = true; });
   }

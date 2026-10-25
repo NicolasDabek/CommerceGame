@@ -4,6 +4,7 @@
 
 import { itemTitle } from '../utils/escape.js';
 import { getItemById } from '../data/items.js';
+import { formatMoney, signedMoney } from './TradeInsights.js';
 
 export class HistoryUI {
   /**
@@ -100,15 +101,15 @@ export class HistoryUI {
 
     return `
       <tr>
-        <td class="text-muted">${date}</td>
-        <td>${itemName}</td>
-        <td>${tx.quantity}</td>
-        <td class="text-money">${this._formatMoney(tx.price)} €</td>
-        <td class="text-money">${this._formatMoney(tx.total)} €</td>
-        <td>${seller}</td>
-        <td>${buyer}</td>
-        <td><span class="badge ${typeClass}">${typeLabel}</span></td>
-        <td>${insight}</td>
+        <td class="text-muted h-date" data-label="Date">${date}</td>
+        <td class="h-item" data-label="Objet">${itemName}</td>
+        <td class="h-qty" data-label="Qté">×${tx.quantity}</td>
+        <td class="text-money h-price" data-label="Prix"><span class="h-qty-m">×${tx.quantity} · </span>${this._formatMoney(tx.price)} €</td>
+        <td class="text-money h-total" data-label="Total">${this._formatMoney(tx.total)} €</td>
+        <td class="h-sec h-seller" data-label="Vendeur">${seller}</td>
+        <td class="h-sec h-buyer" data-label="Acheteur">${buyer}</td>
+        <td class="h-type" data-label="Type"><span class="badge ${typeClass}">${typeLabel}</span></td>
+        <td class="h-insight" data-label="Lecture">${insight}</td>
       </tr>
     `;
   }
@@ -117,7 +118,7 @@ export class HistoryUI {
     if (tx.sellerId === 'player' && tx.playerMargin != null) {
       const cls = tx.playerMargin >= 0 ? 'text-success' : 'text-danger';
       const pct = tx.playerMarginPct != null ? ` (${tx.playerMarginPct >= 0 ? '+' : ''}${tx.playerMarginPct}%)` : '';
-      return `<span class="${cls}">${tx.playerMargin >= 0 ? '+' : ''}${this._formatMoney(tx.playerMargin)} €${pct}</span>`;
+      return `<span class="${cls}">${signedMoney(tx.playerMargin)} €${pct}</span>`;
     }
 
     if (tx.priceDeltaPct != null) {
@@ -129,9 +130,6 @@ export class HistoryUI {
   }
 
   _formatMoney(amount) {
-    return Number(amount).toLocaleString('fr-FR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+    return formatMoney(amount);
   }
 }

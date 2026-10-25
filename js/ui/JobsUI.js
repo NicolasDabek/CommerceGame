@@ -1,7 +1,7 @@
 /**
  * Interface — Atelier : métiers, contrats, commandes des marchands, établi de réparation.
  */
-import { formatMoney } from './TradeInsights.js';
+import { formatMoney, signedMoney } from './TradeInsights.js';
 
 function money(n) {
   return formatMoney(Number(n || 0));
@@ -21,7 +21,7 @@ const SHORTAGE_CHIP = {
 
 function profitHtml(value, { suffix = '' } = {}) {
   const cls = value >= 0 ? 'text-success' : 'text-danger';
-  return `<strong class="${cls}">${value >= 0 ? '+' : ''}${money(value)} €${suffix}</strong>`;
+  return `<strong class="${cls}">${signedMoney(value)} €${suffix}</strong>`;
 }
 
 export class JobsUI {

@@ -7,10 +7,23 @@ import { escapeAttr } from '../utils/escape.js';
 
 export function formatMoney(amount) {
   if (amount == null || Number.isNaN(Number(amount))) return '—';
-  return Number(amount).toLocaleString('fr-FR', {
+  // UI passe 4 : arrondi au centime puis « || 0 » pour ne jamais afficher « -0,00 »
+  return (Math.round(Number(amount) * 100) / 100 || 0).toLocaleString('fr-FR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
+}
+
+/** Montant signé : « +1,50 », « -2,00 », « 0,00 » (jamais « +-0,00 »). */
+export function signedMoney(amount) {
+  const r = Math.round(Number(amount) * 100) / 100 || 0;
+  return `${r > 0 ? '+' : ''}${formatMoney(r)}`;
+}
+
+/** Classe couleur d'un montant arrondi au centime (zéro = neutre). */
+export function moneyClass(amount) {
+  const r = Math.round(Number(amount) * 100) / 100 || 0;
+  return r > 0 ? 'text-success' : r < 0 ? 'text-danger' : 'text-muted';
 }
 
 export function formatPct(pct, withSign = true) {

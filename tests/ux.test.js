@@ -1,5 +1,6 @@
 import { filterCommands, norm } from '../js/ui/CommandPalette.js';
 import { classifyStatus } from '../js/ui/Notifications.js';
+import { formatMoney, signedMoney, moneyClass } from '../js/ui/TradeInsights.js';
 import { assert, assertEqual, runSuite } from './assert.js';
 
 export function run() {
@@ -11,6 +12,19 @@ export function run() {
     { title: 'Emprunter au Comptoir (crédit)', keywords: 'pret' }
   ];
   return runSuite('interface', [
+    ['montants signés : jamais « +-0,00 » ni « -0,00 » (UI passe 4)', async () => {
+      const nb = (t) => t.replace(/\u202f|\u00a0/g, ' ');
+      assertEqual(formatMoney(-0), '0,00');
+      assertEqual(formatMoney(-0.004), '0,00');
+      assertEqual(signedMoney(-0), '0,00');
+      assertEqual(signedMoney(-0.001), '0,00');
+      assertEqual(signedMoney(2.5), '+2,50');
+      assertEqual(signedMoney(-3), '-3,00');
+      assertEqual(nb(signedMoney(1234.5)), '+1 234,50');
+      assertEqual(moneyClass(-0), 'text-muted');
+      assertEqual(moneyClass(-0.2), 'text-danger');
+      assert(!signedMoney(-0.0001).includes('+-'));
+    }],
     ['palette : recherche sans accents, tous les mots, titres commençant par la requête d\'abord', async () => {
       assertEqual(norm('Crédit Léa'), 'credit lea');
       assertEqual(filterCommands(cmds, 'lea')[0].title, 'Marchand : Léa Martin');

@@ -21,7 +21,7 @@ import { ItemPreview } from './ui/ItemPreview.js';
 import { CommandPalette } from './ui/CommandPalette.js';
 import { applyA11y, openA11yModal } from './ui/A11y.js';
 import { getItemById } from './data/items.js';
-import { formatMoney as fmtMoney, insightCardHtml, qtyQuickButtons, wireQtyQuick, economyChipHtml } from './ui/TradeInsights.js';
+import { formatMoney as fmtMoney, insightCardHtml, qtyQuickButtons, wireQtyQuick, economyChipHtml, signedMoney, moneyClass } from './ui/TradeInsights.js';
 import { Offer } from './models/Offer.js';
 
 const game = new Game();
@@ -252,7 +252,7 @@ function openCreateSellModal() {
       if (stack?.avgBuyPrice != null && price > 0) {
         const net = Math.round((price * qty - rounded - stack.avgBuyPrice * qty) * 100) / 100;
         const pct = stack.avgBuyPrice > 0 ? Math.round((net / (stack.avgBuyPrice * qty)) * 100) : 0;
-        marginHtml = ` · Marge nette si vendu à ce prix : <strong class="${net >= 0 ? 'text-success' : 'text-danger'}">${net >= 0 ? '+' : ''}${formatMoney(net)} € (${pct >= 0 ? '+' : ''}${pct} %)</strong> <span class="text-muted">(coût moyen ${formatMoney(stack.avgBuyPrice)} € l'unité)</span>`;
+        marginHtml = ` · Marge nette si vendu à ce prix : <strong class="${net >= 0 ? 'text-success' : 'text-danger'}">${signedMoney(net)} € (${pct >= 0 ? '+' : ''}${pct} %)</strong> <span class="text-muted">(coût moyen ${formatMoney(stack.avgBuyPrice)} € l'unité)</span>`;
       }
       if (feeEl) feeEl.innerHTML = `Frais estimés : <strong>${formatMoney(rounded)} €</strong> (débités tout de suite · objets retirés du sac)${marginHtml}`;
       syncQtyMax();
@@ -402,7 +402,7 @@ function openFulfillModal(offerId, maxQty) {
       if (marginEl && insight?.avgCost != null) {
         const m = Math.round((offer.price - insight.avgCost) * qty * 100) / 100;
         marginEl.className = m >= 0 ? 'text-success' : 'text-danger';
-        marginEl.textContent = `${m >= 0 ? '+' : ''}${formatMoney(m)} €`;
+        marginEl.textContent = `${signedMoney(m)} €`;
       }
     };
     if (input) input.addEventListener('input', refresh);
@@ -429,7 +429,7 @@ function renderHistorySummary() {
   const el = document.getElementById('history-summary');
   if (!el || !game.getTradingView) return;
   const j = game.getTradingView().journal;
-  const s = (n) => `<strong class="${n >= 0 ? 'text-success' : 'text-danger'}">${n >= 0 ? '+' : ''}${formatMoney(n)} €</strong>`;
+  const s = (n) => `<strong class="${moneyClass(n)}">${signedMoney(n)} €</strong>`; // UI passe 4 : jamais « +-0,00 »
   el.innerHTML = `<span>Bilan : marge réalisée ${s(j.realized)} · contrats &amp; services ${s(j.jobRealized)} · atelier ${s(-j.workshop)} · frais ${s(-j.fees)} · <span title="Marge réalisée + contrats − atelier − frais">net ${s(j.net)}</span> · latent ${s(j.unrealized)}</span> <button class="btn btn-small btn-ghost" id="btn-open-journal">Bilan détaillé</button>`;
   el.querySelector('#btn-open-journal')?.addEventListener('click', () => {
     if (tradingUI) tradingUI.tab = 'journal';

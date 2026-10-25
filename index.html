@@ -250,7 +250,9 @@
       }
       window.toggleMoreSheet = function (open) { sheet(open == null ? document.getElementById('more-sheet').hidden : open); };
       window.addEventListener('panel-changed', function (e) {
-        var panel = (e.detail && e.detail.panel) || 'town';
+        // UI passe 4 : les rafraîchissements de données émettent « panel-changed » sans détail → garder l'onglet du panneau ouvert
+        var open = document.querySelector('#interior-overlay.open .panel.active');
+        var panel = (e.detail && e.detail.panel) || (open ? open.id.replace('panel-', '') : 'town');
         var t = document.getElementById('interior-title'); if (t && TITLES[panel]) t.textContent = TITLES[panel];
         var cur = TAB[panel] || 'more';
         document.querySelectorAll('#tabbar .tab-btn').forEach(function (b) {

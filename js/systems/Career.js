@@ -13,8 +13,8 @@ export const CHAPTERS = [
     intro: 'Découvrez la place : lisez les prix, achetez, vendez, suivez un objet.',
     reward: { reputation: 3, xp: 40, label: '+3 réputation · +40 XP' },
     steps: [
-      { id: 'visit_market', title: 'Ouvrir la Halle des prix', metric: 'visitedMarket', target: 1, panel: 'market',
-        how: 'Entrez dans la Halle des prix (touche 4) : prix moyen, offre / demande et bonnes affaires y sont résumés.' },
+      { id: 'visit_market', title: 'Ouvrir la Halle des prix', mobileTitle: 'Ouvrir l’onglet Prix (Halle)', metric: 'visitedMarket', target: 1, panel: 'market',
+        how: 'Entrez dans la Halle des prix (touche 4, ou onglet « Prix » de la barre du bas sur mobile) : prix moyen, offre / demande et bonnes affaires y sont résumés.' },
       { id: 'first_sale', title: 'Vendre un objet', metric: 'sales', target: 1, panel: 'inventory',
         how: 'Sac (touche 1) → cliquez un objet → « Vendre » à la meilleure offre d\'achat, ou « Mettre en vente ».' },
       { id: 'first_buy', title: 'Acheter un objet', metric: 'purchases', target: 1, panel: 'auction',

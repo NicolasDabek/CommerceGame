@@ -1,4 +1,5 @@
 import { getItemById } from '../data/items.js';
+import { formatMoney, signedMoney } from './TradeInsights.js';
 import { CLANS, getClanById } from '../data/npcs.js';
 
 export class NpcUI {
@@ -150,7 +151,7 @@ export class NpcUI {
   _mindBox(profile) {
     const m = profile.mind;
     if (!m) return '';
-    const eur = (n) => `${n >= 0 ? '+' : ''}${this._formatMoney(n)} €`;
+    const eur = (n) => `${signedMoney(n)} €`;
     const series = m.pnlSeries || [];
     const max = Math.max(1, ...series.map(v => Math.abs(v)));
     const spark = series.map(v => `<i class="${v >= 0 ? 'up' : 'down'}" style="height:${Math.max(8, Math.round(Math.abs(v) / max * 100))}%" title="${eur(v)}"></i>`).join('');
@@ -213,9 +214,6 @@ export class NpcUI {
   }
 
   _formatMoney(amount) {
-    return Number(amount).toLocaleString('fr-FR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+    return formatMoney(amount);
   }
 }

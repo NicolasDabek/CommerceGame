@@ -5,7 +5,7 @@
 import { itemTitle } from '../utils/escape.js';
 import { ITEMS, getItemById } from '../data/items.js';
 import { conditionLabel, conditionMultiplier, isRepairable } from '../core/condition.js';
-import { formatMoney, insightCardHtml, marginHtml } from './TradeInsights.js';
+import { formatMoney, insightCardHtml, marginHtml, signedMoney } from './TradeInsights.js';
 
 export class InventoryUI {
   constructor(options = {}) {
@@ -91,7 +91,7 @@ export class InventoryUI {
       if (slot.avgBuyPrice != null && insight?.bestBuy != null) {
         const m = Math.round((insight.bestBuy - slot.avgBuyPrice) * 100) / 100;
         const cls = m >= 0 ? 'slot-margin up' : 'slot-margin down';
-        marginBit = `<span class="${cls}">${m >= 0 ? '+' : ''}${formatMoney(m)}</span>`;
+        marginBit = `<span class="${cls}">${signedMoney(m)}</span>`;
       } else if (slot.avgBuyPrice != null) {
         marginBit = `<span class="slot-avg-price">${formatMoney(slot.avgBuyPrice)} €</span>`;
       } else if (insight?.average != null) {
@@ -158,7 +158,7 @@ export class InventoryUI {
       const best = [quick, refurb].filter(q => q?.ok).sort((a, b) => b.profit - a.profit)[0];
       if (best) {
         const mat = best.materials ? ` + ${best.materials.qty} × ${best.materials.name}` : '';
-        repairLine = `<p class="repair-hint">🔧 ${best.mode === 'refurbish' ? 'Remise à neuf' : 'Réparation rapide'} → Q${best.toQuality} : ${formatMoney(best.supplies)} €${mat}, ${String(best.hours).replace('.', ',')} h · profit attendu <strong class="${best.profit >= 0 ? 'text-success' : 'text-danger'}">${best.profit >= 0 ? '+' : ''}${formatMoney(best.profit)} €</strong>${this.onOpenWorkshop ? ' <button class="btn btn-small btn-ghost" data-act="workshop">Atelier</button>' : ''}</p>`;
+        repairLine = `<p class="repair-hint">🔧 ${best.mode === 'refurbish' ? 'Remise à neuf' : 'Réparation rapide'} → Q${best.toQuality} : ${formatMoney(best.supplies)} €${mat}, ${String(best.hours).replace('.', ',')} h · profit attendu <strong class="${best.profit >= 0 ? 'text-success' : 'text-danger'}">${signedMoney(best.profit)} €</strong>${this.onOpenWorkshop ? ' <button class="btn btn-small btn-ghost" data-act="workshop">Atelier</button>' : ''}</p>`;
       } else if (quick && !quick.ok) {
         repairLine = `<p class="repair-hint text-muted">🔧 ${quick.error}</p>`;
       }
@@ -208,7 +208,7 @@ export class InventoryUI {
     if (insight?.bestBuy != null) lines.push(`Mieux payée à l'achat : ${formatMoney(insight.bestBuy)} €`);
     if (slot.avgBuyPrice != null && insight?.bestBuy != null) {
       const m = insight.bestBuy - slot.avgBuyPrice;
-      lines.push(`Marge estimée : ${m >= 0 ? '+' : ''}${formatMoney(m)} € /u`);
+      lines.push(`Marge estimée : ${signedMoney(m)} € /u`);
     }
     return lines.join('\n');
   }
