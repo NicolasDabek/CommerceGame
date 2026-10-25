@@ -278,8 +278,8 @@ export function enhanceGame(game) {
 
   // ---------- Crédit du Comptoir ----------
   game.getCreditView = () => game.credit.getView();
-  game.getCreditQuote = (amount, days) => game.credit.quote(amount, days);
-  game.borrow = (amount, days) => game.credit.borrow(amount, days);
+  game.getCreditQuote = (amount, days, opts) => game.credit.quote(amount, days, opts);
+  game.borrow = (amount, days, opts) => game.credit.borrow(amount, days, opts);
   game.repayLoan = () => { const r = game.credit.repay(); if (r.success) game.career?.check(); return r; };
 
   // ---------- Rang, parcours, patrimoine ----------

@@ -8,7 +8,7 @@
 
 const TICK_MS = 8000; // même cadence que main.js
 
-function mulberry32(seed) {
+export function mulberry32(seed) {
   let a = seed >>> 0;
   return function () {
     a = (a + 0x6D2B79F5) >>> 0;
@@ -211,7 +211,7 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000, bo
         rivals: minds.filter(m => Object.values(m.rivals).some(v => v >= 2)).length,
         goals: minds.reduce((acc, m) => { const g = m.goal?.id || 'none'; acc[g] = (acc[g] || 0) + 1; return acc; }, {})
       };
-      runs.push({ seed, start, series, npcMind, shortDurations, shortByItem, shortNoListing, cityResolved: game.supplyDemand ? [...game.supplyDemand.resolved] : null, reserveStats: game.reserve ? { ...game.reserve.stats } : null });
+      runs.push({ seed, start, series, npcMind, shortDurations, shortByItem, shortNoListing, cityResolved: game.supplyDemand ? [...game.supplyDemand.resolved] : null, reserveStats: game.reserve ? { ...game.reserve.stats } : null, creditStats: game.credit ? { ...game.credit.stats } : null });
     }
   } finally {
     Date.now = realNow;
@@ -280,7 +280,7 @@ export function summarize(runs, days, seeds, elapsedMs) {
  * subventions et interventions du Comptoir (moyenne par partie), pénuries, masse monétaire.
  */
 export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'honest', 'haggler', 'trader', 'exploit', 'defaulter'] } = {}) {
-  const head = ['bot', 'days', 'seeds', 'eur_per_day', 'eur_per_day_early', 'eur_per_day_late', 'worth_start', 'worth_end', 'haggle_deals_per_day', 'loans', 'contracts', 'subsidies', 'interventions', 'shortages_per_day', 'shortage_longest', 'price_end', 'money_min', 'money_max'];
+  const head = ['bot', 'days', 'seeds', 'eur_per_day', 'eur_per_day_early', 'eur_per_day_late', 'worth_start', 'worth_end', 'haggle_deals_per_day', 'loans', 'contracts', 'subsidies', 'interventions', 'interventions_per_day', 'procurement_orders_per_day', 'shortages_per_day', 'shortage_longest', 'price_end', 'money_min', 'money_max'];
   const lines = [head.join(',')];
   const num = (v) => (v == null || Number.isNaN(v) ? '' : String(v));
   for (const bot of bots) {
@@ -288,12 +288,13 @@ export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'ho
     const b = summary.bot;
     const rs = runs.map(r => r.reserveStats || {});
     const avgOf = (k) => Math.round(rs.reduce((t, x) => t + (x[k] || 0), 0) / Math.max(1, rs.length));
+    const avgRaw = (k) => rs.reduce((t, x) => t + (x[k] || 0), 0) / Math.max(1, rs.length);
     const contracts = b ? r2c(b.diag.reduce((t, d) => t + (d.contracts || 0), 0) / Math.max(1, b.diag.length)) : '';
     lines.push([
       bot, days, seeds,
       b ? r2c((b.worthEnd - b.worthStart) / days) : '', b ? b.gainPerDayEarly : '', b ? b.gainPerDayLate : '',
       b ? b.worthStart : '', b ? b.worthEnd : '', b ? b.haggleDealsPerDay : '', b ? b.loans : '', contracts,
-      avgOf('subsidies'), avgOf('interventions'), summary.shortagesPerDay, summary.shortageLongest, summary.priceEnd,
+      avgOf('subsidies'), avgOf('interventions'), r2c(avgRaw('regulations') / days), r2c(avgRaw('procureOrders') / days), summary.shortagesPerDay, summary.shortageLongest, summary.priceEnd,
       summary.moneyBand[0], summary.moneyBand[1]
     ].map(num).join(','));
   }

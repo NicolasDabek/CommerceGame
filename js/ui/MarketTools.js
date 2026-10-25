@@ -65,7 +65,7 @@ export class MarketTools {
     if (!el || !this.game.getNpcRequests) return;
     const list = this.game.getNpcRequests();
     const pub = this.game.getPublicOrders ? this.game.getPublicOrders() : [];
-    // Commandes publiques du Comptoir : pénurie de plus de 7 jours, payées 120 % du prix normal (quêtes)
+    // Commandes publiques du Comptoir : pénurie de plus de 4 jours (passe 4), payées 120 % du prix normal (quêtes)
     const pubHtml = pub.length ? `<div class="public-orders" id="public-orders"><h3 class="section-title">🏛️ Commandes publiques du Comptoir <small class="text-muted">(${pub.length})</small></h3><ul class="req-list">${pub.map(p => `
       <li class="req-item quest-public ${p.owned > 0 ? 'ready' : ''}" data-public-order="${esc(p.offerId)}">
         <span class="req-what">${p.icon} <strong>${p.qty} × ${esc(p.itemName)}</strong> pour la ville <span class="chip chip-quest">Quête</span></span>

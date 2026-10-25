@@ -105,6 +105,32 @@ export function run() {
         assert(jb.professions.trade.xp >= 15, 'XP négociant');
       } finally { restore(); }
     }],
+    ['GD passe 4 : prime de démarrage +20 % sur les 3 premiers contrats (rang 0–1), pas au-delà', async () => {
+      const { game, restore } = await makeGame();
+      try {
+        const jb = game.jobBoard;
+        const paid = [];
+        for (let k = 0; k < 4; k++) {
+          jb.contracts = jb._roll(3, 2 + k);
+          const c = jb.contracts[0];
+          if (k < 3) assertEqual(jb.newcomerBonus(c), Math.round(c.reward * 0.2 * 100) / 100, 'prime annoncée');
+          game.player.inventory.add(c.itemId, c.quantity, 60, 50, 30);
+          const res = jb.complete(c.id);
+          assert(res.success, res.error);
+          paid.push(res.newcomer);
+          game.player.reputation = 0;
+        }
+        assert(paid.slice(0, 3).every(n => n > 0), `3 primes : ${paid}`);
+        assertEqual(paid[3], 0, '4ᵉ contrat : plus de prime');
+        assertEqual(jb.stats.newcomerContracts, 3);
+        const fresh = new JobBoard(game, { stats: { contracts: 5 } });
+        assertEqual(fresh.stats.newcomerContracts || 0, 0, 'ancienne sauvegarde : compteur à 0');
+        game.player.reputation = 18;
+        const j2 = { reward: 100 };
+        jb.stats.newcomerContracts = 0;
+        assertEqual(jb.newcomerBonus(j2), 0, 'rang 2 : pas de prime');
+      } finally { restore(); }
+    }],
     ['commande d\'un marchand : payée avec son argent, objets livrés', async () => {
       const { game, restore } = await makeGame();
       try {

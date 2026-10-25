@@ -34,7 +34,7 @@ export function run() {
         console.error = quiet;
       }
     }],
-    ['Rentabilité et classement des robots (analyse GD passe 2, §4.3–4.4) : honnête ≥ +3 €/j, trader ≥ +1 €/j, marchandeur entre honnête +20 % et +60 % (passe 3, 5 graines), exploit et mauvais payeur perdants', async () => {
+    ['Rentabilité et classement des robots (analyse GD passe 2, §4.3–4.4) : honnête ≥ +3 €/j, trader ≥ +1 €/j et ≥ 80 % de l\'honnête (passe 4), marchandeur entre honnête +20 % et +60 % (passe 3, 5 graines), exploit et mauvais payeur perdants', async () => {
       const quiet = console.error;
       console.error = () => {};
       try {
@@ -50,12 +50,20 @@ export function run() {
         assert(g.honest >= 3, `honnête : ${g.honest} €/jour (cible ≥ 3)`);
         assert(r.honest.worthEnd >= 1600, `honnête : valeur finale ${r.honest.worthEnd} (cible ≥ 1 600)`);
         assert(g.trader >= 1, `trader : ${g.trader} €/jour (cible ≥ 1)`);
+        // GD passe 4 : le crédit (taux « contrat » −30 %) rend le trader rentable : ≥ 80 % de l'honnête
+        assert(g.trader >= g.honest * 0.8, `trader ${g.trader} €/jour ≥ honnête ${g.honest} × 0,8`);
+        // GD passe 4 : prime de démarrage → l'honnête gagne ≥ 2,5 €/jour en début de partie
+        assert(r.honest.gainPerDayEarly >= 2.5, `honnête début de partie : ${r.honest.gainPerDayEarly} €/jour (cible ≥ 2,5)`);
         assert(g.haggler >= g.honest * 1.2, `marchandeur ${g.haggler} €/jour ≥ honnête ${g.honest} × 1,2`);
         // Passe 3 : le marchandage aide sans devenir la seule stratégie viable
         assert(g.haggler <= g.honest * 1.6, `marchandeur ${g.haggler} €/jour ≤ honnête ${g.honest} × 1,6`);
         assert(r.trader.loans >= 1, `trader : ${r.trader.loans} prêt(s) par partie (cible ≥ 1)`);
         assert(g.exploit < 0, `exploit : ${g.exploit} €/jour (doit rester négatif)`);
         assert(r.defaulter.worthEnd < r.defaulter.worthStart && r.defaulter.worthEnd < r.honest.worthEnd, `mauvais payeur ${r.defaulter.worthStart} → ${r.defaulter.worthEnd} (honnête ${r.honest.worthEnd})`);
+        // GD passe 4 : masse monétaire ≥ 0,90 pour TOUS les robots (stock saisi au prix courant)
+        for (const mode of Object.keys(sums)) {
+          assert(sums[mode].moneyBand[0] >= 0.9, `${mode} : masse monétaire min ${sums[mode].moneyBand[0]} (cible ≥ 0,90)`);
+        }
         for (const mode of ['honest', 'haggler', 'trader']) {
           const band = sums[mode].moneyBand;
           assert(band[0] >= 0.95 && band[1] <= 1.05, `${mode} : masse monétaire ${band} (±5 %)`);
@@ -70,7 +78,7 @@ export function run() {
         console.error = quiet;
       }
     }],
-    ['Comptoir passe 2–3b : bande de prix élargie, subventions ≤ 25 k€, pénuries chroniques ≤ 12 jours (passe 3), demande non servie ≤ 1/jour', async () => {
+    ['Comptoir passe 2–4 : bande de prix élargie, subventions ≤ 25 k€, pénuries chroniques ≤ 12 jours (passe 3), demande non servie ≤ 1/jour, ≤ 6 interventions/jour (passe 4)', async () => {
       const quiet = console.error;
       console.error = () => {};
       try {
@@ -82,6 +90,9 @@ export function run() {
         assert(s.moneyBand[0] >= 0.95 && s.moneyBand[1] <= 1.05, `masse monétaire ${s.moneyBand}`);
         assert(s.shortageLongest <= 12, `plus longue pénurie ${s.shortageLongest} j`);
         assert(s.cityUnmetPerDay <= 1, `demande non servie ${s.cityUnmetPerDay}/jour`);
+        // GD passe 4 : le Comptoir régule rarement (écart > 15 % deux jours de suite) : ≤ 6 interventions/jour
+        const reg = runs.reduce((t, r) => t + (r.reserveStats?.regulations || 0), 0) / runs.length / 120;
+        assert(reg <= 6, `interventions de régulation ${reg.toFixed(2)}/jour (cible ≤ 6)`);
       } finally {
         console.error = quiet;
       }

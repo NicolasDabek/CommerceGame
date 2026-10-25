@@ -76,6 +76,7 @@ export const JobView = {
           shortage: c.shortage || view?.status || 'balanced',
           reason: c.reason || 'Commande courante du Comptoir',
           value: moneyRound(this._fair(c.itemId) * c.quantity),
+          newcomerBonus: c.status === 'open' ? (this.newcomerBonus?.(c) || 0) : 0,
           canComplete: c.status === 'open' && owned >= c.quantity
         };
       }),

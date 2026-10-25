@@ -209,7 +209,7 @@ export class TradingUI {
             <span>À payer maintenant pour solder</span><strong class="text-money">${formatMoney(l.outstanding)} €</strong>
             <span>Échéance</span><strong>${overdue ? `dépassée depuis ${l.overdueDays} j` : l.daysLeft > 0 ? `jour ${l.dueDay} (dans ${l.daysLeft} j) — ${formatMoney(l.fullTermTotal)} € si vous attendez` : 'aujourd\'hui'}</strong>
           </div>
-          ${overdue ? '<p class="neg-note neg-warn">Retard : pénalité de 2 %/jour (plafonnée à 30 %), −6 puis −2 réputation par jour, 50 % de vos ventes saisies ; au 3ᵉ jour, le Comptoir prélève votre solde ; au 5ᵉ, il saisit votre stock (racheté à 70 % de sa valeur). Puis 14 jours sans crédit.</p>' : (c.bannedUntil ? `<p class="neg-note neg-warn">Retard récent : plus de crédit avant le jour ${c.bannedUntil}.</p>` : '') + '<p class="text-muted">À l\'échéance, le montant dû est prélevé automatiquement si votre solde suffit. Remboursé à temps : +2 réputation. En retard : pénalités, saisie des ventes puis du stock, et 14 jours sans crédit.</p>'}
+          ${overdue ? '<p class="neg-note neg-warn">Retard : pénalité de 2 %/jour (plafonnée à 30 %), −6 puis −2 réputation par jour, 50 % de vos ventes saisies ; au 3ᵉ jour, le Comptoir prélève votre solde ; au 5ᵉ, il saisit votre stock (racheté au prix du marché). Puis 14 jours sans crédit.</p>' : (c.bannedUntil ? `<p class="neg-note neg-warn">Retard récent : plus de crédit avant le jour ${c.bannedUntil}.</p>` : '') + '<p class="text-muted">À l\'échéance, le montant dû est prélevé automatiquement si votre solde suffit. Remboursé à temps : +2 réputation. En retard : pénalités, saisie des ventes puis du stock, et 14 jours sans crédit.</p>'}
           <button class="btn btn-primary" data-tr="repay">Rembourser ${formatMoney(l.outstanding)} €</button>
         </div>`;
     } else {
@@ -223,6 +223,7 @@ export class TradingUI {
           <div class="trading-add order-form">
             <label>Montant (€) <input class="input input-xs" type="number" id="cr-amount" min="${c.minAmount}" max="${c.limit}" step="10" value="${q ? q.amount : c.minAmount}" /></label>
             <label>Durée <select class="select" id="cr-days">${c.durations.map(d => `<option value="${d}" ${d === 7 ? 'selected' : ''}>${d} jours</option>`).join('')}</select></label>
+            ${(c.contracts || []).length ? `<label title="Un prêt adossé à un contrat ouvert du Comptoir bénéficie d'un taux réduit de 30 %">Pour un contrat <select class="select" id="cr-contract"><option value="">— aucun —</option>${c.contracts.map(j => `<option value="${j.id}">${j.title} (${formatMoney(j.reward)} €) · ${pct(c.contractRate)}/j</option>`).join('')}</select></label>` : ''}
             <button class="btn btn-small btn-primary" data-tr="borrow">Emprunter</button>
             <small class="text-muted">max ${formatMoney(c.limit)} €</small>
           </div>
@@ -248,13 +249,15 @@ export class TradingUI {
     const crAmount = root.querySelector('#cr-amount');
     const crDays = root.querySelector('#cr-days');
     const crQuote = root.querySelector('#cr-quote');
+    const crContract = root.querySelector('#cr-contract');
     const updQuote = () => {
       if (!crAmount || !crQuote || !this.getCreditQuote) return;
-      const q = this.getCreditQuote(Number(crAmount.value) || 0, Number(crDays.value) || 7);
-      crQuote.innerHTML = `Intérêts : <strong>${formatMoney(q.interest)} €</strong> (${String(Math.round(q.rate * 1000) / 10).replace('.', ',')} % × ${q.days} j) · à rembourser au jour ${q.dueDay} : <strong class="text-money">${formatMoney(q.total)} €</strong> · remboursement anticipé possible (min. 1 jour d'intérêts).`;
+      const q = this.getCreditQuote(Number(crAmount.value) || 0, Number(crDays.value) || 7, { contractId: crContract?.value || null });
+      crQuote.innerHTML = `${q.contractId ? '🧾 Taux « contrat » −30 % · ' : ''}Intérêts : <strong>${formatMoney(q.interest)} €</strong> (${String(Math.round(q.rate * 1000) / 10).replace('.', ',')} % × ${q.days} j) · à rembourser au jour ${q.dueDay} : <strong class="text-money">${formatMoney(q.total)} €</strong> · remboursement anticipé possible (min. 1 jour d'intérêts).`;
     };
     crAmount?.addEventListener('input', updQuote);
     crDays?.addEventListener('change', updQuote);
+    crContract?.addEventListener('change', updQuote);
     updQuote();
     root.querySelectorAll('[data-tr-tab]').forEach(b => b.addEventListener('click', () => { this.tab = b.dataset.trTab; this.render(); }));
     const soItem = root.querySelector('#so-item');
@@ -286,7 +289,7 @@ export class TradingUI {
       }
       if (a === 'toggle-order') this.actions.toggleOrder?.(btn.dataset.id);
       if (a === 'remove-order') this.actions.removeOrder?.(btn.dataset.id);
-      if (a === 'borrow') this.actions.borrow?.(crAmount?.value, crDays?.value);
+      if (a === 'borrow') this.actions.borrow?.(crAmount?.value, crDays?.value, crContract?.value || null);
       if (a === 'repay') this.actions.repay?.();
     }));
   }

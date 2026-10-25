@@ -8,17 +8,18 @@ Prototype solo avec PNJ. Le jeu se déroule sur **La Place**, une place de march
 
 ```bash
 cd CommerceGame
-python3 -m http.server 8080
+npm start            # serveur statique local sans dépendance (scripts/serve.mjs), port 8080
 ```
 
 Ouvre http://localhost:8080
 
-Les modules ES ne fonctionnent pas en `file://`. Alternatives : `npm start` ou `npx serve .`
+Les modules ES ne fonctionnent pas en `file://`. Alternative sans Node : `python3 -m http.server 8080`. Options du serveur : `node scripts/serve.mjs --port=3000 --host=0.0.0.0`.
 
 ## Tests
 
 ```bash
 npm test          # tests unitaires (économie, offre/demande, IA et métiers des PNJ, atelier, suivi & ordres, marchandage, crédit, parcours, Comptoir, matching…) + stabilité 60 jours + robots anti-exploit
+npm run test:stress   # rejoue tests/v7.test.js 100 fois (hasard des tests : mulberry32(1234)) ; -- --vary pour varier la graine
 npm run sim       # simulation headless de l'économie (120 jours, 3 graines)
 npm run sim -- --days=365 --seeds=5 --every=30
 npm run sim -- --json
@@ -54,13 +55,14 @@ Les panneaux d'hôtel de vente / d'achat, de marché et d'inventaire affichent l
 - **Événements temporaires** : ils modifient les prix affichés le temps de leur durée (en jours de jeu), sans effet durable.
 - **Comptoir municipal** (`js/systems/MarketReserve.js`) : encaisse la taxe de 3 % sur les ventes des PNJ, leurs frais d'annonce
   et leurs coûts de fabrication ; revend son stock quand un objet manque ou dépasse ~170 % de sa valeur normale ;
-  rachète ce qui est bradé sous ~60 % ; réinjecte son excédent en commandes publiques (90 %) et en aides aux marchands à sec
+  rachète ce qui est bradé sous ~60 % — **passe 4** : il n'intervient sur un prix que si l'écart à la valeur normale dépasse
+  15 % deux jours de suite ; réinjecte son excédent en commandes publiques (90 %) et en aides aux marchands à sec
   (25 % de l'excédent, pour ceux sous 40 % de leur capital de départ).
-- **Commandes publiques (quêtes)** : un objet en rupture depuis plus de 7 jours (aucune annonce de marchand, ou pénurie
+- **Commandes publiques (quêtes)** : un objet en rupture depuis plus de 4 jours (passe 4 ; 7 avant) (aucune annonce de marchand, ou pénurie
   de la ville) fait l'objet d'une commande du Comptoir à **120 %** du prix normal (3 unités, 4 objets à la fois au plus),
   affichée dans *Marchands → Commandes publiques du Comptoir* avec un bouton « Livrer ». Les producteurs de la spécialité
   s'y mettent en priorité ; la ville consomme les objets livrés. L'argent vient de la trésorerie (rien n'est créé).
-  Au-delà de 4 000 € de trésorerie, l'excédent est détruit (puits d'argent).
+  Au-delà de 5 000 € de trésorerie (passe 4 ; 4 000 avant), l'excédent est détruit (puits d'argent).
 - **PNJ producteurs et consommateurs** : ils consomment une partie de leur stock (surtout la nourriture) et fabriquent
   sous leur stock cible, ce qui crée offre et demande en continu.
 - **Lisibilité** : carte *Santé de l'économie* dans le Marché (niveau des prix, masse monétaire, Comptoir, activité),
@@ -151,6 +153,8 @@ s'il achète beaucoup un objet, les prix d'annonce montent un peu ; s'il en vend
 | ⭐ Marchand estimé | 35+ | **Ordres permanents, comparateur de marchands** | 4 essais, +3 % | 1 600 € · 1 %/j | +1 |
 | 🏛️ Maison reconnue | 60+ | | 5 essais, +4 % | 2 500 € · 0,8 %/j | +2 |
 
+**Prime de démarrage (passe 4)** : au rang 0 ou 1, vos 3 premiers contrats du Comptoir livrés rapportent +20 % (affiché sur la carte du contrat).
+
 Les systèmes verrouillés restent visibles (« 🔒 rang N » dans les onglets et la feuille « Plus »). Les frais d'annonce
 baissent de 0,8 % par point de réputation (62 % minimum) et de **20 % au moins dès le rang 1**. Un marchandage réussi à
 l'achat rapporte au moins −8 % sur le prix demandé (toujours borné par le plancher de 90 % de la référence).
@@ -158,10 +162,10 @@ Réputation négative : pas de crédit.
 
 ## Crédit du Comptoir (Suivi → Crédit)
 
-- Un prêt à la fois, 3 ou 7 jours, plafond et taux selon le rang. **Aucun argent créé** : les fonds viennent de la trésorerie du Comptoir
+- Un prêt à la fois, 3 ou 7 jours, plafond et taux selon le rang ; **passe 4** : un prêt adossé à un contrat ouvert a un taux −30 %. **Aucun argent créé** : les fonds viennent de la trésorerie du Comptoir
   (au-delà de 600 €) et des marchands les plus riches ; capital et intérêts leur reviennent.
 - Remboursement anticipé possible (au moins 1 jour d'intérêts) ; prélèvement automatique à l'échéance ; à temps : +2 réputation.
-- Retard : +2 %/jour (max 30 %), −6 puis −2 réputation/jour, 50 % des ventes saisies, prélèvement du solde dès le 3ᵉ jour, saisie du stock (rachat par le Comptoir à 70 %) dès le 5ᵉ, puis 14 jours sans crédit.
+- Retard : +2 %/jour (max 30 %), −6 puis −2 réputation/jour, 50 % des ventes saisies, prélèvement du solde dès le 3ᵉ jour, saisie du stock (rachat par le Comptoir au prix du marché) dès le 5ᵉ, puis 14 jours sans crédit.
 
 ## Parcours du marchand (bouton « Parcours »)
 

@@ -34,6 +34,28 @@ export function run() {
         assertEqual(again.success, false, 'un seul argument');
       } finally { restore(); }
     }],
+    ['GD passe 4 : confiance 1 — la marge monte encore avec l\'argument « quantité » et avec le lot entier (plafond 11 %)', async () => {
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
+      try {
+        const npc = npcOf('épicier');
+        const st = game.npcController.npcStates[npc.id];
+        st.trust = 1; st.mood = 1;
+        const ref = game.npcController.refPrice('item_004', 50, 50);
+        const offer = listing(game, npc.id, Math.round(ref * 1.3 * 100) / 100, { qty: 4 });
+        const neg = game.negotiation;
+        const T = (await import('../js/systems/Negotiation.js')).NEGOTIATION_TUNING;
+        const base = neg._limit(neg._context(offer.id), 2);
+        assert(base.flex <= T.maxFlex + 1e-9, `marge personnelle plafonnée à 8 % (${base.flex})`);
+        const r = game.useHaggleTactic(offer.id, 'bulk', 2);
+        assert(r.success && r.valid, r.message || r.error);
+        const arg = neg._limit(neg._context(offer.id), 2);
+        assert(arg.flex > base.flex, `argument : ${base.flex} → ${arg.flex}`);
+        const lot = neg._limit(neg._context(offer.id), 4);
+        assert(lot.flex > arg.flex, `lot entier : ${arg.flex} → ${lot.flex}`);
+        assert(lot.flex <= T.maxFlexTotal + 1e-9, `plafond absolu 11 % (${lot.flex})`);
+        assert(lot.limit >= lot.hardFloor - 1e-9, 'plancher respecté');
+      } finally { restore(); }
+    }],
     ['argument faux (défaut sur un objet en bon état) : confiance, humeur et patience en baisse', async () => {
       const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {

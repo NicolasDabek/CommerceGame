@@ -509,8 +509,8 @@ function initUI() {
       addOrder: (params) => act(game.addStandingOrder(params), 'Ordre permanent créé — offre du jour placée'),
       toggleOrder: (id) => act(game.toggleStandingOrder(id), 'Ordre mis à jour'),
       removeOrder: (id) => act(game.removeStandingOrder(id), 'Ordre supprimé'),
-      borrow: (amount, days) => {
-        const r = game.borrow ? game.borrow(Number(amount) || 0, Number(days) || 7) : { success: false, error: 'Indisponible' };
+      borrow: (amount, days, contractId = null) => {
+        const r = game.borrow ? game.borrow(Number(amount) || 0, Number(days) || 7, { contractId }) : { success: false, error: 'Indisponible' };
         act(r, r.success ? `Crédit accordé : +${formatMoney(r.loan.principal)} € — à rembourser ${formatMoney(r.loan.principal + r.loan.interestFull)} € au plus tard le jour ${r.loan.dueDay}` : '');
       },
       repay: () => {
@@ -520,7 +520,7 @@ function initUI() {
     },
     getCreditView: () => (game.getCreditView ? game.getCreditView() : null),
     getFeatures: () => (game.getRankView ? game.getRankView().features || [] : []),
-    getCreditQuote: (amount, days) => (game.getCreditQuote ? game.getCreditQuote(amount, days) : null)
+    getCreditQuote: (amount, days, opts) => (game.getCreditQuote ? game.getCreditQuote(amount, days, opts) : null)
   });
   careerUI = new CareerUI({
     getCareer: () => (game.getCareerView ? game.getCareerView() : null),

@@ -7,6 +7,10 @@ import { ITEMS } from '../../data/items.js';
 import { VAULT_DAILY_CAP } from '../../data/jobs.js';
 import { NPCS } from '../../data/npcs.js';
 import { moneyRound } from './helpers.js';
+import { rankFor } from '../../core/Ranks.js';
+
+/** Passe 4 : prime de démarrage — +20 % sur les 3 premiers contrats livrés tant que l'on est au rang 0 ou 1. */
+export const NEWCOMER_CONTRACTS = { count: 3, bonus: 0.2, maxRank: 1 };
 
 export const JobContracts = {
 
@@ -181,6 +185,14 @@ export const JobContracts = {
   },
 
 
+  /** Prime de démarrage due sur ce contrat (0 si épuisée ou rang trop élevé). */
+  newcomerBonus(job) {
+    const T = NEWCOMER_CONTRACTS;
+    if (!job || (this.stats.newcomerContracts || 0) >= T.count) return 0;
+    if (rankFor(this.game.player?.reputation || 0).id > T.maxRank) return 0;
+    return moneyRound(job.reward * T.bonus);
+  },
+
   complete(contractId) {
     this.ensureContracts();
     const job = this.contracts.find(c => c.id === contractId);
@@ -206,11 +218,13 @@ export const JobContracts = {
     }
     const bonus = this.takeFromVault(Math.round(job.reward * (job.rush ? 0.08 : 0.04) * 100) / 100);
     const streakBonus = Math.round(Math.min(8, this.streak * 1.5) * 100) / 100;
-    const payout = Math.round((job.reward + bonus + streakBonus) * 100) / 100;
+    const newcomer = this.newcomerBonus(job);
+    const payout = Math.round((job.reward + bonus + streakBonus + newcomer) * 100) / 100;
     // La récompense vient de la trésorerie du Comptoir (sans la vider sous 200 €), le reste est créé
     const reserve = this.game.reserve;
     if (reserve) {
-      const fromReserve = Math.min(job.reward, Math.max(0, reserve.treasury - 200));
+      // Passe 4 : la prime de démarrage et la prime de série sont aussi payées par le Comptoir quand il le peut
+      const fromReserve = Math.min(job.reward + newcomer + streakBonus, Math.max(0, reserve.treasury - 200));
       reserve.withdraw(fromReserve, 'contracts');
       reserve.addStock(job.itemId, job.quantity);
     }
@@ -222,10 +236,11 @@ export const JobContracts = {
     job.status = 'done';
     this.game.career?.noteShortageDelivery?.(job.itemId);
     this.stats.contracts += 1;
+    if (newcomer > 0) this.stats.newcomerContracts = (this.stats.newcomerContracts || 0) + 1;
     this.stats.earned = Math.round((this.stats.earned + payout) * 100) / 100;
     this._markActive();
     this.game.save();
     this.game._notifyUI();
-    return { success: true, payout, bonus };
+    return { success: true, payout, bonus, newcomer };
   },
 };

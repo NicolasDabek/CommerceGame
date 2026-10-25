@@ -120,7 +120,7 @@ export function run() {
         const ctx = neg._context(offer.id);
         const one = neg._limit(ctx, 1);
         const lot = neg._limit(ctx, 4);
-        assert(lot.flex > one.flex || lot.flex === NEGOTIATION_TUNING.maxFlex, 'plus de marge pour le lot');
+        assert(lot.flex > one.flex, `plus de marge pour le lot (passe 4 : même à confiance max) ${one.flex} → ${lot.flex}`);
         assert(lot.limit >= ref * NEGOTIATION_TUNING.floorRef - 0.01, 'plancher 90 %');
       } finally { restore(); }
     }]

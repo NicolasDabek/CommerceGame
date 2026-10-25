@@ -5,8 +5,9 @@
   "type": "module",
   "description": "Prototype de jeu de commerce (hôtel de vente / hôtel d'achat)",
   "scripts": {
-    "start": "npx --yes serve . -p 8080",
+    "start": "node scripts/serve.mjs --port=8080",
     "test": "node tests/run.mjs",
+    "test:stress": "node scripts/stress.mjs --runs=100",
     "sim": "node scripts/sim.mjs"
   }
 }

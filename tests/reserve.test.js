@@ -24,6 +24,9 @@ export function run() {
       const game = quietGame();
       game.offers = game.offers.filter(o => o.itemId !== 'item_004');
       game.reserve.stock.item_004 = 3;
+      const isSell = (o) => o.ownerId === RESERVE_ID && o.type === 'sell' && o.itemId === 'item_004';
+      game.reserve.dailyIntervene(game);
+      assert(!game.offers.some(isSell), 'passe 4 : pas d\'intervention au 1er jour d\'écart');
       game.reserve.dailyIntervene(game);
       const sell = game.offers.find(o => o.ownerId === RESERVE_ID && o.type === 'sell' && o.itemId === 'item_004');
       assert(sell, 'annonce du Comptoir');
@@ -36,9 +39,26 @@ export function run() {
       const dumped = new Offer({ type: 'sell', itemId: 'item_002', quantity: 4, price: Math.round(fair * 0.5 * 100) / 100, ownerId: 'npc_02', durationDays: 1 });
       game.offers.push(dumped);
       const before = game.npcController.getCapital('npc_02');
+      const stock0 = game.reserve.stock.item_002 || 0;
+      game.reserve.dailyIntervene(game);
+      assertEqual(game.reserve.stock.item_002 || 0, stock0, 'passe 4 : pas de rachat au 1er jour d\'écart');
       game.reserve.dailyIntervene(game);
       assert(game.reserve.stock.item_002 >= 2, 'stock racheté');
       assert(game.npcController.getCapital('npc_02') > before, 'le vendeur est payé');
+    }],
+    ['passe 4 : écart < 15 % → pas d\'intervention ; la série d\'écarts est sauvegardée', () => {
+      const game = quietGame();
+      const fair = game.economy.getFairValue('item_004');
+      game.offers = game.offers.filter(o => o.itemId !== 'item_004');
+      game.offers.push(new Offer({ type: 'sell', itemId: 'item_004', quantity: 2, price: Math.round(fair * 1.1 * 100) / 100, ownerId: 'npc_02', durationDays: 3 }));
+      game.reserve.stock.item_004 = 3;
+      for (let d = 0; d < 3; d++) game.reserve.dailyIntervene(game);
+      assert(!game.offers.some(o => o.ownerId === RESERVE_ID && o.type === 'sell' && o.itemId === 'item_004'), 'pas de revente à +10 %');
+      assertEqual(game.reserve.gapStreak.item_004 || 0, 0);
+      game.reserve.gapStreak.item_009 = 2;
+      const back = new MarketReserve(JSON.parse(JSON.stringify(game.reserve.toJSON())));
+      assertEqual(back.gapStreak.item_009, 2);
+      assertEqual(new MarketReserve({ treasury: 100, stock: {} }).stats.regulations, 0, 'ancienne sauvegarde');
     }],
     ['les transactions avec le Comptoir conservent l\'argent', () => {
       const game = quietGame();
@@ -103,7 +123,7 @@ export function run() {
       assertEqual(RESERVE_TUNING.subsidyBelow, 0.35); // passe 3 : 0,4 → 0,35
       assertEqual(RESERVE_TUNING.maxInterventionsPerItem, 1);
     }],
-    ['passe 2 : rupture de plus de 7 jours → commande publique à 120 %, quête livrable, argent conservé, sauvegardée', async () => {
+    ['passe 2 : rupture prolongée (passe 4 : 4 jours) → commande publique à 120 %, quête livrable, argent conservé, sauvegardée', async () => {
       const { makeGame, totalMoney, drainItem } = await import('./helpers.js');
       const { game, restore } = await makeGame();
       try {
@@ -122,11 +142,11 @@ export function run() {
         const quests = game.getPublicOrders();
         assertEqual(quests.length >= 1, true, 'quête visible');
         assertEqual(quests[0].premiumPct, 20);
-        // Moins de 7 jours : pas de commande
+        // Moins de publicOrderAfterDays jours : pas de commande
         game.reserve.outSince.item_004 = day - 3;
         drainItem(game, 'item_004');
         game.reserve.publicOrdersDaily(game);
-        assert(!game.offers.some(o => o.status === 'active' && o.publicOrder && o.itemId === 'item_004'), 'pas avant 7 jours');
+        assert(!game.offers.some(o => o.status === 'active' && o.publicOrder && o.itemId === 'item_004'), 'pas avant le délai');
         // Le joueur livre
         game.player.inventory.add(id, 2, 60, 60, fair);
         const cash = game.player.money;

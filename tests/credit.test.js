@@ -25,6 +25,27 @@ export function run() {
         assertEqual(game.borrow(50, 3).success, false, 'un seul crédit à la fois');
       } finally { restore(); }
     }],
+    ['GD passe 4 : prêt adossé à un contrat ouvert → taux −30 % (sinon taux du rang)', async () => {
+      const { game, restore } = await makeGame({ reputation: 18 });
+      try {
+        game.reserve.treasury = 3000;
+        game.jobBoard.ensureContracts();
+        const job = game.jobBoard.contracts.find(j => j.status === 'open');
+        assert(job, 'un contrat ouvert');
+        const base = game.getCreditQuote(300, 3);
+        const q = game.getCreditQuote(300, 3, { contractId: job.id });
+        assertEqual(q.contractId, job.id);
+        assert(Math.abs(q.rate - base.rate * CREDIT_TUNING.contractRateFactor) < 1e-6, `taux ${q.rate} vs ${base.rate}`);
+        assert(q.interest < base.interest, 'intérêts réduits');
+        assertEqual(game.getCreditQuote(300, 3, { contractId: 'job_inconnu' }).rate, base.rate, 'contrat inconnu : taux normal');
+        assert(game.getCreditView().contracts.some(c => c.id === job.id), 'vue : contrats proposés');
+        const r = game.borrow(300, 3, { contractId: job.id });
+        assert(r.success, r.error);
+        assertEqual(game.credit.loan.contractId, job.id);
+        assertEqual(game.credit.loan.rate, q.rate);
+        assertEqual(game.borrow(50, 3).success, false, 'toujours un seul crédit à la fois');
+      } finally { restore(); }
+    }],
     ['déblocage par rang (analyse GD passe 2) : pas de crédit avant le rang 2', async () => {
       const { game, restore } = await makeGame({ reputation: 8 });
       try {

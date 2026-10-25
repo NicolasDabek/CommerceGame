@@ -27,7 +27,8 @@ export const NEGOTIATION_TUNING = {
   overstockFlex: 0.03,
   dryFlex: 0.04,           // trésorerie à sec : il a besoin de vendre
   collectorFlex: -0.05,    // collectionneur sur ses favoris
-  maxFlex: 0.08,           // passe 3 : rabais maximal −8 % (doc : −12 % ; à −12 % le marchandeur gagne encore ×2,2 l'honnête)
+  maxFlex: 0.08,           // passe 3 : rabais maximal −8 % ; passe 4 : plafond de la marge PERSONNELLE (base, confiance, humeur, marché)
+  maxFlexTotal: 0.11,      // passe 4 : plafond absolu une fois ajoutés lot entier, argument et « bon client »
   winPatience: 0.15,       // passe 3 : chaque marchandage réussi avec un PNJ abaisse sa patience de 15 %…
   winPatienceDays: 3,      // … pendant 3 jours
   winFlex: true,           // … et sa marge de concession d'autant
@@ -46,7 +47,7 @@ export const NEGOTIATION_TUNING = {
   bluffFlexMax: 0.03,      // … jusqu'à 3 %
   bluffDecay: 0.7,         // la mémoire s'estompe chaque jour
   dealFlex: 0.004,         // un bon client (accords passés) gagne un peu de marge…
-  dealFlexMax: 0.02,       // … jusqu'à 2 %
+  dealFlexMax: 0.005,      // … jusqu'à 0,5 % (passe 4 : 2 % → 0,5 %, désormais hors plafond personnel)
   chanceSigma: 0.015       // incertitude de l'estimation de chance (± 1,5 % du prix)
 };
 
@@ -147,7 +148,7 @@ export class Negotiation {
     return Math.max(0, NEGOTIATION_TUNING.dealsPerNpc - this._npcDay(npcId).deals);
   }
 
-  /** Marge de manœuvre (0–16 %) et ses raisons, lisibles par le joueur. */
+  /** Marge de manœuvre (0–11 %) et ses raisons, lisibles par le joueur. */
   flexFor(npc, state, itemId, kind, bundle = false, tactic = null) {
     const T = NEGOTIATION_TUNING;
     const ctl = this.game.npcController;
@@ -178,9 +179,11 @@ export class Negotiation {
     const rank = this._rank();
     if (rank.haggleBonus) { flex += rank.haggleBonus; reasons.push(`rang ${rank.title} ${rank.haggleBonus > 0 ? '+' : ''}${Math.round(rank.haggleBonus * 100)} %`); }
     if (personalityBonus[npc.personality]) flex += personalityBonus[npc.personality];
-    // Analyse GD passe 2 (−8 %), passe 3 (−5 %) : marge de base minimale à l'achat ; le bon client, le lot entier
-    // et les arguments s'ajoutent (plafond −8 %), puis les malus (offres trop basses, lassitude)
+    // GD passe 4 : la marge personnelle (base, confiance, humeur, marché, rang, personnalité) est plafonnée à 8 % d'abord…
+    flex = Math.max(0, Math.min(T.maxFlex, flex));
+    // Analyse GD passe 2 (−8 %), passe 3 (−5 %) : marge de base minimale à l'achat
     if (kind === 'buy' && flex < T.minBuyFlex) { flex = T.minBuyFlex; reasons.push(`marchandage : au moins −${Math.round(T.minBuyFlex * 100)} %`); }
+    // … PUIS le bon client, le lot entier et l'argument s'ajoutent (plafond absolu 11 %) : ils comptent même à confiance maximale
     const mem = this._memory(npc.id);
     if (mem.deals > 0) { const f = Math.min(T.dealFlexMax, mem.deals * T.dealFlex); flex += f; if (f >= 0.004) reasons.push('bon client'); }
     if (bundle) { flex += T.bundleFlex; reasons.push('lot entier : +2 %'); }
@@ -188,7 +191,7 @@ export class Negotiation {
     if (kind === 'sell') flex *= T.sellFlexFactor;
     // Passe 3 : lassitude — chaque marchandage réussi avec ce marchand (3 derniers jours) réduit sa marge de 15 % (après plafond)
     const wins = this._recentWins(mem);
-    flex = Math.max(0, Math.min(T.maxFlex, flex));
+    flex = Math.max(0, Math.min(T.maxFlexTotal, flex));
     // Passe 3 : les malus (offres trop basses, lassitude) s'appliquent après le plafond, pour rester sensibles
     if (mem.bluffs > 0.5) { const f = Math.min(T.bluffFlexMax, mem.bluffs * T.bluffFlex); flex = Math.max(0, flex - f); reasons.push(`se souvient de vos offres trop basses −${(f * 100).toFixed(1).replace('.', ',')} %`); }
     if (wins > 0 && T.winFlex) { flex *= Math.pow(1 - T.winPatience, wins); reasons.push(`lassé de vos marchandages (${wins} récent${wins > 1 ? 's' : ''})`); }

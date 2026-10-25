@@ -1,3 +1,5 @@
+import { mulberry32 } from '../scripts/simCore.mjs';
+
 /** Petit stockage mémoire pour les tests (remplace localStorage du navigateur). */
 export function installMemoryStorage() {
   const store = new Map();
@@ -21,8 +23,14 @@ export function installMemoryStorage() {
  * `reputation` : réputation de départ (ex. 35 = rang 3, tous les systèmes débloqués — analyse GD passe 2).
  */
 export const UNLOCK_ALL_REP = 35;
-export async function makeGame({ reputation = null } = {}) {
-  const restore = installMemoryStorage();
+/** GD passe 4 : graine fixe du hasard des tests (TEST_SEED pour en essayer une autre). */
+export const TEST_SEED = 1234;
+export async function makeGame({ reputation = null, seed = Number(process.env.TEST_SEED) || TEST_SEED } = {}) {
+  const restoreStorage = installMemoryStorage();
+  // GD passe 4 : hasard déterministe (mulberry32) pendant le test, Math.random d'origine rendu par restore()
+  const prevRandom = Math.random;
+  Math.random = mulberry32(seed);
+  const restore = () => { Math.random = prevRandom; restoreStorage(); };
   const { Game } = await import('../js/core/Game.js');
   const { enhanceGame } = await import('../js/core/GamePatch.js');
   const game = new Game();

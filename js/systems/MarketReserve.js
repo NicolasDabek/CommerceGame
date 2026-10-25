@@ -18,21 +18,24 @@ export const RESERVE_NAME = 'Comptoir municipal';
 export const RESERVE_TUNING = {
   startTreasury: 900,
   targetTreasury: 1000,    // au-dessus, le Comptoir passe des commandes publiques
-  treasuryCap: 4000,       // au-delà, l'excédent est dépensé (détruit)
+  treasuryCap: 5000,       // au-delà, l'excédent est dépensé (détruit) — passe 4 : 4 000 → 5 000 (masse ≥ 0,90 avec l'exploit)
   procurementPrice: 0.95,  // commandes publiques à 95 % de la valeur normale (passe 3b : 0,9 → 0,95)
   procurementShare: 1,   // part de l'excédent dépensée chaque jour
   procurementMaxOffers: 16, // passe 3b : 10 → 16 commandes par jour (l'excédent repart en achats plutôt qu'en subventions)
   subsidyShare: 0.15,      // part de l'excédent reversée aux marchands en difficulté (passe 2 : 0,25 ; passe 3b : 0,15)
   subsidyBelow: 0.35,      // … ceux sous 35 % de leur capital de départ (passe 2 : 0,4 ; passe 3 : 0,35)
   maxInterventionsPerItem: 1, // passe 3 : au plus une intervention par produit et par jour
+  gapPct: 0.15,            // passe 4 : n'intervient sur un prix que si l'écart à la valeur normale dépasse 15 %…
+  gapDays: 2,              // … deux jours de suite (rupture = écart à la hausse)
+  procurementMaxQty: 4,    // passe 4 : unités par commande publique d'achat
   ceiling: 1.7,            // revend à 170 % de la valeur normale si rupture / trop cher (passe 2 : 1,3 → 1,7)
   floor: 0.6,              // rachète à 60 % de la valeur normale si bradé (passe 2 : 0,75 → 0,6)
-  publicOrderAfterDays: 7, // pénurie depuis plus de 7 jours → commande publique…
+  publicOrderAfterDays: 4, // pénurie depuis plus de 4 jours (passe 4 : 7 → 4, compense le délai de 2 jours) → commande publique…
   publicOrderPrice: 1.2,   // … à 120 % du prix normal…
   publicOrderQty: 3,       // … pour 3 unités par jour au plus…
   publicOrderMax: 4,       // … et 4 objets à la fois au plus
   publicOrderKeep: 400,    // trésorerie minimale gardée hors commandes publiques
-  lot: 2,                  // quantité par intervention
+  lot: 3,                  // quantité par intervention (passe 4 : 2 → 3, interventions plus rares mais plus franches)
   maxStockPerItem: 6,
   startStockPerItem: 2,
   buyBudgetShare: 0.12,    // part max de la trésorerie engagée par jour en rachats
@@ -59,8 +62,12 @@ export class MarketReserve {
     this.publicOrders = saved.publicOrders || {};
     // Rupture suivie par objet : premier jour sans aucune annonce de marchand (ou pénurie de la ville)
     this.outSince = saved.outSince || {};
+    // Passe 4 : jours consécutifs d'écart de prix > 15 % par objet (+n à la hausse, −n à la baisse) ; absent des anciennes sauvegardes
+    this.gapStreak = saved.gapStreak || {};
     if (this.stats.publicOrders == null) this.stats.publicOrders = 0;
     if (this.stats.publicOrderUnits == null) this.stats.publicOrderUnits = 0;
+    if (this.stats.regulations == null) this.stats.regulations = 0;
+    if (this.stats.procureOrders == null) this.stats.procureOrders = 0;
   }
 
   _starterStock() {
@@ -177,7 +184,7 @@ export class MarketReserve {
   }
 
   /**
-   * Commandes publiques (analyse GD passe 2) : un objet en pénurie depuis plus de 7 jours
+   * Commandes publiques (analyse GD passe 2) : un objet en pénurie depuis plus de publicOrderAfterDays jours (4, passe 4)
    * fait l'objet d'une commande du Comptoir à 120 % du prix normal, visible comme quête.
    * L'argent est prélevé sur la trésorerie (bloqué dans l'offre d'achat) : aucune création monétaire.
    */
@@ -282,10 +289,18 @@ export class MarketReserve {
       const book = this._book(game.offers, item.id);
       const stock = this.stock[item.id] || 0;
 
+      // Passe 4 : écart de prix persistant — meilleure annonce à plus de 15 % de la valeur normale (rupture = hausse),
+      // compté en jours consécutifs ; le Comptoir n'agit qu'au bout de `gapDays` jours
+      const dir = book.bestSell == null || book.bestSell > fair * (1 + t.gapPct) ? 1 : book.bestSell < fair * (1 - t.gapPct) ? -1 : 0;
+      const prev = this.gapStreak[item.id] || 0;
+      const streak = dir === 0 ? 0 : (Math.sign(prev) === dir ? prev + dir : dir);
+      if (streak) this.gapStreak[item.id] = streak; else delete this.gapStreak[item.id];
+      const persistent = Math.abs(streak) >= t.gapDays;
+
       // Plafond : rupture ou prix trop haut → le comptoir revend un lot
       const ceilingPrice = round2(fair * t.ceiling);
       if (touched.has(item.id)) continue;
-      if (!book.citySell && stock > 0 && (book.bestSell == null || book.bestSell > ceilingPrice)) {
+      if (persistent && streak > 0 && !book.citySell && stock > 0 && (book.bestSell == null || book.bestSell > ceilingPrice)) {
         const qty = Math.min(stock, t.lot);
         const offer = new Offer({
           type: 'sell', itemId: item.id, quantity: qty, price: ceilingPrice, buyoutPrice: ceilingPrice,
@@ -304,7 +319,7 @@ export class MarketReserve {
       const floorPrice = round2(fair * t.floor);
       const dumped = book.bestSell != null && book.bestSell < floorPrice;
       const glut = book.sellQty >= 8 && book.bestBuy == null;
-      if (!book.cityBuy && (dumped || glut) && stock < t.maxStockPerItem) {
+      if (persistent && streak < 0 && !book.cityBuy && (dumped || glut) && stock < t.maxStockPerItem) {
         const qty = t.lot;
         const cost = round2(floorPrice * qty);
         if (cost <= budget && cost <= this.treasury) {
@@ -339,7 +354,7 @@ export class MarketReserve {
         .slice(0, t.procurementMaxOffers);
       for (const { item } of candidates) {
         const price = round2(game.economy.getFairValue(item.id) * t.procurementPrice);
-        const qty = Math.min(4, Math.floor(procurementBudget / price));
+        const qty = Math.min(t.procurementMaxQty, Math.floor(procurementBudget / price));
         if (qty < 1) continue;
         const cost = round2(price * qty);
         this.treasury = round2(this.treasury - cost);
@@ -374,6 +389,11 @@ export class MarketReserve {
     }
 
     this.stats.interventions += actions.length;
+    // Passe 4 : on distingue la régulation des prix (revente plafond, rachat plancher, commande publique)
+    // des commandes d'achat qui recyclent l'excédent de trésorerie.
+    const procured = actions.filter(a => a.type === 'procure').length;
+    this.stats.procureOrders = (this.stats.procureOrders || 0) + procured;
+    this.stats.regulations = (this.stats.regulations || 0) + actions.length - procured;
     this.lastActions = [...actions.filter(a => a.type === 'public'), ...actions.filter(a => a.type !== 'public').slice(-8)].map(a => {
       const item = getItemById(a.itemId);
       return { ...a, name: item?.name || a.itemId, icon: item?.icon || '' };
@@ -388,7 +408,8 @@ export class MarketReserve {
       stats: { ...this.stats },
       lastActions: this.lastActions,
       publicOrders: this.publicOrders,
-      outSince: this.outSince
+      outSince: this.outSince,
+      gapStreak: this.gapStreak
     };
   }
 

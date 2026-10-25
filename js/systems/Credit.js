@@ -5,6 +5,8 @@
  * des marchands les plus riches (au-delà de 120 % de leur capital de départ). Les intérêts
  * leur reviennent au prorata : l'argent change de main, il n'est jamais créé.
  *
+ * Passe 4 : un crédit adossé à un contrat ouvert (commande d'un marchand) bénéficie d'un taux réduit de 30 %.
+ *
  * Un seul crédit à la fois, plafond selon le rang de réputation, intérêts simples par jour
  * (au moins 1 jour facturé). Remboursement anticipé possible. À l'échéance, prélèvement
  * automatique si le solde suffit ; sinon retard : pénalité, réputation en baisse et
@@ -12,7 +14,7 @@
  *
  * Défaut (analyse GD, P2 : être mauvais payeur ne doit pas rapporter) : pénalité de 2 %/jour
  * (max 30 %), réputation −6 puis −2/jour (frais d'annonce plus chers), saisie du stock au bout
- * de 5 jours de retard (racheté par le Comptoir à 70 % de sa valeur, sans création d'argent),
+ * de 5 jours de retard (racheté par le Comptoir au prix courant — passe 4, 70 % avant —, sans création d'argent),
  * et plus de crédit pendant 14 jours après un remboursement en retard.
  */
 
@@ -30,11 +32,12 @@ export const CREDIT_TUNING = {
   lateRepFirst: -6,
   lateRepDaily: -2,
   seizeStockAfterDays: 5,   // saisie du stock après 5 jours de retard…
-  seizeStockValue: 0.7,     // … racheté par le Comptoir à 70 % de sa valeur (payé par sa trésorerie)
+  seizeStockValue: 1,       // … racheté par le Comptoir au prix courant du marché (passe 4 : 70 % → 100 %, payé par sa trésorerie)
   banDaysAfterLate: 14,     // pas de nouveau crédit pendant 14 jours après un retard
   onTimeRep: 2,
   seizeShare: 0.5,          // part du produit des ventes saisie en cas de retard
-  seizeAfterDays: 3         // au-delà, le Comptoir prélève ce qu'il peut sur le solde
+  seizeAfterDays: 3,        // au-delà, le Comptoir prélève ce qu'il peut sur le solde
+  contractRateFactor: 0.7   // passe 4 : crédit adossé à un contrat ouvert → taux −30 %
 };
 
 const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
@@ -89,20 +92,29 @@ export class Credit {
     return r2(Math.min(this.rank().creditLimit, this.pool().total));
   }
 
-  rate() {
-    return this.rank().creditRate;
+  /** Contrat ouvert du tableau des contrats (crédit « adossé » à un contrat), sinon null. */
+  _contract(contractId) {
+    if (!contractId) return null;
+    const job = (this.game.jobBoard?.contracts || []).find(j => j.id === contractId);
+    return job && job.status === 'open' ? job : null;
   }
 
-  /** Devis : intérêts et total dû pour un montant et une durée. */
-  quote(amount, days = 7) {
+  rate({ contractId = null } = {}) {
+    const base = this.rank().creditRate;
+    return this._contract(contractId) ? Math.round(base * CREDIT_TUNING.contractRateFactor * 100000) / 100000 : base;
+  }
+
+  /** Devis : intérêts et total dû pour un montant et une durée (option : contrat ouvert → taux réduit). */
+  quote(amount, days = 7, { contractId = null } = {}) {
     const a = r2(amount);
     const d = CREDIT_TUNING.durations.includes(Number(days)) ? Number(days) : 7;
-    const rate = this.rate();
+    const rate = this.rate({ contractId });
     const interest = r2(a * rate * d);
-    return { amount: a, days: d, rate, interest, total: r2(a + interest), dueDay: this._day() + d };
+    const contract = this._contract(contractId);
+    return { amount: a, days: d, rate, interest, total: r2(a + interest), dueDay: this._day() + d, contractId: contract ? contract.id : null };
   }
 
-  borrow(amount, days = 7) {
+  borrow(amount, days = 7, { contractId = null } = {}) {
     const T = CREDIT_TUNING;
     const a = r2(Number(String(amount).replace(',', '.')));
     if (this.loan) return { success: false, error: 'Vous avez déjà un crédit en cours : remboursez-le d\'abord' };
@@ -136,10 +148,10 @@ export class Credit {
         return { success: false, error: 'Fonds des prêteurs indisponibles, réessayez' };
       }
     }
-    const q = this.quote(a, days);
+    const q = this.quote(a, days, { contractId });
     this.loan = {
       id: `loan_${this._seq++}`,
-      principal: a, rate: q.rate, days: q.days, takenDay: this._day(), dueDay: q.dueDay,
+      principal: a, rate: q.rate, days: q.days, takenDay: this._day(), dueDay: q.dueDay, contractId: q.contractId,
       paid: 0, lenders, overdueDays: 0, penalty: 0, status: 'active', rankTitle: rank.title
     };
     this.game.player.addMoney(a);
@@ -248,7 +260,7 @@ export class Credit {
   }
 
   /**
-   * Saisie du stock : le Comptoir rachète vos objets à 70 % de leur valeur (de sa trésorerie) jusqu'à
+   * Saisie du stock : le Comptoir rachète vos objets au prix courant du marché (de sa trésorerie) jusqu'à
    * couvrir la dette ; le produit rembourse aussitôt les prêteurs. L'argent change de main, il n'est pas créé.
    */
   seizeStock() {
@@ -301,6 +313,8 @@ export class Credit {
       lenders: pool.sources.length,
       limit: this.limit(),
       durations: CREDIT_TUNING.durations,
+      contractRate: r2(rank.creditRate * CREDIT_TUNING.contractRateFactor * 1000) / 1000,
+      contracts: (this.game.jobBoard?.contracts || []).filter(j => j.status === 'open').map(j => ({ id: j.id, title: j.title, reward: j.reward })),
       minAmount: CREDIT_TUNING.minAmount,
       loan: loan ? {
         ...loan,

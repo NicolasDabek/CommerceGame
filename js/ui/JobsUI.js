@@ -80,6 +80,7 @@ export class JobsUI {
             <h3>${job.title}</h3>
             <span class="text-money" title="Payé par le Comptoir municipal">${money(job.reward)} €</span>
           </div>
+          ${job.newcomerBonus > 0 ? `<p class="jobs-small text-success">🌱 Prime de démarrage : +${money(job.newcomerBonus)} € (+20 % sur vos 3 premiers contrats)</p>` : ''}
           <p>${SHORTAGE_CHIP[job.shortage] || ''} ${job.reason}</p>
           <p class="jobs-small">${job.quantity} × ${job.item?.icon || ''} ${job.item?.name || ''} · valeur marché ${money(job.value)} € · prime ${profitHtml(profit)} (+${job.premiumPct} %)</p>
           <div class="goal-foot">
