@@ -23,6 +23,7 @@ import { applyA11y, openA11yModal } from './ui/A11y.js';
 import { getItemById } from './data/items.js';
 import { formatMoney as fmtMoney, insightCardHtml, qtyQuickButtons, wireQtyQuick, economyChipHtml, signedMoney, moneyClass } from './ui/TradeInsights.js';
 import { Offer } from './models/Offer.js';
+import { tapWord, applyPointerWords, watchPointerWords } from './ui/pointerWords.js';
 
 const game = new Game();
 
@@ -134,7 +135,7 @@ function updateMoneyDisplay() {
       ml.hidden = !locked.length;
       ml.innerHTML = locked.length ? `<span class="locks-title">À débloquer :</span> ${locked.map(f => `<span class="lock-chip" title="Débloqué au rang ${f.rank} — ${f.title} (${f.minRep} de réputation)">🔒 ${f.label} · rang ${f.rank}</span>`).join(' ')}` : '';
     }
-    nw.title = `Patrimoine : argent ${formatMoney(w.cash)} € + stock ${formatMoney(w.stock)} € + annonces ${formatMoney(w.listed)} € + offres ${formatMoney(w.locked)} € + établi ${formatMoney(w.bench)} €${w.debt ? ` − crédit ${formatMoney(w.debt)} €` : ''}. Cliquez pour voir votre parcours.`;
+    nw.title = `Patrimoine : argent ${formatMoney(w.cash)} € + stock ${formatMoney(w.stock)} € + annonces ${formatMoney(w.listed)} € + offres ${formatMoney(w.locked)} € + établi ${formatMoney(w.bench)} €${w.debt ? ` − crédit ${formatMoney(w.debt)} €` : ''}. ${tapWord()} pour voir votre parcours.`;
   }
 }
 /** Pastille du bouton « Plus » : alertes du Suivi + notifications non lues. */
@@ -606,7 +607,7 @@ function updateEconomyChip() {
   const health = game.getEconomyHealth();
   el.innerHTML = economyChipHtml(health);
   el.dataset.status = health.status;
-  el.title = `Santé de l'économie : ${health.label}. ${health.explanation} Cliquez pour ouvrir le marché.`;
+  el.title = `Santé de l'économie : ${health.label}. ${health.explanation} ${tapWord()} pour ouvrir le marché.`;
 }
 
 function refreshAllUI() {
@@ -774,6 +775,9 @@ function init() {
   document.getElementById('eco-chip')?.addEventListener('click', () => window.showWorldPanel?.('market'));
   game.timeManager.updateUI();
   window.game = game;
+  // UI passe 5 : « Touchez » / « Cliquez » selon le pointeur
+  applyPointerWords();
+  watchPointerWords(() => refreshAllUI());
   window.Modal = Modal;
 }
 document.addEventListener('DOMContentLoaded', init);

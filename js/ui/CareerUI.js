@@ -5,6 +5,7 @@
 import { formatMoney } from './TradeInsights.js';
 import { PANEL_TIPS } from '../systems/Career.js';
 import { esc } from '../utils/escape.js';
+import { tapify } from './pointerWords.js';
 
 const PANEL_NAMES = {
   inventory: 'Sac', auction: 'Hôtel de vente', buyhouse: 'Hôtel d\'achat', market: 'Halle des prix',
@@ -106,7 +107,7 @@ export class CareerUI {
             <span class="step-val">${fmtValue(s)}</span>
           </div>
           <div class="goal-bar"><span style="width:${s.pct}%"></span></div>
-          ${s.done ? '' : `<p class="step-how">💡 ${s.how} <button class="btn btn-small btn-ghost" data-go="${s.panel}" title="Ouvrir ${PANEL_NAMES[s.panel] || s.panel}">Y aller → ${PANEL_NAMES[s.panel] || ''}</button></p>`}
+          ${s.done ? '' : `<p class="step-how">💡 ${tapify(s.how)} <button class="btn btn-small btn-ghost" data-go="${s.panel}" title="Ouvrir ${PANEL_NAMES[s.panel] || s.panel}">Y aller → ${PANEL_NAMES[s.panel] || ''}</button></p>`}
         </li>`).join('');
       return `
         <article class="chapter-card current">
@@ -159,7 +160,7 @@ export class CareerUI {
     const rows = j.slice(0, 12).map(h => `<tr><td>J${h.day}</td><td>${h.npcName}</td><td>${h.icon} ${h.itemName}</td><td>${h.kind === 'buy' ? 'achat' : 'vente'}</td><td><strong>${h.outcome}</strong>${h.tactic ? ` <small class="text-muted">(${h.tactic})</small>` : ''}</td><td>${h.price != null ? `${formatMoney(h.price)} €` : '—'}</td><td class="${h.gain ? 'text-success' : ''}">${h.gain ? `+${formatMoney(h.gain)} €` : '—'}</td></tr>`).join('');
     return `<div class="rank-help" id="haggle-journal"><h3>📒 Carnet de marchandage</h3>${rows
       ? `<div class="table-container"><table class="data-table compact-table"><thead><tr><th>Jour</th><th>Marchand</th><th>Objet</th><th>Sens</th><th>Issue</th><th>Prix</th><th>Gain</th></tr></thead><tbody>${rows}</tbody></table></div>`
-      : '<p class="empty-state">Aucune discussion pour l\'instant : cliquez « 🤝 Négocier » sur une annonce d\'un marchand.</p>'}</div>`;
+      : `<p class="empty-state">Aucune discussion pour l'instant : ${tapify('cliquez')} « 🤝 Négocier » sur une annonce d'un marchand.</p>`}</div>`;
   }
 
   /** Carte « prochaine étape » sur la place (masquable). */
@@ -175,10 +176,10 @@ export class CareerUI {
       const ch = career.currentChapter;
       const s = career.nextStep;
       const n = Math.min(ch.doneCount + 1, ch.steps.length);
-      const tip = s ? `${ch.title} · ${ch.doneCount}/${ch.steps.length} faites. ${stepTitle(s)} ${fmtValue(s)} — ${s.how}` : ch.title;
+      const tip = s ? `${ch.title} · ${ch.doneCount}/${ch.steps.length} faites. ${stepTitle(s)} ${fmtValue(s)} — ${tapify(s.how)}` : ch.title;
       // Carte d'une ligne : la description complète reste en info-bulle et dans Parcours (clic sur le texte).
       this.hudEl.innerHTML = `
-        <button class="hud-line" data-go="goals" title="${esc(tip)} (cliquez pour voir le parcours)"><span class="sr-only">${esc(ch.title)} : </span><span aria-hidden="true">${ch.icon}</span> ${n}/${ch.steps.length} · ${esc(s ? stepTitle(s) : ch.title)}${s && fmtValue(s) ? ` <span class="hud-val">${fmtValue(s)}</span>` : ''}</button>
+        <button class="hud-line" data-go="goals" title="${esc(tip)} (${tapify('cliquez')} pour voir le parcours)"><span class="sr-only">${esc(ch.title)} : </span><span aria-hidden="true">${ch.icon}</span> ${n}/${ch.steps.length} · ${esc(s ? stepTitle(s) : ch.title)}${s && fmtValue(s) ? ` <span class="hud-val">${fmtValue(s)}</span>` : ''}</button>
         ${s ? `<button class="btn btn-primary hud-go" data-go="${s.panel}">Y aller</button>` : ''}<button class="hud-x" data-hud-close title="Masquer (réaffichable avec la touche ?)" aria-label="Masquer la carte">✕</button>`;
     }
     this.hudEl.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => this.onGo(b.dataset.go)));
@@ -189,7 +190,7 @@ export class CareerUI {
   showTip(panel) {
     if (!this.tipEl) return;
     const seen = this.prefs?.get('tipsSeen', []) || [];
-    const text = PANEL_TIPS[panel];
+    const text = tapify(PANEL_TIPS[panel]);
     if (!text || seen.includes(panel) || this.prefs?.get('tipsOff', false)) { this.tipEl.hidden = true; return; }
     this.tipEl.hidden = false;
     // UI passe 4 : sur mobile, texte sur 2 lignes max (complet en info-bulle) et ✕ « Compris » à droite ; le choix est mémorisé (tipsSeen / tipsOff)

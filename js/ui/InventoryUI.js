@@ -119,8 +119,10 @@ export class InventoryUI {
       const emptyCount = inventory.size - inventory.usedSlots;
       for (let i = 0; i < emptyCount; i++) {
         const el = document.createElement('div');
-        el.className = 'inventory-slot';
-        el.innerHTML = `<span class="slot-icon" style="opacity:0.25">📦</span>`;
+        // UI passe 5 : emplacement libre neutre (le 📦 reste l'icône par défaut d'un objet)
+        el.className = 'inventory-slot slot-empty';
+        el.setAttribute('aria-label', 'Emplacement libre');
+        el.innerHTML = '<span class="slot-empty-mark" aria-hidden="true"></span>';
         this.grid.appendChild(el);
       }
     }

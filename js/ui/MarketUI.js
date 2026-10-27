@@ -4,6 +4,7 @@
 
 import { ITEMS, getItemById } from '../data/items.js';
 import { esc, itemTitle } from '../utils/escape.js';
+import { emptyWatchText } from './pointerWords.js';
 import { formatMoney, formatPct, sparkline, marginHtml, dealBadge, priceWhyChip, economyHealthHtml, supplyCellHtml } from './TradeInsights.js';
 
 export class MarketUI {
@@ -166,7 +167,7 @@ export class MarketUI {
     if (rows.length === 0) {
       this.tbody.innerHTML = `
         <tr class="empty-row">
-          <td colspan="11">${this.view === 'watched' ? 'Aucun objet suivi : touchez ☆ pour suivre un objet.' : this.view === 'deals' ? 'Pas de bonne affaire en ce moment.' : 'Aucune donnée de marché'}</td>
+          <td colspan="11">${this.view === 'watched' ? emptyWatchText() : this.view === 'deals' ? 'Pas de bonne affaire en ce moment.' : 'Aucune donnée de marché'}</td>
         </tr>
       `;
       return;

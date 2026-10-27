@@ -2,6 +2,7 @@
  * Interface — Suivi & ordres : liste de suivi + alertes, ordres d'achat permanents, bilan (P&L).
  */
 import { itemTitle } from '../utils/escape.js';
+import { emptyWatchText, WATCH_ICON } from './pointerWords.js';
 import { ITEMS } from '../data/items.js';
 import { formatMoney, formatPct, supplyChipHtml } from './TradeInsights.js';
 
@@ -93,16 +94,16 @@ export class TradingUI {
     const alerts = view.alerts.map(a => `
       <li class="alert-item ${a.read ? '' : 'unread'} alert-${a.kind}"><span class="text-muted">J${a.day}</span> ${a.text}</li>`).join('');
     return `
-      <p class="trade-hint text-muted">Suivez jusqu'à ${view.watchMax} objets (★ dans la Halle des prix). Une alerte se déclenche une fois quand le seuil est franchi, et aussi quand un objet suivi tombe en pénurie.</p>
+      <p class="trade-hint text-muted">Suivez jusqu'à ${view.watchMax} objets (☆ dans la Halle des prix). Une alerte se déclenche une fois quand le seuil est franchi, et aussi quand un objet suivi tombe en pénurie.</p>
       <div class="trading-add">
         <select class="select" id="watch-item">${itemOptions()}</select>
-        <button class="btn btn-small btn-primary" data-tr="watch">★ Suivre</button>
+        <button class="btn btn-small btn-primary" data-tr="watch">${WATCH_ICON} Suivre</button>
       </div>
       <div class="trading-layout">
         <div class="table-container">
           <table class="data-table" id="watch-table">
             <thead><tr><th>Objet</th><th>Valeur normale</th><th>Carnet</th><th>Offre / demande</th><th title="Une alerte quand une annonce passe sous votre prix d'achat, ou quand une offre d'achat dépasse votre prix de vente">Alertes</th><th></th></tr></thead>
-            <tbody>${rows || '<tr class="empty-row"><td colspan="6">Aucun objet suivi — cliquez ★ Suivre</td></tr>'}</tbody>
+            <tbody>${rows || `<tr class="empty-row"><td colspan="6">${emptyWatchText()}</td></tr>`}</tbody>
           </table>
         </div>
         <aside class="alert-log">

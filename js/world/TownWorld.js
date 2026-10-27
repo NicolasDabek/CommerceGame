@@ -9,6 +9,12 @@ import { OrbitControls } from '../../lib/OrbitControls.js';
 import { NPCS, getClanById } from '../data/npcs.js';
 import { esc } from '../utils/escape.js';
 
+/** Cible qui gère elle-même la touche Entrée (bouton, champ, liste, zone éditable). */
+function isInteractiveTarget(t) {
+  if (!t || typeof t.closest !== 'function') return false;
+  return !!(t.isContentEditable || t.closest('button, input, select, textarea, a[href], [contenteditable=""], [contenteditable="true"], [role="button"]'));
+}
+
 const UP = new THREE.Vector3(0, 1, 0);
 const PLAYER_SPEED = 4.2;
 const PLAYER_RADIUS = 0.35;
@@ -414,6 +420,8 @@ export class TownWorld {
       return;
     }
     if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) {
+      // UI passe 5 : Entrée sur un bouton, un champ ou une zone éditable garde son action native (ex. #btn-palette)
+      if (e.code === 'Enter' && isInteractiveTarget(e.target)) return;
       e.preventDefault();
       this.enterNearest();
     }
