@@ -279,12 +279,20 @@ export function summarize(runs, days, seeds, elapsedMs) {
  * Une ligne par robot (et « aucun » = PNJ seuls) : €/jour en début et fin de partie, gain total,
  * subventions et interventions du Comptoir (moyenne par partie), pénuries, masse monétaire.
  */
-export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'honest', 'haggler', 'trader', 'exploit', 'defaulter'] } = {}) {
-  const head = ['bot', 'days', 'seeds', 'eur_per_day', 'eur_per_day_early', 'eur_per_day_late', 'worth_start', 'worth_end', 'haggle_deals_per_day', 'loans', 'contracts', 'subsidies', 'interventions', 'interventions_per_day', 'procurement_orders_per_day', 'shortages_per_day', 'shortage_longest', 'price_end', 'money_min', 'money_max'];
+export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'honest', 'haggler', 'trader', 'trader_no_loan', 'exploit', 'defaulter'] } = {}) {
+  const head = ['bot', 'days', 'seeds', 'eur_per_day', 'eur_per_day_early', 'eur_per_day_late', 'worth_start', 'worth_end', 'haggle_deals_per_day', 'loans', 'contracts', 'subsidies', 'interventions', 'interventions_per_day', 'procurement_orders_per_day', 'public_orders_per_day', 'shortages_per_day', 'shortage_longest', 'price_end', 'money_min', 'money_max', 'trader_no_loan'];
   const lines = [head.join(',')];
   const num = (v) => (v == null || Number.isNaN(v) ? '' : String(v));
+  // Passe 5 : « trader_no_loan » = même trader (4 actions/jour) sans aucun prêt ; colonne trader_no_loan sur la ligne trader
+  const noLoanGain = {};
+  const prevParams = globalThis.__BOT_PARAMS;
   for (const bot of bots) {
-    const { summary, runs } = await runSimulation({ days, seeds, bot: bot === 'none' ? null : bot });
+    const mode = bot === 'none' ? null : bot === 'trader_no_loan' ? 'trader' : bot;
+    globalThis.__BOT_PARAMS = bot === 'trader_no_loan' ? { ...(prevParams || {}), traderMaxLoans: 0 } : prevParams;
+    let sim;
+    try { sim = await runSimulation({ days, seeds, bot: mode }); } finally { globalThis.__BOT_PARAMS = prevParams; }
+    const { summary, runs } = sim;
+    if (bot === 'trader_no_loan' && summary.bot) noLoanGain.v = r2c((summary.bot.worthEnd - summary.bot.worthStart) / days);
     const b = summary.bot;
     const rs = runs.map(r => r.reserveStats || {});
     const avgOf = (k) => Math.round(rs.reduce((t, x) => t + (x[k] || 0), 0) / Math.max(1, rs.length));
@@ -294,10 +302,14 @@ export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'ho
       bot, days, seeds,
       b ? r2c((b.worthEnd - b.worthStart) / days) : '', b ? b.gainPerDayEarly : '', b ? b.gainPerDayLate : '',
       b ? b.worthStart : '', b ? b.worthEnd : '', b ? b.haggleDealsPerDay : '', b ? b.loans : '', contracts,
-      avgOf('subsidies'), avgOf('interventions'), r2c(avgRaw('regulations') / days), r2c(avgRaw('procureOrders') / days), summary.shortagesPerDay, summary.shortageLongest, summary.priceEnd,
-      summary.moneyBand[0], summary.moneyBand[1]
+      avgOf('subsidies'), avgOf('interventions'), r2c(avgRaw('regulations') / days), r2c(avgRaw('procureOrders') / days), r2c((avgRaw('procureOrders') + avgRaw('publicOrders')) / days), summary.shortagesPerDay, summary.shortageLongest, summary.priceEnd,
+      summary.moneyBand[0], summary.moneyBand[1], ''
     ].map(num).join(','));
   }
+  // la ligne trader porte le €/jour du trader sans prêt (calculé après)
+  const iT = bots.indexOf('trader');
+  if (iT >= 0 && noLoanGain.v != null) lines[iT + 1] = lines[iT + 1].replace(/,$/, ',' + noLoanGain.v);
+  if (bots.includes('trader_no_loan')) { const iN = bots.indexOf('trader_no_loan'); lines[iN + 1] = lines[iN + 1].replace(/,$/, ',' + noLoanGain.v); }
   return lines.join('\n') + '\n';
 }
 function r2c(n) { return Math.round(n * 100) / 100; }

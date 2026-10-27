@@ -38,6 +38,7 @@ export class JobsUI {
     this.onSalvage = options.onSalvage || (() => {});
     this.onNpcOrder = options.onNpcOrder || (() => {});
     this.onBuyDeal = options.onBuyDeal || (() => {});
+    this.onFinance = options.onFinance || (() => {});
     this.root = document.getElementById('jobs-root');
     this.vaultEl = document.getElementById('jobs-vault');
     this.tab = 'jobs';
@@ -80,6 +81,7 @@ export class JobsUI {
             <h3>${job.title}</h3>
             <span class="text-money" title="Payé par le Comptoir municipal">${money(job.reward)} €</span>
           </div>
+          ${job.requiresCredit ? `<p class="jobs-small"><span class="mini-chip chip-warn" title="Trop gros pour votre caisse : il se livre seulement avec un crédit adossé à ce contrat (taux réduit), pris à la Banque ou ici.">💳 Gros contrat · crédit adossé requis</span> ${job.financed ? '<span class="text-success">financé ✓</span>' : ''} · à livrer avant la fin du jour ${job.deadlineDay}</p>` : ''}
           ${job.newcomerBonus > 0 ? `<p class="jobs-small text-success">🌱 Prime de démarrage : +${money(job.newcomerBonus)} € (+20 % sur vos 3 premiers contrats)</p>` : ''}
           <p>${SHORTAGE_CHIP[job.shortage] || ''} ${job.reason}</p>
           <p class="jobs-small">${job.quantity} × ${job.item?.icon || ''} ${job.item?.name || ''} · valeur marché ${money(job.value)} € · prime ${profitHtml(profit)} (+${job.premiumPct} %)</p>
@@ -87,7 +89,7 @@ export class JobsUI {
             <span>Votre stock : ${job.owned} / ${job.quantity}</span>
             ${done
               ? '<span class="text-success">Livré</span>'
-              : `<button class="btn btn-small ${job.canComplete ? 'btn-success' : 'btn-ghost'}" data-action="complete" data-id="${job.id}" ${job.canComplete ? '' : 'disabled'}>Livrer</button>`}
+              : `${job.requiresCredit && !job.financed ? `<button class="btn btn-small btn-primary" data-action="finance" data-id="${job.id}" data-amount="${job.financeAmount}" ${job.financeLimit >= 50 ? 'title="Crédit adossé à ce contrat, à rembourser sous 3 jours"' : 'disabled title="Crédit indisponible (prêt en cours ou interdiction)"'}>Financer ${money(job.financeAmount)} €</button> ` : ''}<button class="btn btn-small ${job.canComplete ? 'btn-success' : 'btn-ghost'}" data-action="complete" data-id="${job.id}" ${job.canComplete ? '' : 'disabled'}>Livrer</button>`}
           </div>
         </article>`;
     }).join('');
@@ -367,6 +369,7 @@ export class JobsUI {
         const p = Number(btn.dataset.perfection);
         if (action === 'scavenge') this.onScavenge();
         if (action === 'complete') this.onComplete(btn.dataset.id);
+        if (action === 'finance') this.onFinance(btn.dataset.id, Number(btn.dataset.amount));
         if (action === 'craft') this.onCraft(btn.dataset.id, btn.dataset.focus === '1');
         if (action === 'polish') this.onPolish(btn.dataset.item, q, p);
         if (action === 'repair') this.onRepair(btn.dataset.item, q, p, btn.dataset.mode);

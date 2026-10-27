@@ -45,7 +45,7 @@ export function run() {
         const neg = game.negotiation;
         const T = (await import('../js/systems/Negotiation.js')).NEGOTIATION_TUNING;
         const base = neg._limit(neg._context(offer.id), 2);
-        assert(base.flex <= T.maxFlex + 1e-9, `marge personnelle plafonnée à 8 % (${base.flex})`);
+        assert(base.flex <= T.maxFlex + 1e-9, `marge personnelle plafonnée à ${T.maxFlex * 100} % (${base.flex})`);
         const r = game.useHaggleTactic(offer.id, 'bulk', 2);
         assert(r.success && r.valid, r.message || r.error);
         const arg = neg._limit(neg._context(offer.id), 2);

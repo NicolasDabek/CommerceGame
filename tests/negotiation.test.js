@@ -128,12 +128,26 @@ export function run() {
         const o = npcListing(game, 'item_004', 20, { qty: 5 });
         const lim = lowestAccepted(game, o);
         assertEqual(game.negotiate(o.id, lim.limit, 1).outcome, 'accepted');
-        // Passe 3 : après un accord, le marchand est un peu lassé (marge −15 %) → nouveau prix limite
+        // Passe 3 : après un accord, le marchand est un peu lassé (marge −15 %) ; passe 5 : un « bon client »
+        // efface 1 marchandage de lassitude par accord (au plus 3) → il ne lâche guère plus (bonus bon client 0,5 % + confiance gagnée)
         const lim2 = lowestAccepted(game, o);
-        assert(lim2.limit >= lim.limit - 1e-9, 'lassitude : il ne lâche pas plus après un accord');
+        assert(lim2.limit >= lim.limit * (1 - 0.015) && lim2.limit <= lim.limit + 1e-9, `lassitude / bon client : ${lim.limit} → ${lim2.limit}`);
         assertEqual(game.negotiate(o.id, lim2.limit, 1).outcome, 'accepted');
         const third = game.negotiate(o.id, lim2.limit, 1);
         assertEqual(third.success, false, 'troisième accord refusé');
+      } finally { restore(); }
+    }],
+    ['Passe 5 : « bon client » = patience — −1 marchandage de lassitude par accord passé, au plus −3', async () => {
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
+      try {
+        const neg = game.negotiation;
+        const day = neg._day();
+        const mem = { wins: [day, day, day, day], deals: 0, bluffs: 0 };
+        assertEqual(neg._weariness(mem), 4, 'sans accord passé : lassitude pleine');
+        mem.deals = 1; assertEqual(neg._weariness(mem), 3, '1 accord : −1');
+        mem.deals = 3; assertEqual(neg._weariness(mem), 1, '3 accords : −3');
+        mem.deals = 9; assertEqual(neg._weariness(mem), 1, 'plafond −3');
+        mem.wins = [day]; assertEqual(neg._weariness(mem), 0, 'jamais négative');
       } finally { restore(); }
     }],
     ['annonce sans achat immédiat : prix demandé au-dessus du départ, achat direct possible', async () => {

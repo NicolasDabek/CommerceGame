@@ -77,7 +77,11 @@ export const JobView = {
           reason: c.reason || 'Commande courante du Comptoir',
           value: moneyRound(this._fair(c.itemId) * c.quantity),
           newcomerBonus: c.status === 'open' ? (this.newcomerBonus?.(c) || 0) : 0,
-          canComplete: c.status === 'open' && owned >= c.quantity
+          financed: this.isFinanced ? this.isFinanced(c) : true,
+          // passe 5 : gros contrat — montant à emprunter (marchandise manquante) et plafond du crédit adossé
+          financeAmount: c.requiresCredit ? Math.max(50, Math.min(this.game.credit?.limit?.({ contractId: c.id }) || 0, moneyRound(this._fair(c.itemId) * Math.max(0, c.quantity - owned)))) : 0,
+          financeLimit: c.requiresCredit ? (this.game.credit?.limit?.({ contractId: c.id }) || 0) : 0,
+          canComplete: c.status === 'open' && owned >= c.quantity && (this.isFinanced ? this.isFinanced(c) : true)
         };
       }),
       recipes: RECIPES.map(r => {

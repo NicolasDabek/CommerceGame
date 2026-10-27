@@ -12,6 +12,12 @@ import { rankFor } from '../../core/Ranks.js';
 /** Passe 4 : prime de démarrage — +20 % sur les 3 premiers contrats livrés tant que l'on est au rang 0 ou 1. */
 export const NEWCOMER_CONTRACTS = { count: 3, bonus: 0.2, maxRank: 1 };
 
+/**
+ * Passe 5 : « gros contrats » aux rangs 1 et 2 — quantité ×3, marge +15 points, trop gros pour la caisse
+ * d'un débutant : ils ne se livrent qu'avec un crédit adossé (taux « contrat »), ouvert dès le rang 1 pour eux.
+ */
+export const LARGE_CONTRACTS = { ranks: [1, 2], qtyMult: 3, marginBonus: 0.15, maxShareOfLimit: 0.9, minQty: 4, days: 3, laterEvery: 6, maxValue: 900, minValue: 150 };
+
 export const JobContracts = {
 
   ensureContracts() {
@@ -29,7 +35,11 @@ export const JobContracts = {
     this.repairsUsedToday = 0;
     this.salvageUsedToday = 0;
     this.servicesUsedToday = 0;
+    // Passe 5 : un gros contrat reste ouvert 3 jours (le temps de réunir la marchandise à crédit)
+    const keep = (this.contracts || []).filter(c => c.large && c.status === 'open' && (c.deadlineDay ?? -1) >= day);
     this.contracts = this._roll(this.contractCount(), day);
+    const large = keep[0] || this._rollLarge(day);
+    if (large) this.contracts.push(large);
     this.services = this._rollServices(day);
     this._rollNpcOrders(day);
   },
@@ -111,6 +121,59 @@ export const JobContracts = {
   },
 
 
+  /** Passe 5 : un gros contrat par jour aux rangs 1-2, sur un produit abondant, à financer par un crédit adossé. */
+  _rollLarge(day) {
+    const T = LARGE_CONTRACTS;
+    const rank = rankFor(this.game.player?.reputation || 0);
+    if (!(rank.creditLimit > 0) || rank.id < Math.min(...T.ranks)) return null;
+    // au-delà des rangs 1-2, un gros contrat n'est proposé que tous les `laterEvery` jours (0 : jamais)
+    if (!T.ranks.includes(rank.id) && !(T.laterEvery > 0 && day % T.laterEvery === 0)) return null;
+    // payé intégralement par la trésorerie du Comptoir (aucune création d'argent) : taille plafonnée par ce qu'elle peut payer
+    const treasury = this.game.reserve ? Math.max(0, this.game.reserve.treasury - 200) : Infinity;
+    const cap = Math.min(rank.creditLimit * T.maxShareOfLimit, T.maxValue, treasury / (1.3 + T.marginBonus));
+    const base = 2 + (day % 3);
+    // produit abondant : le plus d'unités chez les marchands (annonces + stocks), pour que la commande soit faisable
+    const listed = {};
+    (this.game.offers || []).forEach(o => {
+      if (o.status === 'active' && o.type === 'sell' && o.ownerId !== 'player' && o.buyoutPrice != null) listed[o.itemId] = (listed[o.itemId] || 0) + (o.quantity || 0);
+    });
+    Object.values(this.game.npcController?.npcStates || {}).forEach(st => (st.inventory || []).forEach(sl => { listed[sl.itemId] = (listed[sl.itemId] || 0) + (sl.quantity || 0); }));
+    const pool = ITEMS.filter(i => i.rarity !== 'Épique' && i.rarity !== 'Rare')
+      .map(item => ({ item, fair: this._fair(item.id), view: this._supplyView(item.id), listed: listed[item.id] || 0 }))
+      .filter(x => x.fair > 0 && Math.floor(cap / x.fair) >= T.minQty && x.view?.status !== 'shortage' && x.listed >= T.minQty * 2)
+      .map(x => ({ ...x, qty: Math.min(base * T.qtyMult, Math.floor(cap / x.fair), Math.floor(x.listed / 2)) }))
+      // « gros » au sens propre : une commande trop petite n'est pas proposée
+      .filter(x => x.qty * x.fair >= (T.minValue || 0))
+      .sort((a, b) => b.qty * b.fair - a.qty * a.fair)
+      .slice(0, 3);
+    if (!pool.length) return null;
+    const { item, fair, qty } = pool[Math.floor(Math.random() * pool.length)];
+    const mult = 1.12 + this.contractPremium() + T.marginBonus;
+    return {
+      id: `big_${day}_${item.id}`,
+      itemId: item.id,
+      quantity: qty,
+      reward: moneyRound(fair * qty * mult),
+      rush: false,
+      large: true,
+      requiresCredit: true,
+      deadlineDay: day + LARGE_CONTRACTS.days - 1,
+      status: 'open',
+      shortage: 'balanced',
+      reason: `Grosse commande du Comptoir (${LARGE_CONTRACTS.days} jours) : à financer par un crédit adossé (taux « contrat »)`,
+      premiumPct: Math.round((mult - 1) * 100),
+      title: `Gros contrat : ${item.name}`,
+      hint: `Fournir ${qty} × ${item.name} (prime +${Math.round((mult - 1) * 100)} %) · crédit adossé requis`
+    };
+  },
+
+  /** Gros contrat : un crédit adossé à ce contrat a-t-il été pris (en cours ou remboursé) ? */
+  isFinanced(job) {
+    if (!job?.requiresCredit) return true;
+    const c = this.game.credit;
+    return !!c && (c.loan?.contractId === job.id || (c.history || []).some(h => h.contractId === job.id));
+  },
+
   /** Commandes des marchands : un PNJ à court de stock paie la livraison avec son propre argent. */
   _rollNpcOrders(day) {
     this.npcOrders = (this.npcOrders || []).filter(o => o.status === 'open' && o.deadlineDay >= day);
@@ -188,7 +251,7 @@ export const JobContracts = {
   /** Prime de démarrage due sur ce contrat (0 si épuisée ou rang trop élevé). */
   newcomerBonus(job) {
     const T = NEWCOMER_CONTRACTS;
-    if (!job || (this.stats.newcomerContracts || 0) >= T.count) return 0;
+    if (!job || job.large || (this.stats.newcomerContracts || 0) >= T.count) return 0;
     if (rankFor(this.game.player?.reputation || 0).id > T.maxRank) return 0;
     return moneyRound(job.reward * T.bonus);
   },
@@ -197,6 +260,7 @@ export const JobContracts = {
     this.ensureContracts();
     const job = this.contracts.find(c => c.id === contractId);
     if (!job || job.status !== 'open') return { success: false, error: 'Contrat indisponible' };
+    if (!this.isFinanced(job)) return { success: false, error: 'Gros contrat : financez-le d\'abord par un crédit adossé à ce contrat' };
     const owned = this.game.player.inventory.count(job.itemId);
     if (owned < job.quantity) {
       return { success: false, error: `Il manque ${job.quantity - owned} objet(s)` };

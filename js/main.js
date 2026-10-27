@@ -542,6 +542,10 @@ function initUI() {
       const result = game.deliverNpcOrder ? game.deliverNpcOrder(id) : { success: false, error: 'Indisponible' };
       act(result, result.success ? `Commande livrée à ${result.npcName} : +${formatMoney(result.payout)} €` : '');
     },
+    onFinance: (id, amount) => {
+      const result = game.borrow ? game.borrow(amount, 3, { contractId: id }) : { success: false, error: 'Indisponible' };
+      act(result, result.success ? `Crédit adossé : +${formatMoney(result.loan?.principal ?? amount)} € à rembourser sous 3 jours` : '');
+    },
     onBuyDeal: (offerId) => {
       const result = game.buyout(offerId, 1);
       act(result, 'Acheté — posez-le sur l\'établi pour le réparer');

@@ -27,7 +27,7 @@ export const NEGOTIATION_TUNING = {
   overstockFlex: 0.03,
   dryFlex: 0.04,           // trésorerie à sec : il a besoin de vendre
   collectorFlex: -0.05,    // collectionneur sur ses favoris
-  maxFlex: 0.08,           // passe 3 : rabais maximal −8 % ; passe 4 : plafond de la marge PERSONNELLE (base, confiance, humeur, marché)
+  maxFlex: 0.065,          // passe 3 : rabais maximal −8 % ; passe 4 : plafond de la marge PERSONNELLE ; passe 5 : 8 % → 6,5 % (compense la patience du « bon client »)
   maxFlexTotal: 0.11,      // passe 4 : plafond absolu une fois ajoutés lot entier, argument et « bon client »
   winPatience: 0.15,       // passe 3 : chaque marchandage réussi avec un PNJ abaisse sa patience de 15 %…
   winPatienceDays: 3,      // … pendant 3 jours
@@ -44,10 +44,13 @@ export const NEGOTIATION_TUNING = {
   bundleFlex: 0.02,        // lot entier (3+) : +2 % de marge
   bundleMinQty: 3,
   bluffFlex: 0.005,        // chaque « bluff » mémorisé retire 0,5 % de marge…
-  bluffFlexMax: 0.03,      // … jusqu'à 3 %
+  bluffFlexMax: 0.025,     // … jusqu'à 2,5 % (passe 5 : 3 % → 2,5 %)
   bluffDecay: 0.7,         // la mémoire s'estompe chaque jour
   dealFlex: 0.004,         // un bon client (accords passés) gagne un peu de marge…
   dealFlexMax: 0.005,      // … jusqu'à 0,5 % (passe 4 : 2 % → 0,5 %, désormais hors plafond personnel)
+  dealPatience: 1,         // passe 5 : chaque accord passé efface 1 marchandage de la lassitude…
+  dealPatienceMax: 3,      // … au plus 3
+  dealPatienceFlex: true,  // … y compris sur la marge (sinon : seulement sur le nombre de tours)
   chanceSigma: 0.015       // incertitude de l'estimation de chance (± 1,5 % du prix)
 };
 
@@ -117,6 +120,12 @@ export class Negotiation {
     return mem.wins.length;
   }
 
+  /** Passe 5 : lassitude nette — un « bon client » (accords passés) ménage la patience : −1 par accord, au plus −3. */
+  _weariness(mem) {
+    const T = NEGOTIATION_TUNING;
+    return Math.max(0, this._recentWins(mem) - Math.min(T.dealPatienceMax, Math.floor((mem.deals || 0) * T.dealPatience)));
+  }
+
   /** Séance de marchandage du jour sur une offre. */
   _session(offerId, npc) {
     const day = this._day();
@@ -125,7 +134,7 @@ export class Negotiation {
       const style = styleFor(npc);
       const mem = this._memory(npc.id);
       let patience = Math.max(2, style.patience - (mem.bluffs >= 3 ? 1 : 0) + (mem.deals >= 3 ? 1 : 0));
-      const wins = this._recentWins(mem);
+      const wins = this._weariness(mem);
       if (wins > 0) patience = Math.max(1, Math.floor(patience * Math.pow(1 - NEGOTIATION_TUNING.winPatience, wins)));
       s = this.sessions[offerId] = { day, rounds: [], patience, patienceMax: patience, npcPrice: null, walked: false };
     }
@@ -179,7 +188,7 @@ export class Negotiation {
     const rank = this._rank();
     if (rank.haggleBonus) { flex += rank.haggleBonus; reasons.push(`rang ${rank.title} ${rank.haggleBonus > 0 ? '+' : ''}${Math.round(rank.haggleBonus * 100)} %`); }
     if (personalityBonus[npc.personality]) flex += personalityBonus[npc.personality];
-    // GD passe 4 : la marge personnelle (base, confiance, humeur, marché, rang, personnalité) est plafonnée à 8 % d'abord…
+    // GD passe 4 : la marge personnelle (base, confiance, humeur, marché, rang, personnalité) est plafonnée à 6,5 % d'abord (passe 5)…
     flex = Math.max(0, Math.min(T.maxFlex, flex));
     // Analyse GD passe 2 (−8 %), passe 3 (−5 %) : marge de base minimale à l'achat
     if (kind === 'buy' && flex < T.minBuyFlex) { flex = T.minBuyFlex; reasons.push(`marchandage : au moins −${Math.round(T.minBuyFlex * 100)} %`); }
@@ -190,7 +199,7 @@ export class Negotiation {
     if (tactic && tactic.bonus > 0) { flex += tactic.bonus; reasons.push(`argument « ${TACTICS[tactic.id]?.label || tactic.id} » +${(tactic.bonus * 100).toFixed(1).replace('.', ',')} %`); }
     if (kind === 'sell') flex *= T.sellFlexFactor;
     // Passe 3 : lassitude — chaque marchandage réussi avec ce marchand (3 derniers jours) réduit sa marge de 15 % (après plafond)
-    const wins = this._recentWins(mem);
+    const wins = T.dealPatienceFlex ? this._weariness(mem) : this._recentWins(mem);
     flex = Math.max(0, Math.min(T.maxFlexTotal, flex));
     // Passe 3 : les malus (offres trop basses, lassitude) s'appliquent après le plafond, pour rester sensibles
     if (mem.bluffs > 0.5) { const f = Math.min(T.bluffFlexMax, mem.bluffs * T.bluffFlex); flex = Math.max(0, flex - f); reasons.push(`se souvient de vos offres trop basses −${(f * 100).toFixed(1).replace('.', ',')} %`); }

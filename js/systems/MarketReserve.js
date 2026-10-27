@@ -19,15 +19,21 @@ export const RESERVE_TUNING = {
   startTreasury: 900,
   targetTreasury: 1000,    // au-dessus, le Comptoir passe des commandes publiques
   treasuryCap: 5000,       // au-delà, l'excédent est dépensé (détruit) — passe 4 : 4 000 → 5 000 (masse ≥ 0,90 avec l'exploit)
-  procurementPrice: 0.95,  // commandes publiques à 95 % de la valeur normale (passe 3b : 0,9 → 0,95)
+  procurementPrice: 0.92,  // commandes publiques à 92 % de la valeur normale (passe 3b : 0,95 ; passe 5 : 0,92, elles restent ouvertes 2 jours)
   procurementShare: 1,   // part de l'excédent dépensée chaque jour
-  procurementMaxOffers: 16, // passe 3b : 10 → 16 commandes par jour (l'excédent repart en achats plutôt qu'en subventions)
+  procurementMaxOffers: 6, // passe 5 : 16 → 6 nouvelles commandes par jour, plus grosses et mieux ciblées
   subsidyShare: 0.15,      // part de l'excédent reversée aux marchands en difficulté (passe 2 : 0,25 ; passe 3b : 0,15)
   subsidyBelow: 0.35,      // … ceux sous 35 % de leur capital de départ (passe 2 : 0,4 ; passe 3 : 0,35)
   maxInterventionsPerItem: 1, // passe 3 : au plus une intervention par produit et par jour
   gapPct: 0.15,            // passe 4 : n'intervient sur un prix que si l'écart à la valeur normale dépasse 15 %…
   gapDays: 2,              // … deux jours de suite (rupture = écart à la hausse)
-  procurementMaxQty: 4,    // passe 4 : unités par commande publique d'achat
+  procurementMaxQty: 10,   // passe 5 : 4 → 10 unités par commande publique d'achat
+  procurementTargeted: true, // passe 5 : choisit les produits que les marchands ont en stock (annonces + inventaires)
+  procurementDays: 2,      // passe 5 : une commande reste ouverte 2 jours (le temps d'être servie)
+  procurementRandom: 1,    // part d'aléa dans le choix des produits
+  procurementConsumable: 0, // bonus Nourriture/Ressources (0 : la ville en a déjà besoin, ne pas les lui disputer)
+  procurementMinSupply: 1, // stock marchand minimal pour lancer une commande
+  procurementSupplyShare: 2, // quantité = min(10, 2 × stock marchand)
   ceiling: 1.7,            // revend à 170 % de la valeur normale si rupture / trop cher (passe 2 : 1,3 → 1,7)
   floor: 0.6,              // rachète à 60 % de la valeur normale si bradé (passe 2 : 0,75 → 0,6)
   publicOrderAfterDays: 4, // pénurie depuis plus de 4 jours (passe 4 : 7 → 4, compense le délai de 2 jours) → commande publique…
@@ -168,7 +174,7 @@ export class MarketReserve {
     game.offers.forEach(o => {
       if (o.status !== 'active' || o.ownerId !== RESERVE_ID) return;
       if (o.type === 'buy') {
-        if (o.publicOrder && o.durationDays > 1 && !this._expired(game, o)) return; // commande publique : reste ouverte jusqu'à son terme
+        if ((o.publicOrder || o.procurement) && o.durationDays > 1 && !this._expired(game, o)) return; // commande publique : reste ouverte jusqu'à son terme
         if (o.quantity > 0) this.treasury = round2(this.treasury + o.price * o.quantity);
       } else {
         if (o.currentBid != null && o.currentBidderId) return; // enchère en cours : elle ira à son terme
@@ -343,25 +349,32 @@ export class MarketReserve {
     if (excess > 0) {
       let procurementBudget = round2(excess * t.procurementShare);
       const active = new Set(game.offers.filter(o => o.status === 'active' && o.ownerId === RESERVE_ID && o.type === 'buy').map(o => o.itemId));
+      // Passe 5 : moins de commandes mais mieux ciblées — on achète là où les marchands ont du stock
+      // (annonces + inventaires), pour une quantité à la mesure de ce stock : les commandes se remplissent.
+      const held = {};
+      Object.values(game.npcController?.npcStates || {}).forEach(st => (st.inventory || []).forEach(sl => { held[sl.itemId] = (held[sl.itemId] || 0) + (sl.quantity || 0); }));
       const candidates = ITEMS
         .filter(item => !active.has(item.id) && !touched.has(item.id))
         .map(item => {
           const book = this._book(game.offers, item.id);
+          const supply = (held[item.id] || 0) + (book.sellQty || 0);
           const consumable = item.category === 'Nourriture' || item.category === 'Ressources' ? 0.4 : 0;
-          return { item, score: Math.random() * 0.5 + consumable + (book.sellQty > 0 ? 0.3 : 0) - (book.sellQty === 0 ? 0.6 : 0) };
+          return { item, supply, score: t.procurementTargeted ? Math.min(1, supply / 20) + consumable * t.procurementConsumable + Math.random() * t.procurementRandom : Math.random() * 0.5 + consumable + (book.sellQty > 0 ? 0.3 : 0) - (book.sellQty === 0 ? 0.6 : 0) };
         })
+        .filter(c => !t.procurementTargeted || c.supply >= t.procurementMinSupply)
         .sort((a, b) => b.score - a.score)
         .slice(0, t.procurementMaxOffers);
-      for (const { item } of candidates) {
+      for (const { item, supply } of candidates) {
         const price = round2(game.economy.getFairValue(item.id) * t.procurementPrice);
-        const qty = Math.min(t.procurementMaxQty, Math.floor(procurementBudget / price));
+        const want = t.procurementTargeted ? Math.max(1, Math.ceil(supply * t.procurementSupplyShare)) : t.procurementMaxQty;
+        const qty = Math.min(t.procurementMaxQty, want, Math.floor(procurementBudget / price));
         if (qty < 1) continue;
         const cost = round2(price * qty);
         this.treasury = round2(this.treasury - cost);
         procurementBudget = round2(procurementBudget - cost);
         const offer = new Offer({
           type: 'buy', itemId: item.id, quantity: qty, price,
-          ownerId: RESERVE_ID, durationDays: 1, createdAt: now, msPerGameDay
+          ownerId: RESERVE_ID, durationDays: t.procurementDays || 1, createdAt: now, msPerGameDay
         });
         offer.procurement = true;
         game.offers.push(offer);
@@ -393,6 +406,10 @@ export class MarketReserve {
     // des commandes d'achat qui recyclent l'excédent de trésorerie.
     const procured = actions.filter(a => a.type === 'procure').length;
     this.stats.procureOrders = (this.stats.procureOrders || 0) + procured;
+    const publicToday = actions.filter(a => a.type === 'public').length;
+    this.stats.procureMaxDay = Math.max(this.stats.procureMaxDay || 0, procured);
+    this.stats.publicMaxDay = Math.max(this.stats.publicMaxDay || 0, procured + publicToday);
+    this.stats.publicOrders = (this.stats.publicOrders || 0) + publicToday;
     this.stats.regulations = (this.stats.regulations || 0) + actions.length - procured;
     this.lastActions = [...actions.filter(a => a.type === 'public'), ...actions.filter(a => a.type !== 'public').slice(-8)].map(a => {
       const item = getItemById(a.itemId);

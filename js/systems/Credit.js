@@ -87,8 +87,14 @@ export class Credit {
     return this.bannedUntil != null && this._day() < this.bannedUntil;
   }
 
-  limit() {
-    if (this.loan || this.banned() || !this.unlocked()) return 0;
+  /** Passe 5 : un « gros contrat » ouvert (rangs 1-2) se finance à crédit, même avant le rang 2. */
+  _largeOk(contractId) {
+    const job = this._contract(contractId);
+    return !!(job && job.requiresCredit && this.rank().id >= 1);
+  }
+
+  limit({ contractId = null } = {}) {
+    if (this.loan || this.banned() || (!this.unlocked() && !this._largeOk(contractId))) return 0;
     return r2(Math.min(this.rank().creditLimit, this.pool().total));
   }
 
@@ -118,7 +124,7 @@ export class Credit {
     const T = CREDIT_TUNING;
     const a = r2(Number(String(amount).replace(',', '.')));
     if (this.loan) return { success: false, error: 'Vous avez déjà un crédit en cours : remboursez-le d\'abord' };
-    if (!this.unlocked() && (this.game.player?.reputation || 0) >= 0) return { success: false, locked: true, error: lockedMessage('credit') };
+    if (!this.unlocked() && !this._largeOk(contractId) && (this.game.player?.reputation || 0) >= 0) return { success: false, locked: true, error: lockedMessage('credit') };
     if (this.banned()) return { success: false, error: `Retard de remboursement récent : le Comptoir ne vous prête plus avant le jour ${this.bannedUntil}` };
     if (!(a >= T.minAmount)) return { success: false, error: `Montant minimum : ${T.minAmount} €` };
     const rank = this.rank();
@@ -214,7 +220,7 @@ export class Credit {
     }
     this.history.unshift({
       id: loan.id, principal: loan.principal, interest: Math.max(0, interest), days: loan.days,
-      takenDay: loan.takenDay, closedDay: this._day(), onTime, overdueDays: loan.overdueDays
+      takenDay: loan.takenDay, closedDay: this._day(), onTime, overdueDays: loan.overdueDays, contractId: loan.contractId || null
     });
     this.history = this.history.slice(0, 8);
     this.loan = null;

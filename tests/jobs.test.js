@@ -1,4 +1,5 @@
 import { JobBoard, professionLevel, PROFESSION_LEVELS } from '../js/systems/JobBoard.js';
+import { LARGE_CONTRACTS } from '../js/systems/jobs/contracts.js';
 import { Offer } from '../js/models/Offer.js';
 import { assert, assertEqual, runSuite } from './assert.js';
 import { makeGame, drainItem } from './helpers.js';
@@ -129,6 +130,44 @@ export function run() {
         const j2 = { reward: 100 };
         jb.stats.newcomerContracts = 0;
         assertEqual(jb.newcomerBonus(j2), 0, 'rang 2 : pas de prime');
+      } finally { restore(); }
+    }],
+    ['GD passe 5 : gros contrat aux rangs 1-2 (×3, +15 points) livrable seulement avec un crédit adossé', async () => {
+      const { game, restore } = await makeGame();
+      try {
+        const jb = game.jobBoard;
+        game.reserve.treasury = 5000;
+        game.player.reputation = 0;
+        assertEqual(jb._rollLarge(4), null, 'rang 0 : pas de gros contrat');
+        game.player.reputation = 8;
+        const big = jb._rollLarge(4);
+        assert(big && big.requiresCredit && big.large, 'rang 1 : gros contrat proposé');
+        const normal = jb._roll(1, 4)[0];
+        assert(big.quantity >= LARGE_CONTRACTS.minQty && big.quantity <= (2 + (4 % 3)) * LARGE_CONTRACTS.qtyMult, `quantité ${big.quantity}`);
+        const unitBig = big.reward / big.quantity / jb._fair(big.itemId);
+        assert(unitBig >= 1.12 + LARGE_CONTRACTS.marginBonus - 0.01, `marge ${unitBig} ≥ +27 %`);
+        assert(normal.premiumPct + 15 <= big.premiumPct + 18, `prime gros ${big.premiumPct} % vs courant ${normal.premiumPct} %`);
+        assertEqual(jb.newcomerBonus(big), 0, 'pas de prime de démarrage sur un gros contrat');
+        jb.contracts = [big];
+        game.player.inventory.add(big.itemId, big.quantity, 60, 50, 30);
+        const no = jb.complete(big.id);
+        assertEqual(no.success, false, 'sans crédit : refusé');
+        assert(/crédit/.test(no.error), no.error);
+        // rang 1 : le crédit général est verrouillé, mais le crédit adossé au gros contrat est ouvert
+        assertEqual(game.credit.limit() , 0, 'crédit général verrouillé au rang 1');
+        assert(game.credit.limit({ contractId: big.id }) > 0, 'crédit adossé ouvert');
+        const loan = game.borrow(100, 3, { contractId: big.id });
+        assert(loan.success, loan.error);
+        assertEqual(game.credit.loan.contractId, big.id);
+        assert(game.credit.loan.rate < 0.014, `taux contrat ${game.credit.loan.rate}`);
+        const before = game.reserve.treasury;
+        const ok = jb.complete(big.id);
+        assert(ok.success, ok.error);
+        assert(game.reserve.treasury <= before - big.reward + 0.01, 'payé par la trésorerie du Comptoir');
+        // rang 3+ : seulement tous les `laterEvery` jours
+        game.player.reputation = 40;
+        const L = LARGE_CONTRACTS.laterEvery;
+        if (L > 0) { assertEqual(jb._rollLarge(L + 1), null, 'rang 3 hors cadence'); assert(jb._rollLarge(L * 2), 'rang 3 à la cadence'); }
       } finally { restore(); }
     }],
     ['commande d\'un marchand : payée avec son argent, objets livrés', async () => {
