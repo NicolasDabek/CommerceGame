@@ -23,6 +23,7 @@ import { applyA11y, openA11yModal } from './ui/A11y.js';
 import { getItemById } from './data/items.js';
 import { formatMoney as fmtMoney, insightCardHtml, qtyQuickButtons, wireQtyQuick, economyChipHtml, signedMoney, moneyClass } from './ui/TradeInsights.js';
 import { Offer } from './models/Offer.js';
+import { initStatusTicker } from './ui/statusTicker.js';
 import { tapWord, applyPointerWords, watchPointerWords } from './ui/pointerWords.js';
 
 const game = new Game();
@@ -126,6 +127,8 @@ function updateMoneyDisplay() {
   if (nw && game.getNetWorth) {
     const w = game.getNetWorth();
     nw.innerHTML = `Patrimoine <strong>${formatMoney(w.total)} €</strong>`;
+    const md = document.getElementById('money-display');
+    if (md) md.title = `Argent disponible · Patrimoine : ${formatMoney(w.total)} € (argent + stock + offres − crédit)`;
     const mn = document.getElementById('more-networth');
     if (mn) mn.innerHTML = `Patrimoine <strong>${formatMoney(w.total)} €</strong>`;
     // Systèmes encore verrouillés (déblocage par rang, analyse GD passe 2)
@@ -146,6 +149,8 @@ function syncMoreBadge() {
   mb.hidden = n === 0;
   mb.textContent = n > 99 ? '99+' : String(n);
 }
+initStatusTicker();
+
 function setStatus(msg) {
   const el = document.getElementById('status-message');
   if (el) el.textContent = msg;

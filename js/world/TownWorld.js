@@ -693,11 +693,18 @@ export class TownWorld {
       cands.push({ p, cls: `town-label npc${sel ? ' selected' : ''}`, name: agent.npc.name, sub: agent.intent || '', prio: sel ? 0 : 3, d });
     });
     cands.sort((a, b) => a.prio - b.prio || (a.d ?? 0) - (b.d ?? 0));
+    // Mobile / zoom faible : on garde au plus 2 marchands non sélectionnés, intention courte
+    const compact = w <= 820 || (this.camera.zoom ?? 1) < 0.9;
+    const maxNpc = compact ? 2 : Infinity;
+    let npcShown = 0;
+    const SUBMAX = compact ? 14 : 28;
+    cands.forEach((c) => { if (c.sub && c.sub.length > SUBMAX && c.prio === 3) c.sub = compact ? '' : `${c.sub.slice(0, SUBMAX - 1)}…`; });
     const placed = [];
     const hits = (r) => placed.some(q => r.l < q.r + GAP && r.r + GAP > q.l && r.t < q.b + GAP && r.b + GAP > q.t);
     const bits = [];
     let hidden = 0;
     for (const c of cands) {
+      if (c.prio === 3 && npcShown >= maxNpc) { hidden++; continue; }
       const fits = (sub, dy) => {
         const tw = Math.max(this._textWidth(c.name, FONT), sub ? this._textWidth(sub, FONT) : 0);
         const bw = tw + PADX * 2; const bh = LINE * (sub ? 2 : 1) + PADY;
@@ -713,6 +720,7 @@ export class TownWorld {
       }
       if (!got) { hidden++; continue; }
       placed.push(got);
+      if (c.prio === 3) npcShown++;
       bits.push(`<span class="${c.cls}" style="left:${c.p.x.toFixed(1)}px;top:${(c.p.y + dy).toFixed(1)}px">${esc(c.name)}${sub ? `<i>${esc(sub)}</i>` : ''}</span>`);
     }
     this._labelStats = { shown: bits.length, hidden };
