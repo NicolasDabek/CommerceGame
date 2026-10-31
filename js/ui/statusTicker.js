@@ -1,6 +1,5 @@
 /**
- * Bandeau d'actualité (#status-message) : défile seulement s'il déborde (sauf mouvement réduit,
- * géré en CSS), et se déplie au toucher/clic pour être lu en entier ; un 2e toucher ou un clic ailleurs le referme.
+ * Bandeau d'actualité (#status-message) : une seule ligne tronquée par une ellipse (le début reste visible), et se déplie au toucher/clic pour être lu en entier ; un 2e toucher ou un clic ailleurs le referme.
  */
 export function initStatusTicker(el = document.getElementById('status-message')) {
   if (!el || el.dataset.ticker) return;
@@ -8,16 +7,8 @@ export function initStatusTicker(el = document.getElementById('status-message'))
   el.tabIndex = 0;
   el.setAttribute('aria-expanded', 'false');
   el.title = 'Toucher pour lire en entier';
-  const measure = () => {
-    el.classList.remove('marquee');
-    if (el.classList.contains('expanded')) return;
-    const dist = el.scrollWidth - el.clientWidth;
-    if (dist > 4) {
-      el.style.setProperty('--marquee-dist', `${dist + 12}px`);
-      el.style.setProperty('--marquee-dur', `${Math.max(4, dist / 30).toFixed(1)}s`);
-      el.classList.add('marquee');
-    }
-  };
+  // Passe 7 : plus de défilement — une ligne tronquée (début toujours visible), texte complet au toucher.
+  const measure = () => { el.classList.remove('marquee'); };
   const setExpanded = (on) => {
     el.classList.toggle('expanded', on);
     el.setAttribute('aria-expanded', String(on));

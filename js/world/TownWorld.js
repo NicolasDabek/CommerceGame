@@ -695,10 +695,11 @@ export class TownWorld {
     cands.sort((a, b) => a.prio - b.prio || (a.d ?? 0) - (b.d ?? 0));
     // Mobile / zoom faible : on garde au plus 2 marchands non sélectionnés, intention courte
     const compact = w <= 820 || (this.camera.zoom ?? 1) < 0.9;
-    const maxNpc = compact ? 2 : Infinity;
+    // Desktop : 2 marchands proches (4 si zoomé ≥ 1.2) ; intention réservée au PNJ sélectionné
+    const maxNpc = compact ? 2 : ((this.camera.zoom ?? 1) >= 1.2 ? 4 : 2);
     let npcShown = 0;
     const SUBMAX = compact ? 14 : 28;
-    cands.forEach((c) => { if (c.sub && c.sub.length > SUBMAX && c.prio === 3) c.sub = compact ? '' : `${c.sub.slice(0, SUBMAX - 1)}…`; });
+    cands.forEach((c) => { if (c.prio === 3) c.sub = ''; else if (c.sub && c.sub.length > SUBMAX && c.cls.includes('npc')) c.sub = `${c.sub.slice(0, SUBMAX - 1)}…`; });
     const placed = [];
     const hits = (r) => placed.some(q => r.l < q.r + GAP && r.r + GAP > q.l && r.t < q.b + GAP && r.b + GAP > q.t);
     const bits = [];

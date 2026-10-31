@@ -1802,10 +1802,6 @@ button, .btn, .tab, .category-btn, .chip-btn, [role="button"] { min-width: 44px;
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
 /* Bandeau d'actualité : défilement seulement s'il déborde, toucher pour lire en entier */
-.hud-status.marquee:not(.expanded) { text-overflow: clip; animation: status-marquee var(--marquee-dur, 10s) linear 1.2s infinite alternate; }
-@keyframes status-marquee { from { text-indent: 0; } to { text-indent: calc(-1 * var(--marquee-dist, 0px)); } }
-body.reduce-motion .hud-status.marquee { animation: none !important; text-overflow: ellipsis; }
-@media (prefers-reduced-motion: reduce) { .hud-status.marquee { text-overflow: ellipsis; } }
 .hud-status { cursor: pointer; }
 .hud-status.expanded { white-space: normal; overflow: auto; max-height: 40vh; text-overflow: clip; }
 /* Barre haute desktop : vitesse en un groupe compact, patrimoine en info-bulle de l'argent */
@@ -1819,3 +1815,10 @@ h1.logo { margin: 0; font-weight: 700; line-height: inherit; }
 .hud-status { min-height: 44px; line-height: 44px; }
 .hud-status.expanded { line-height: 1.4; padding-top: 8px; padding-bottom: 8px; }
 @media (max-width: 820px) { .hud-status { right: 62px; } }
+
+/* Passe 7 : bandeau = une ligne avec ellipse, texte complet au toucher ; barre haute desktop plus aérée */
+.hud-status:not(.expanded) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-indent: 0; }
+@media (min-width: 821px) {
+  .hud-controls { gap: 6px; }
+  .eco-chip { padding-inline: 8px; font-size: 0.78rem; }
+}
