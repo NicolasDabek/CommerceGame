@@ -46,6 +46,8 @@ export class JobBoard {
     /** Commandes des marchands (PNJ) */
     this.npcOrders = saved.npcOrders || [];
     this.lastLevelUp = saved.lastLevelUp || null;
+    /** GD passe 6 : jour du dernier gros contrat proposé (un tous les 3 jours) */
+    this.lastLargeDay = saved.lastLargeDay ?? null;
   }
 
   toJSON() {
@@ -68,7 +70,8 @@ export class JobBoard {
       professions: this.professions,
       bench: this.bench,
       npcOrders: this.npcOrders,
-      lastLevelUp: this.lastLevelUp
+      lastLevelUp: this.lastLevelUp,
+      lastLargeDay: this.lastLargeDay
     };
   }
 }

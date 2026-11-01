@@ -27,7 +27,7 @@ export const NEGOTIATION_TUNING = {
   overstockFlex: 0.03,
   dryFlex: 0.04,           // trésorerie à sec : il a besoin de vendre
   collectorFlex: -0.05,    // collectionneur sur ses favoris
-  maxFlex: 0.065,          // passe 3 : rabais maximal −8 % ; passe 4 : plafond de la marge PERSONNELLE ; passe 5 : 8 % → 6,5 % (compense la patience du « bon client »)
+  maxFlex: 0.07,           // GD passe 6 : 6,5 % → 7 % (7,5 % : marchandeur +98 %) ; passe 3 : rabais maximal −8 % ; passe 4 : plafond de la marge PERSONNELLE ; passe 5 : 8 % → 6,5 % (compense la patience du « bon client »)
   maxFlexTotal: 0.11,      // passe 4 : plafond absolu une fois ajoutés lot entier, argument et « bon client »
   winPatience: 0.15,       // passe 3 : chaque marchandage réussi avec un PNJ abaisse sa patience de 15 %…
   winPatienceDays: 3,      // … pendant 3 jours
@@ -44,7 +44,7 @@ export const NEGOTIATION_TUNING = {
   bundleFlex: 0.02,        // lot entier (3+) : +2 % de marge
   bundleMinQty: 3,
   bluffFlex: 0.005,        // chaque « bluff » mémorisé retire 0,5 % de marge…
-  bluffFlexMax: 0.025,     // … jusqu'à 2,5 % (passe 5 : 3 % → 2,5 %)
+  bluffFlexMax: 0.02,      // … jusqu'à 2 % (passe 5 : 3 % → 2,5 % ; GD passe 6 : 2 %)
   bluffDecay: 0.7,         // la mémoire s'estompe chaque jour
   dealFlex: 0.004,         // un bon client (accords passés) gagne un peu de marge…
   dealFlexMax: 0.005,      // … jusqu'à 0,5 % (passe 4 : 2 % → 0,5 %, désormais hors plafond personnel)

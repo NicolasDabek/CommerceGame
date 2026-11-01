@@ -132,7 +132,7 @@ export function run() {
         assertEqual(jb.newcomerBonus(j2), 0, 'rang 2 : pas de prime');
       } finally { restore(); }
     }],
-    ['GD passe 5 : gros contrat aux rangs 1-2 (×3, +15 points) livrable seulement avec un crédit adossé', async () => {
+    ['GD passe 5 : gros contrat aux rangs 1-2 (×3, +5 points en GD passe 6) livrable seulement avec un crédit adossé', async () => {
       const { game, restore } = await makeGame();
       try {
         const jb = game.jobBoard;
@@ -145,8 +145,9 @@ export function run() {
         const normal = jb._roll(1, 4)[0];
         assert(big.quantity >= LARGE_CONTRACTS.minQty && big.quantity <= (2 + (4 % 3)) * LARGE_CONTRACTS.qtyMult, `quantité ${big.quantity}`);
         const unitBig = big.reward / big.quantity / jb._fair(big.itemId);
-        assert(unitBig >= 1.12 + LARGE_CONTRACTS.marginBonus - 0.01, `marge ${unitBig} ≥ +27 %`);
-        assert(normal.premiumPct + 15 <= big.premiumPct + 18, `prime gros ${big.premiumPct} % vs courant ${normal.premiumPct} %`);
+        assert(unitBig >= 1.12 + LARGE_CONTRACTS.marginBonus - 0.01, `marge ${unitBig} ≥ +${Math.round((0.12 + LARGE_CONTRACTS.marginBonus) * 100)} %`);
+        // GD passe 6 : marge +5 points seulement — la prime du gros contrat ne dépasse plus forcément un contrat de pénurie
+        assert(big.premiumPct >= Math.round((0.12 + LARGE_CONTRACTS.marginBonus) * 100) - 1 && normal.premiumPct >= 12, `prime gros ${big.premiumPct} % vs courant ${normal.premiumPct} %`);
         assertEqual(jb.newcomerBonus(big), 0, 'pas de prime de démarrage sur un gros contrat');
         jb.contracts = [big];
         game.player.inventory.add(big.itemId, big.quantity, 60, 50, 30);

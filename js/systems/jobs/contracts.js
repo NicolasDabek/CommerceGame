@@ -16,7 +16,19 @@ export const NEWCOMER_CONTRACTS = { count: 3, bonus: 0.2, maxRank: 1 };
  * Passe 5 : « gros contrats » aux rangs 1 et 2 — quantité ×3, marge +15 points, trop gros pour la caisse
  * d'un débutant : ils ne se livrent qu'avec un crédit adossé (taux « contrat »), ouvert dès le rang 1 pour eux.
  */
-export const LARGE_CONTRACTS = { ranks: [1, 2], qtyMult: 3, marginBonus: 0.15, maxShareOfLimit: 0.9, minQty: 4, days: 3, laterEvery: 6, maxValue: 900, minValue: 150 };
+export const LARGE_CONTRACTS = { ranks: [1, 2], qtyMult: 3, marginBonus: 0.05, maxShareOfLimit: 0.9, minQty: 4, days: 3, laterEvery: 6, maxValue: 900, minValue: 150, every: 3, lateChance: 0.1, latePenalty: 0.1 };
+
+/**
+ * GD passe 6 : marge +15 → +5 points (+8 ne suffisait pas : crédit encore +45 %), un gros contrat actif à la fois
+ * et au plus un nouveau tous les 3 jours ; aléa de livraison (10 %) : le transporteur prend du retard,
+ * le Comptoir retient 10 % de la récompense.
+ */
+
+/**
+ * GD passe 6 : puits d'argent progressif — taxe d'étal quotidienne selon le rang (€/jour), versée au Comptoir.
+ * Jamais plus de `maxShare` de la caisse du joueur, et rien sous `minCash` (un joueur à sec n'est pas taxé).
+ */
+export const STALL_TAX = { byRank: [0, 0, 0, 0.5, 1], maxShare: 0.01, minCash: 100 };
 
 export const JobContracts = {
 
@@ -47,6 +59,7 @@ export const JobContracts = {
 
   onNewDay() {
     this.ensureContracts();
+    this.collectStallTax();
     // La caisse des contrats est réalimentée chaque jour, mais plafonnée (évite de créer de l'argent sans fin)
     if (this.feeVault < VAULT_DAILY_CAP) {
       this.feeVault = Math.round(Math.min(VAULT_DAILY_CAP, this.feeVault + 35) * 100) / 100;
@@ -60,6 +73,23 @@ export const JobContracts = {
         if (cap < 180) this.game.npcController.creditNpc(id, 12);
       });
     }
+  },
+
+
+  /** GD passe 6 : taxe d'étal selon le rang (puits d'argent progressif). Retourne le montant prélevé. */
+  collectStallTax() {
+    const player = this.game.player;
+    if (!player) return 0;
+    const rank = rankFor(player.reputation || 0);
+    const base = STALL_TAX.byRank[Math.max(0, rank.id)] || 0;
+    const cash = player.money || 0;
+    if (base <= 0 || cash < STALL_TAX.minCash) return 0;
+    const tax = moneyRound(Math.min(base, cash * STALL_TAX.maxShare));
+    if (tax <= 0 || player.removeMoney(tax) === false) return 0;
+    this.game.reserve?.deposit(tax, 'stallTax');
+    this.stats.stallTax = moneyRound((this.stats.stallTax || 0) + tax);
+    this.lastStallTax = tax;
+    return tax;
   },
 
 
@@ -128,6 +158,8 @@ export const JobContracts = {
     if (!(rank.creditLimit > 0) || rank.id < Math.min(...T.ranks)) return null;
     // au-delà des rangs 1-2, un gros contrat n'est proposé que tous les `laterEvery` jours (0 : jamais)
     if (!T.ranks.includes(rank.id) && !(T.laterEvery > 0 && day % T.laterEvery === 0)) return null;
+    // GD passe 6 : au plus un nouveau gros contrat tous les `every` jours
+    if (T.every > 1 && this.lastLargeDay != null && day - this.lastLargeDay < T.every) return null;
     // payé intégralement par la trésorerie du Comptoir (aucune création d'argent) : taille plafonnée par ce qu'elle peut payer
     const treasury = this.game.reserve ? Math.max(0, this.game.reserve.treasury - 200) : Infinity;
     const cap = Math.min(rank.creditLimit * T.maxShareOfLimit, T.maxValue, treasury / (1.3 + T.marginBonus));
@@ -148,6 +180,7 @@ export const JobContracts = {
       .slice(0, 3);
     if (!pool.length) return null;
     const { item, fair, qty } = pool[Math.floor(Math.random() * pool.length)];
+    this.lastLargeDay = day;
     const mult = 1.12 + this.contractPremium() + T.marginBonus;
     return {
       id: `big_${day}_${item.id}`,
@@ -283,12 +316,15 @@ export const JobContracts = {
     const bonus = this.takeFromVault(Math.round(job.reward * (job.rush ? 0.08 : 0.04) * 100) / 100);
     const streakBonus = Math.round(Math.min(8, this.streak * 1.5) * 100) / 100;
     const newcomer = this.newcomerBonus(job);
-    const payout = Math.round((job.reward + bonus + streakBonus + newcomer) * 100) / 100;
+    // GD passe 6 : aléa de livraison sur les gros contrats — retard, 10 % de la récompense retenus
+    const late = !!job.large && Math.random() < LARGE_CONTRACTS.lateChance;
+    const latePenalty = late ? moneyRound(job.reward * LARGE_CONTRACTS.latePenalty) : 0;
+    const payout = Math.round((job.reward - latePenalty + bonus + streakBonus + newcomer) * 100) / 100;
     // La récompense vient de la trésorerie du Comptoir (sans la vider sous 200 €), le reste est créé
     const reserve = this.game.reserve;
     if (reserve) {
       // Passe 4 : la prime de démarrage et la prime de série sont aussi payées par le Comptoir quand il le peut
-      const fromReserve = Math.min(job.reward + newcomer + streakBonus, Math.max(0, reserve.treasury - 200));
+      const fromReserve = Math.min(job.reward - latePenalty + newcomer + streakBonus, Math.max(0, reserve.treasury - 200));
       reserve.withdraw(fromReserve, 'contracts');
       reserve.addStock(job.itemId, job.quantity);
     }
@@ -300,11 +336,15 @@ export const JobContracts = {
     job.status = 'done';
     this.game.career?.noteShortageDelivery?.(job.itemId);
     this.stats.contracts += 1;
+    if (job.large) {
+      this.stats.bigContracts = (this.stats.bigContracts || 0) + 1;
+      if (late) this.stats.bigContractFail = (this.stats.bigContractFail || 0) + 1;
+    }
     if (newcomer > 0) this.stats.newcomerContracts = (this.stats.newcomerContracts || 0) + 1;
     this.stats.earned = Math.round((this.stats.earned + payout) * 100) / 100;
     this._markActive();
     this.game.save();
     this.game._notifyUI();
-    return { success: true, payout, bonus, newcomer };
+    return { success: true, payout, bonus, newcomer, late, latePenalty };
   },
 };

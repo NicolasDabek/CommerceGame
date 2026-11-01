@@ -36,7 +36,7 @@ export function run() {
         console.error = quiet;
       }
     }],
-    ['Rentabilité et classement des robots (analyse GD passe 2, §4.3–4.4) : honnête ≥ +3 €/j, trader ≥ +1 €/j et ≥ 80 % de l\'honnête (passe 4), marchandeur entre honnête +20 % et +60 % (passe 3, 5 graines), exploit et mauvais payeur perdants', async () => {
+    ['Rentabilité et classement des robots (analyse GD passe 2, §4.3–4.4) : honnête ≥ +3 €/j, trader ≥ +1 €/j et ≥ 80 % de l\'honnête (passe 4), marchandeur entre honnête +20 % et +35 % (GD passe 6, 10 graines), honnête fin/début ≤ 1,6, exploit et mauvais payeur perdants', async () => {
       const quiet = console.error;
       console.error = () => {};
       try {
@@ -60,12 +60,14 @@ export function run() {
         assert(r.honest.gainPerDayEarly >= 2.5, `honnête début de partie : ${r.honest.gainPerDayEarly} €/jour (cible ≥ 2,5)`);
         assert(g.haggler >= g.honest * 1.2, `marchandeur ${g.haggler} €/jour ≥ honnête ${g.honest} × 1,2`);
         // Passe 3 : le marchandage aide sans devenir la seule stratégie viable
-        assert(g.haggler <= g.honest * 1.6, `marchandeur ${g.haggler} €/jour ≤ honnête ${g.honest} × 1,6`);
-        // Passe 5 : la fourchette +20 % … +60 % tient sur CHAQUE moitié de partie
+        assert(g.haggler <= g.honest * 1.35, `marchandeur ${g.haggler} €/jour ≤ honnête ${g.honest} × 1,35 (GD passe 6)`);
+        // Passe 5 / GD passe 6 : la fourchette +20 % … +35 % tient sur CHAQUE moitié de partie
         for (const [k, label] of [['gainPerDayEarly', '1re moitié'], ['gainPerDayLate', '2de moitié']]) {
           const h = r.haggler[k], o = r.honest[k];
-          assert(h >= o * 1.2 && h <= o * 1.6, `marchandeur ${label} : ${h} €/jour pour honnête ${o} (cible ×1,2 … ×1,6)`);
+          assert(h >= o * 1.2 && h <= o * 1.35, `marchandeur ${label} : ${h} €/jour pour honnête ${o} (cible ×1,2 … ×1,35)`);
         }
+        // GD passe 6 : puits d'argent progressif (taxe d'étal) → l'honnête finit au plus à 1,6 × son €/jour de début
+        assert(r.honest.gainPerDayLate <= r.honest.gainPerDayEarly * 1.6, `honnête fin/début : ${r.honest.gainPerDayLate} / ${r.honest.gainPerDayEarly} (cible ≤ 1,6)`);
         assert(r.trader.loans >= 1, `trader : ${r.trader.loans} prêt(s) par partie (cible ≥ 1)`);
         assert(g.exploit < 0, `exploit : ${g.exploit} €/jour (doit rester négatif)`);
         assert(r.defaulter.worthEnd < r.defaulter.worthStart && r.defaulter.worthEnd < r.honest.worthEnd, `mauvais payeur ${r.defaulter.worthStart} → ${r.defaulter.worthEnd} (honnête ${r.honest.worthEnd})`);
@@ -87,7 +89,7 @@ export function run() {
         console.error = quiet;
       }
     }],
-    ['Passe 5 : le crédit paie — trader avec prêts (gros contrats) ≥ +15 % / trader sans prêt (4 actions/jour, 5 graines)', async () => {
+    ['Passe 5 / GD passe 6 : le crédit paie sans dominer — trader avec prêts entre +15 % et +25 % du trader sans prêt, ≤ 1,4 × honnête, aléa de livraison', async () => {
       const quiet = console.error;
       console.error = () => {};
       const prev = globalThis.__BOT_PARAMS;
@@ -104,6 +106,14 @@ export function run() {
         const big = (res.loans.bot.diag || []).reduce((t, d) => t + (d.bigContracts || 0), 0);
         assert(big >= 5, `gros contrats livrés à crédit : ${big} (cible ≥ 5 sur 5 graines)`);
         assert(g(res.loans) >= g(res.noLoan) * 1.15, `trader avec prêts ${g(res.loans)} €/jour ≥ sans prêt ${g(res.noLoan)} × 1,15`);
+        // GD passe 6 : le crédit paie, sans dominer — borne haute +25 % et trader ≤ 1,4 × l'honnête
+        assert(g(res.loans) <= g(res.noLoan) * 1.25, `trader avec prêts ${g(res.loans)} €/jour ≤ sans prêt ${g(res.noLoan)} × 1,25`);
+        globalThis.__BOT_PARAMS = prev;
+        const honest = (await runSimulation({ days: 120, seeds: 10, bot: 'honest' })).summary;
+        assert(g(res.loans) <= g(honest) * 1.4, `trader ${g(res.loans)} €/jour ≤ honnête ${g(honest)} × 1,4`);
+        // GD passe 6 : aléa de livraison — le crédit n'est plus sans risque
+        const fails = (res.loans.bot.diag || []).reduce((t, d) => t + (d.bigFail || 0), 0);
+        assert(fails >= 1 && fails < big, `gros contrats en retard : ${fails} / ${big}`);
         for (const k of Object.keys(res)) assert(res[k].moneyBand[0] >= 0.9 && res[k].moneyBand[1] <= 1.05, `${k} : masse monétaire ${res[k].moneyBand}`);
       } finally {
         globalThis.__BOT_PARAMS = prev;
