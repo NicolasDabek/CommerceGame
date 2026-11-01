@@ -29,8 +29,10 @@ export const NEGOTIATION_TUNING = {
   collectorFlex: -0.05,    // collectionneur sur ses favoris
   maxFlex: 0.07,           // GD passe 6 : 6,5 % → 7 % (7,5 % : marchandeur +98 %) ; passe 3 : rabais maximal −8 % ; passe 4 : plafond de la marge PERSONNELLE ; passe 5 : 8 % → 6,5 % (compense la patience du « bon client »)
   maxFlexTotal: 0.11,      // passe 4 : plafond absolu une fois ajoutés lot entier, argument et « bon client »
-  winPatience: 0.15,       // passe 3 : chaque marchandage réussi avec un PNJ abaisse sa patience de 15 %…
-  winPatienceDays: 3,      // … pendant 3 jours
+  winPatience: 0.08,       // GD passe 7 : 15 % → 8 % ; passe 3 : chaque marchandage réussi avec un PNJ abaisse sa patience…
+  winPatienceDays: 2,      // … pendant 2 jours (GD passe 7 : 3 → 2)
+  freshFlex: 0,            // GD passe 7 : « retrouvailles » (+x % au 1er accord avec un PNJ non vu depuis 3 j) — désactivé : +1 % (et même +0,1 %) fait sauter le marchandeur à +50…100 %
+  freshDays: 3,
   winFlex: true,           // … et sa marge de concession d'autant
   minBuyFlex: 0.05,        // passe 2 : −8 % ; passe 3 : −5 % (marge de base), le plafond passant à −8 %
   floorRef: 0.9,           // jamais sous 90 % du prix de référence
@@ -44,11 +46,11 @@ export const NEGOTIATION_TUNING = {
   bundleFlex: 0.02,        // lot entier (3+) : +2 % de marge
   bundleMinQty: 3,
   bluffFlex: 0.005,        // chaque « bluff » mémorisé retire 0,5 % de marge…
-  bluffFlexMax: 0.02,      // … jusqu'à 2 % (passe 5 : 3 % → 2,5 % ; GD passe 6 : 2 %)
+  bluffFlexMax: 0.019,     // … jusqu'à 1,9 % (passe 5 : 3 % → 2,5 % ; GD passe 6 : 2 % ; GD passe 7 : 1,9 %)
   bluffDecay: 0.7,         // la mémoire s'estompe chaque jour
   dealFlex: 0.004,         // un bon client (accords passés) gagne un peu de marge…
   dealFlexMax: 0.005,      // … jusqu'à 0,5 % (passe 4 : 2 % → 0,5 %, désormais hors plafond personnel)
-  dealPatience: 1,         // passe 5 : chaque accord passé efface 1 marchandage de la lassitude…
+  dealPatience: 2,         // GD passe 7 : 1 → 2 ; passe 5 : chaque accord passé efface des marchandages de la lassitude…
   dealPatienceMax: 3,      // … au plus 3
   dealPatienceFlex: true,  // … y compris sur la marge (sinon : seulement sur le nombre de tours)
   chanceSigma: 0.015       // incertitude de l'estimation de chance (± 1,5 % du prix)
@@ -195,6 +197,7 @@ export class Negotiation {
     // … PUIS le bon client, le lot entier et l'argument s'ajoutent (plafond absolu 11 %) : ils comptent même à confiance maximale
     const mem = this._memory(npc.id);
     if (mem.deals > 0) { const f = Math.min(T.dealFlexMax, mem.deals * T.dealFlex); flex += f; if (f >= 0.004) reasons.push('bon client'); }
+    if (T.freshFlex && (mem.lastDealDay == null || this._day() - mem.lastDealDay >= T.freshDays)) { flex += T.freshFlex; reasons.push(`retrouvailles : +${Math.round(T.freshFlex * 100)} %`); }
     if (bundle) { flex += T.bundleFlex; reasons.push('lot entier : +2 %'); }
     if (tactic && tactic.bonus > 0) { flex += tactic.bonus; reasons.push(`argument « ${TACTICS[tactic.id]?.label || tactic.id} » +${(tactic.bonus * 100).toFixed(1).replace('.', ',')} %`); }
     if (kind === 'sell') flex *= T.sellFlexFactor;
@@ -573,6 +576,7 @@ export class Negotiation {
       session.rounds.push({ price: p, outcome: 'accepted' });
       this._log({ npcId: npc.id, itemId: offer.itemId, kind, outcome: 'accord', price: p, ask: lim.ask, qty, gain: r2(Math.abs(lim.ask - p) * qty), tactic: session.tactic?.valid ? session.tactic.id : null });
       mem.deals = Math.min(10, mem.deals + 1);
+      mem.lastDealDay = this._day();
       mem.wins = [...(mem.wins || []), this._day()].slice(-10);
       this.stats.deals += 1;
       const gain = r2(Math.abs(lim.ask - p) * qty);

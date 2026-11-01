@@ -28,7 +28,7 @@ export const LARGE_CONTRACTS = { ranks: [1, 2], qtyMult: 3, marginBonus: 0.05, m
  * GD passe 6 : puits d'argent progressif — taxe d'étal quotidienne selon le rang (€/jour), versée au Comptoir.
  * Jamais plus de `maxShare` de la caisse du joueur, et rien sous `minCash` (un joueur à sec n'est pas taxé).
  */
-export const STALL_TAX = { byRank: [0, 0, 0, 0.5, 1], maxShare: 0.01, minCash: 100 };
+export const STALL_TAX = { byRank: [0, 0, 0, 0.5, 1.1], maxShare: 0.01, minCash: 100 };
 
 export const JobContracts = {
 

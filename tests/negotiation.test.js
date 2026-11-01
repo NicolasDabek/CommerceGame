@@ -144,7 +144,7 @@ export function run() {
         const day = neg._day();
         const mem = { wins: [day, day, day, day], deals: 0, bluffs: 0 };
         assertEqual(neg._weariness(mem), 4, 'sans accord passé : lassitude pleine');
-        mem.deals = 1; assertEqual(neg._weariness(mem), 3, '1 accord : −1');
+        mem.deals = 1; assertEqual(neg._weariness(mem), 2, '1 accord : −2 (GD passe 7 : dealPatience 2)');
         mem.deals = 3; assertEqual(neg._weariness(mem), 1, '3 accords : −3');
         mem.deals = 9; assertEqual(neg._weariness(mem), 1, 'plafond −3');
         mem.wins = [day]; assertEqual(neg._weariness(mem), 0, 'jamais négative');

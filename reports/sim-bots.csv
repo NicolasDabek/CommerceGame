@@ -1,8 +1,8 @@
-bot,days,seeds,eur_per_day,eur_per_day_early,eur_per_day_late,worth_start,worth_end,haggle_deals_per_day,loans,contracts,subsidies,interventions,interventions_per_day,procurement_orders_per_day,public_orders_per_day,shortages_per_day,shortage_longest,price_end,money_min,money_max,big_contracts,big_contract_fail,haggle_gain_per_deal,eur_per_day_sd,trader_no_loan
-none,120,3,,,,,,,,,12993,853,1.26,5.85,6.32,1.4,9,1.029,1.002,1.013,,,,,
-honest,120,3,4.75,4.52,5.01,1251,1821,0,0,50.33,12732,870,1.43,5.83,6.32,1.5,10,1.035,1.002,1.02,0,0,0,0.58,
-haggler,120,3,5.23,5.52,5.02,1251,1878,1,0,62,13890,877,1.42,5.89,6.35,1.5,9,1.034,1.002,1.019,0,0,1.39,1.26,
-trader,120,3,6.91,6.11,7.85,1251,2080,0.63,34.33,61.67,12305,884,1.58,5.78,6.36,1.7,9,1.006,1.002,1.025,8.67,0.67,1.38,2.5,5.86
-trader_no_loan,120,3,5.86,5.47,6.26,1251,1954,0.79,0,56,14384,869,1.44,5.8,6.26,1.6,10,1.017,1.002,1.022,0,0,1.3,1.32,5.86
-exploit,120,3,-17.61,-10.52,-24.78,1244,-869,0,22.67,0,16643,863,1.41,5.78,6.19,1.5,12,0.986,0.988,1.013,0,0,0.68,0.18,
-defaulter,120,3,-3.02,-5.43,-0.64,1243,880,0,4.33,0,15538,876,1.38,5.92,6.43,1.5,10,0.976,1.002,1.013,0,0,0,0.68,
+bot,days,seeds,eur_per_day,eur_per_day_early,eur_per_day_late,worth_start,worth_end,haggle_deals_per_day,loans,contracts,subsidies,interventions,interventions_per_day,procurement_orders_per_day,public_orders_per_day,shortages_per_day,shortage_longest,price_end,money_min,money_max,big_contracts,big_contract_fail,haggle_gain_per_deal,haggle_attempts_per_day,haggle_blocked_fatigue,eur_per_day_sd,trader_no_loan
+none,120,3,,,,,,,,,12993,853,1.26,5.85,6.32,1.4,9,1.029,1.002,1.013,,,,,,,
+honest,120,3,5.22,4.52,5.97,1251,1877,0,0,52.67,13812,868,1.41,5.83,6.33,1.5,10,1.027,1.002,1.02,0,0,0,0,0,0.09,
+haggler,120,3,5.56,5.52,5.71,1251,1918,0.99,0,61.33,12632,881,1.5,5.84,6.33,1.5,9,1.002,1.002,1.018,0,0,1.29,1.78,16.33,1.64,
+trader,120,3,7.78,6.56,9.1,1251,2185,0.61,41,66.33,12079,864,1.37,5.83,6.33,1.5,13,1.001,1.002,1.028,9,0.33,1.36,2.07,79,1.69,6.88
+trader_no_loan,120,3,6.88,5.87,7.95,1251,2077,0.81,0,60,12480,869,1.46,5.78,6.31,1.6,10,1.034,1.002,1.022,0,0,1.51,2.46,94,0.99,6.88
+exploit,120,3,-17.4,-10.56,-24.33,1244,-844,0,23,0,15998,857,1.37,5.78,6.21,1.6,11,0.99,0.985,1.013,0,0,0.68,0,0,0.26,
+defaulter,120,3,-3.02,-5.43,-0.64,1243,880,0,4.33,0,15538,876,1.38,5.92,6.43,1.5,10,0.976,1.002,1.013,0,0,0,0,0,0.68,

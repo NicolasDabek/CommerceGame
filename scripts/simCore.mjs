@@ -280,7 +280,7 @@ export function summarize(runs, days, seeds, elapsedMs) {
  * subventions et interventions du Comptoir (moyenne par partie), pénuries, masse monétaire.
  */
 export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'honest', 'haggler', 'trader', 'trader_no_loan', 'exploit', 'defaulter'] } = {}) {
-  const head = ['bot', 'days', 'seeds', 'eur_per_day', 'eur_per_day_early', 'eur_per_day_late', 'worth_start', 'worth_end', 'haggle_deals_per_day', 'loans', 'contracts', 'subsidies', 'interventions', 'interventions_per_day', 'procurement_orders_per_day', 'public_orders_per_day', 'shortages_per_day', 'shortage_longest', 'price_end', 'money_min', 'money_max', 'big_contracts', 'big_contract_fail', 'haggle_gain_per_deal', 'eur_per_day_sd', 'trader_no_loan'];
+  const head = ['bot', 'days', 'seeds', 'eur_per_day', 'eur_per_day_early', 'eur_per_day_late', 'worth_start', 'worth_end', 'haggle_deals_per_day', 'loans', 'contracts', 'subsidies', 'interventions', 'interventions_per_day', 'procurement_orders_per_day', 'public_orders_per_day', 'shortages_per_day', 'shortage_longest', 'price_end', 'money_min', 'money_max', 'big_contracts', 'big_contract_fail', 'haggle_gain_per_deal', 'haggle_attempts_per_day', 'haggle_blocked_fatigue', 'eur_per_day_sd', 'trader_no_loan'];
   const lines = [head.join(',')];
   const num = (v) => (v == null || Number.isNaN(v) ? '' : String(v));
   // Passe 5 : « trader_no_loan » = même trader (4 actions/jour) sans aucun prêt ; colonne trader_no_loan sur la ligne trader
@@ -308,7 +308,7 @@ export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'ho
       b ? r2c((b.worthEnd - b.worthStart) / days) : '', b ? b.gainPerDayEarly : '', b ? b.gainPerDayLate : '',
       b ? b.worthStart : '', b ? b.worthEnd : '', b ? b.haggleDealsPerDay : '', b ? b.loans : '', contracts,
       avgOf('subsidies'), avgOf('interventions'), r2c(avgRaw('regulations') / days), r2c(avgRaw('procureOrders') / days), r2c((avgRaw('procureOrders') + avgRaw('publicOrders')) / days), summary.shortagesPerDay, summary.shortageLongest, summary.priceEnd,
-      summary.moneyBand[0], summary.moneyBand[1], bigC, bigF, hgd, sd, ''
+      summary.moneyBand[0], summary.moneyBand[1], bigC, bigF, hgd, b ? b.haggleAttemptsPerDay : '', b ? b.haggleBlockedFatigue : '', sd, ''
     ].map(num).join(','));
   }
   // la ligne trader porte le €/jour du trader sans prêt (calculé après)

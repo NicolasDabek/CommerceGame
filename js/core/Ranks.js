@@ -22,12 +22,12 @@ export const RANKS = [
   },
   {
     id: 3, minRep: 35, title: 'Marchand estimé', icon: '⭐',
-    haggleTries: 4, haggleBonus: 0.03, creditLimit: 1600, creditRate: 0.01, orderSlots: 1,
+    haggleTries: 4, haggleBonus: 0.032, creditLimit: 1600, creditRate: 0.01, orderSlots: 1,
     text: 'Le Comptoir vous fait crédit à meilleur taux.'
   },
   {
     id: 4, minRep: 60, title: 'Maison reconnue', icon: '🏛️',
-    haggleTries: 5, haggleBonus: 0.04, creditLimit: 2500, creditRate: 0.008, orderSlots: 2,
+    haggleTries: 5, haggleBonus: 0.038, creditLimit: 2500, creditRate: 0.008, orderSlots: 2,
     text: 'Une maison de commerce établie : meilleures conditions partout.'
   }
 ];
