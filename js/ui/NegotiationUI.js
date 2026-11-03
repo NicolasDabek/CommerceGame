@@ -63,6 +63,8 @@ export function openNegotiationModal(ctx) {
   const face = moodFace(q.mood);
   const memo = q.memory?.bluffs >= 1 ? `<span class="mini-chip chip-warn" title="Il se souvient de vos offres trop basses (oubli progressif, environ −30 % par jour) : sa marge est réduite.">🧠 Se souvient de ${Math.round(q.memory.bluffs)} offre(s) trop basse(s)</span>`
     : q.memory?.deals >= 1 ? `<span class="mini-chip chip-good" title="Accords passés avec lui : un peu plus de marge et de patience.">🧠 Bon client (${q.memory.deals} accord${q.memory.deals > 1 ? 's' : ''})</span>` : '';
+  // GD passe 8 : lassitude visible, avec sa durée
+  const wearyChip = q.weary ? ` <span class="mini-chip chip-warn neg-weary" title="Vos marchandages réussis récents le lassent : moins de patience et de marge.">😩 Lassé, réessayez dans ${q.weary.days} jour${q.weary.days > 1 ? 's' : ''}</span>` : '';
   const offer = game.offers.find(o => o.id === offerId);
   const lastHtml = last ? `<div id="neg-response" class="neg-response ${last.error ? 'neg-error' : last.outcome === 'counter' ? 'neg-counter' : last.insulted ? 'neg-error' : 'neg-refused'}" role="status" aria-live="polite">
       <span class="neg-result-icon">${last.error ? '⚠️' : OUTCOME_ICON[last.insulted ? 'insult' : last.outcome] || ''}</span> ${last.error || last.message}
@@ -72,7 +74,7 @@ export function openNegotiationModal(ctx) {
     <div class="neg-merchant">
       <div class="neg-face" aria-hidden="true">${face.icon}</div>
       <div class="neg-merchant-info">
-        <strong>${q.npcName}</strong> <span class="mini-chip" title="${q.style.text}">${q.style.icon} ${q.style.label}</span> ${memo}
+        <strong>${q.npcName}</strong> <span class="mini-chip" title="${q.style.text}">${q.style.icon} ${q.style.label}</span> ${memo}${wearyChip}
         <div class="neg-bars">
           <span>Humeur : ${face.label}</span>
           <span>Confiance ${trustBar(q.trust)}</span>

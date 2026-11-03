@@ -27,12 +27,12 @@ export const NEGOTIATION_TUNING = {
   overstockFlex: 0.03,
   dryFlex: 0.04,           // trésorerie à sec : il a besoin de vendre
   collectorFlex: -0.05,    // collectionneur sur ses favoris
-  maxFlex: 0.07,           // GD passe 6 : 6,5 % → 7 % (7,5 % : marchandeur +98 %) ; passe 3 : rabais maximal −8 % ; passe 4 : plafond de la marge PERSONNELLE ; passe 5 : 8 % → 6,5 % (compense la patience du « bon client »)
+  maxFlex: 0.06,           // GD passe 8 : 7 % → 6 % (le robot marchandeur marchande 2× plus d'offres) ; GD passe 6 : 6,5 % → 7 % (7,5 % : marchandeur +98 %) ; passe 3 : rabais maximal −8 % ; passe 4 : plafond de la marge PERSONNELLE ; passe 5 : 8 % → 6,5 % (compense la patience du « bon client »)
   maxFlexTotal: 0.11,      // passe 4 : plafond absolu une fois ajoutés lot entier, argument et « bon client »
   winPatience: 0.08,       // GD passe 7 : 15 % → 8 % ; passe 3 : chaque marchandage réussi avec un PNJ abaisse sa patience…
   winPatienceDays: 2,      // … pendant 2 jours (GD passe 7 : 3 → 2)
-  freshFlex: 0,            // GD passe 7 : « retrouvailles » (+x % au 1er accord avec un PNJ non vu depuis 3 j) — désactivé : +1 % (et même +0,1 %) fait sauter le marchandeur à +50…100 %
-  freshDays: 3,
+  flipDays: 2,             // GD passe 8 : revendre un produit acheté il y a moins de 2 jours…
+  flipFlexFactor: 0.5,     // … → marge de marchandage plafonnée à maxFlex × 0,5
   winFlex: true,           // … et sa marge de concession d'autant
   minBuyFlex: 0.05,        // passe 2 : −8 % ; passe 3 : −5 % (marge de base), le plafond passant à −8 %
   floorRef: 0.9,           // jamais sous 90 % du prix de référence
@@ -88,6 +88,12 @@ export class Negotiation {
     };
   }
 
+  /** GD passe 8 : le joueur a-t-il acheté ce produit il y a moins de `flipDays` jours ? */
+  isFlip(itemId) {
+    const d = this.game.player?.lastBuyDay?.[itemId];
+    return d != null && this._day() - d < NEGOTIATION_TUNING.flipDays;
+  }
+
   _day() {
     return this.game.timeManager?.getCurrentDay?.() ?? this.game.currentDay ?? 1;
   }
@@ -126,6 +132,15 @@ export class Negotiation {
   _weariness(mem) {
     const T = NEGOTIATION_TUNING;
     return Math.max(0, this._recentWins(mem) - Math.min(T.dealPatienceMax, Math.floor((mem.deals || 0) * T.dealPatience)));
+  }
+
+  /** GD passe 8 : lassitude en cours → { wins, days } (jours restants avant retour à la normale), sinon null. */
+  wearyInfo(mem) {
+    const wins = this._weariness(mem);
+    if (wins <= 0 || !mem.wins?.length) return null;
+    const day = this._day();
+    const days = Math.max(1, NEGOTIATION_TUNING.winPatienceDays - (day - Math.min(...mem.wins)));
+    return { wins, days };
   }
 
   /** Séance de marchandage du jour sur une offre. */
@@ -197,7 +212,6 @@ export class Negotiation {
     // … PUIS le bon client, le lot entier et l'argument s'ajoutent (plafond absolu 11 %) : ils comptent même à confiance maximale
     const mem = this._memory(npc.id);
     if (mem.deals > 0) { const f = Math.min(T.dealFlexMax, mem.deals * T.dealFlex); flex += f; if (f >= 0.004) reasons.push('bon client'); }
-    if (T.freshFlex && (mem.lastDealDay == null || this._day() - mem.lastDealDay >= T.freshDays)) { flex += T.freshFlex; reasons.push(`retrouvailles : +${Math.round(T.freshFlex * 100)} %`); }
     if (bundle) { flex += T.bundleFlex; reasons.push('lot entier : +2 %'); }
     if (tactic && tactic.bonus > 0) { flex += tactic.bonus; reasons.push(`argument « ${TACTICS[tactic.id]?.label || tactic.id} » +${(tactic.bonus * 100).toFixed(1).replace('.', ',')} %`); }
     if (kind === 'sell') flex *= T.sellFlexFactor;
@@ -207,6 +221,11 @@ export class Negotiation {
     // Passe 3 : les malus (offres trop basses, lassitude) s'appliquent après le plafond, pour rester sensibles
     if (mem.bluffs > 0.5) { const f = Math.min(T.bluffFlexMax, mem.bluffs * T.bluffFlex); flex = Math.max(0, flex - f); reasons.push(`se souvient de vos offres trop basses −${(f * 100).toFixed(1).replace('.', ',')} %`); }
     if (wins > 0 && T.winFlex) { flex *= Math.pow(1 - T.winPatience, wins); reasons.push(`lassé de vos marchandages (${wins} récent${wins > 1 ? 's' : ''})`); }
+    // GD passe 8 : achat-revente immédiat bridé — produit acheté il y a moins de `flipDays` jours
+    if (kind === 'sell' && this.isFlip(itemId)) {
+      const cap = T.maxFlex * T.flipFlexFactor;
+      if (flex > cap) { flex = cap; reasons.push(`revente rapide (acheté il y a moins de ${T.flipDays} jours) : marge ≤ ${(cap * 100).toFixed(1).replace('.', ',')} %`); }
+    }
     return { flex, reasons };
   }
 
@@ -281,8 +300,8 @@ export class Negotiation {
     let haggleBlocked = null;
     if (kind === 'buy' && offer.currentBid != null) blocked = 'Une enchère est en cours : attendez la fin ou surenchérissez';
     if (!this.unlocked()) haggleBlocked = lockedMessage('haggle');
-    else if (this.triesLeft(npc.id) <= 0) haggleBlocked = `${npc.name} ne veut plus discuter aujourd'hui`;
-    else if (this.dealsLeft(npc.id) <= 0) haggleBlocked = `Déjà ${NEGOTIATION_TUNING.dealsPerNpc} accords avec ${npc.name} aujourd'hui`;
+    else if (this.triesLeft(npc.id) <= 0) haggleBlocked = `${npc.name} est lassé : il ne veut plus discuter aujourd'hui — réessayez dans 1 jour`;
+    else if (this.dealsLeft(npc.id) <= 0) haggleBlocked = `Déjà ${NEGOTIATION_TUNING.dealsPerNpc} accords avec ${npc.name} aujourd'hui — réessayez dans 1 jour`;
     let maxQty = offer.quantity;
     if (kind === 'sell') {
       maxQty = Math.min(offer.quantity, this._eligibleQty(offer));
@@ -294,7 +313,10 @@ export class Negotiation {
     const session = this._session(offerId, npc);
     const style = styleFor(npc);
     const mem = this._memory(npc.id);
-    if (session.walked && !haggleBlocked) haggleBlocked = `${npc.name} a coupé court sur cette offre aujourd'hui`;
+    if (session.walked && !haggleBlocked) haggleBlocked = `${npc.name} a coupé court sur cette offre aujourd'hui — réessayez dans 1 jour`;
+    // GD passe 8 : lassitude affichée avec sa durée (jours avant que le plus ancien marchandage réussi soit oublié)
+    const weary = this.wearyInfo(mem);
+    if (haggleBlocked && weary && this.unlocked()) haggleBlocked += ` (lassé de vos marchandages encore ${weary.days} jour${weary.days > 1 ? 's' : ''})`;
     const fair = this.fairPrice(ctx, lim);
     const bundleQty = kind === 'buy' && offer.quantity >= NEGOTIATION_TUNING.bundleMinQty ? offer.quantity : null;
     const tell = this.tell(ctx, session);
@@ -341,6 +363,7 @@ export class Negotiation {
       walked: session.walked,
       rounds: session.rounds.map(r => ({ ...r })),
       memory: { bluffs: mem.bluffs, deals: mem.deals },
+      weary,
       fair: fair.price,
       fairReasons: fair.reasons,
       suggested: this.suggestPrice(offerId, 0.7),

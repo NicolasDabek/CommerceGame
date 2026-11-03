@@ -65,18 +65,21 @@ export function enhanceGame(game) {
     game.__newGame = false;
   }
 
+  // GD passe 8 : la remise de rang suit la partie COURANTE (avant : le joueur de la première partie restait capturé →
+  // une nouvelle partie, et chaque simulation après la première, héritait de son rang ; résultats dépendant de l'ordre)
+  Offer.__feeGame = game;
   if (!Offer.__repFees) {
     Offer.__repFees = true;
     const origListing = Offer.calculateListingFee.bind(Offer);
     const origChange = Offer.calculatePriceChangeFee.bind(Offer);
     Offer.calculateListingFee = (price, quantity, durationDays) => {
       const base = origListing(price, quantity, durationDays);
-      const mult = game.player?.getFeeMultiplier?.() ?? 1;
+      const mult = Offer.__feeGame?.player?.getFeeMultiplier?.() ?? 1;
       return Math.round(base * mult * 100) / 100;
     };
     Offer.calculatePriceChangeFee = (oldPrice, newPrice, quantity) => {
       const base = origChange(oldPrice, newPrice, quantity);
-      const mult = game.player?.getFeeMultiplier?.() ?? 1;
+      const mult = Offer.__feeGame?.player?.getFeeMultiplier?.() ?? 1;
       return Math.round(base * mult * 100) / 100;
     };
   }

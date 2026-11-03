@@ -16,7 +16,7 @@ export const NEWCOMER_CONTRACTS = { count: 3, bonus: 0.2, maxRank: 1 };
  * Passe 5 : « gros contrats » aux rangs 1 et 2 — quantité ×3, marge +15 points, trop gros pour la caisse
  * d'un débutant : ils ne se livrent qu'avec un crédit adossé (taux « contrat »), ouvert dès le rang 1 pour eux.
  */
-export const LARGE_CONTRACTS = { ranks: [1, 2], qtyMult: 3, marginBonus: 0.05, maxShareOfLimit: 0.9, minQty: 4, days: 3, laterEvery: 6, maxValue: 900, minValue: 150, every: 3, lateChance: 0.1, latePenalty: 0.1 };
+export const LARGE_CONTRACTS = { ranks: [1, 2], qtyMult: 3, marginBonus: 0.05, maxShareOfLimit: 0.9, minQty: 4, days: 3, laterEvery: 15, maxValue: 900, minValue: 150, every: 3, lateChance: 0.1, latePenalty: 0.1 };
 
 /**
  * GD passe 6 : marge +15 → +5 points (+8 ne suffisait pas : crédit encore +45 %), un gros contrat actif à la fois

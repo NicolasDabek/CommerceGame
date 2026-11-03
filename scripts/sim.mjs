@@ -6,7 +6,7 @@
  *   npm run sim -- --json               # sortie JSON (pour comparer avant/après)
  *   npm run sim -- --bot=exploit        # + un joueur-robot qui cherche les boucles d'argent (marchandage, crédit)
  *   npm run sim -- --bot=defaulter      # + un joueur-robot qui emprunte sans rembourser
- *   npm run sim -- --csv                # récapitulatif CSV par robot (passe 3) → reports/sim-bots.csv
+ *   npm run sim -- --csv                # récapitulatif CSV par robot (passe 3, 10 graines depuis GD 8) → reports/sim-bots.csv
  *   npm run sim -- --csv=chemin.csv     # … vers un autre fichier
  *
  * Mesure jour par jour : niveau des prix (moyenne des prix / prix de base), masse monétaire
@@ -35,7 +35,8 @@ if (args.csv) {
   const { writeFileSync, mkdirSync } = await import('node:fs');
   const { dirname, resolve } = await import('node:path');
   const out = resolve(typeof args.csv === 'string' ? args.csv : 'reports/sim-bots.csv');
-  const csv = await botSummaryCsv({ days: DAYS, seeds: SEEDS });
+  // GD passe 8 : CSV mesuré sur 10 graines par défaut (écart-type entre graines 20–30 % du €/jour)
+  const csv = await botSummaryCsv({ days: DAYS, seeds: args.seeds ? SEEDS : 10 });
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, csv);
   console.log(csv);

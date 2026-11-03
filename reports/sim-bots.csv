@@ -1,8 +1,8 @@
-bot,days,seeds,eur_per_day,eur_per_day_early,eur_per_day_late,worth_start,worth_end,haggle_deals_per_day,loans,contracts,subsidies,interventions,interventions_per_day,procurement_orders_per_day,public_orders_per_day,shortages_per_day,shortage_longest,price_end,money_min,money_max,big_contracts,big_contract_fail,haggle_gain_per_deal,haggle_attempts_per_day,haggle_blocked_fatigue,eur_per_day_sd,trader_no_loan
-none,120,3,,,,,,,,,12993,853,1.26,5.85,6.32,1.4,9,1.029,1.002,1.013,,,,,,,
-honest,120,3,5.22,4.52,5.97,1251,1877,0,0,52.67,13812,868,1.41,5.83,6.33,1.5,10,1.027,1.002,1.02,0,0,0,0,0,0.09,
-haggler,120,3,5.56,5.52,5.71,1251,1918,0.99,0,61.33,12632,881,1.5,5.84,6.33,1.5,9,1.002,1.002,1.018,0,0,1.29,1.78,16.33,1.64,
-trader,120,3,7.78,6.56,9.1,1251,2185,0.61,41,66.33,12079,864,1.37,5.83,6.33,1.5,13,1.001,1.002,1.028,9,0.33,1.36,2.07,79,1.69,6.88
-trader_no_loan,120,3,6.88,5.87,7.95,1251,2077,0.81,0,60,12480,869,1.46,5.78,6.31,1.6,10,1.034,1.002,1.022,0,0,1.51,2.46,94,0.99,6.88
-exploit,120,3,-17.4,-10.56,-24.33,1244,-844,0,23,0,15998,857,1.37,5.78,6.21,1.6,11,0.99,0.985,1.013,0,0,0.68,0,0,0.26,
-defaulter,120,3,-3.02,-5.43,-0.64,1243,880,0,4.33,0,15538,876,1.38,5.92,6.43,1.5,10,0.976,1.002,1.013,0,0,0,0,0,0.68,
+bot,days,seeds,eur_per_day,eur_per_day_early,eur_per_day_late,worth_start,worth_end,haggle_deals_per_day,loans,contracts,subsidies,interventions,interventions_per_day,procurement_orders_per_day,public_orders_per_day,shortages_per_day,shortage_longest,price_end,money_min,money_max,big_contracts,big_contract_fail,haggle_gain_per_deal,haggle_attempts_per_day,haggle_blocked_fatigue,eur_per_day_sd,eur_per_day_ci95,haggle_sells_per_day,trader_no_loan
+none,120,10,,,,,,,,,14946,849,1.23,5.84,6.26,1.3,15,1.01,0.964,1.013,,,,,,,,,
+honest,120,10,5.78,5.88,5.8,1253,1947,0,0,56.1,13260,861,1.39,5.79,6.27,1.5,10,0.989,1.002,1.039,0,0,0,0,0,1.33,0.82,0,
+haggler,120,10,7.56,6.02,9.21,1253,2160,0.99,0,62.8,12889,862,1.39,5.79,6.26,1.5,12,1.024,1.002,1.034,0,0,1.32,2.14,23.8,1.74,1.08,0.01,
+trader,120,10,7.53,6.95,7.99,1253,2156,0.55,43.6,67.9,11562,864,1.49,5.71,6.25,1.6,14,1.022,0.967,1.046,4.5,0.3,1.2,2.12,81.7,2.46,1.52,0.05,6.55
+trader_no_loan,120,10,6.55,5.59,7.59,1253,2039,0.78,0,58.3,11706,864,1.42,5.78,6.3,1.5,13,1.042,1.002,1.024,0,0,1.23,2.58,97.7,1.42,0.88,0.03,6.55
+exploit,120,10,-17.53,-11.35,-23.77,1244,-860,0,22.3,0,14615,841,1.3,5.71,6.14,1.4,11,1.026,0.928,1.013,0,0,0.56,0,0,0.27,0.17,0,
+defaulter,120,10,-5.77,-9.06,-2.51,1242,549,0,6.2,0.3,15198,865,1.37,5.84,6.29,1.5,10,1.013,1.002,1.013,0,0,0,0,0,3.72,2.31,0.01,

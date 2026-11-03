@@ -28,6 +28,51 @@ function lowestAccepted(game, offer) {
 
 export function run() {
   return runSuite('marchandage', [
+    ['GD passe 8 : « retrouvailles » (freshFlex) retiré — aucun bonus de marge pour un PNJ non vu depuis longtemps', async () => {
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
+      try {
+        assert(!('freshFlex' in NEGOTIATION_TUNING) && !('freshDays' in NEGOTIATION_TUNING), 'freshFlex retiré du réglage');
+        const ref = game.npcController.refPrice('item_004', 50, 50);
+        const offer = npcListing(game, 'item_004', Math.round(ref * 1.12 * 100) / 100);
+        const lim = lowestAccepted(game, offer);
+        assert(!lim.reasons.some(r => /retrouvailles/.test(r)), `aucune raison « retrouvailles » (${lim.reasons.join(' · ')})`);
+      } finally { restore(); }
+    }],
+    ['GD passe 8 : revente d\'un produit acheté il y a moins de 2 jours → marge ≤ maxFlex / 2', async () => {
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
+      try {
+        const T = NEGOTIATION_TUNING;
+        game.player.inventory.add('item_004', 2, 50, 50, 10);
+        game.npcController.npcStates[NPC].trust = 1;
+        game.npcController.npcStates[NPC].mood = 1;
+        const ref = game.npcController.refPrice('item_004', 50, 50);
+        const bo = npcBuyOffer(game, 'item_004', Math.round(ref * 0.8 * 100) / 100);
+        const day = game.negotiation._day();
+        game.player.lastBuyDay = { item_004: day };
+        const flip = lowestAccepted(game, bo);
+        assert(flip.flex <= T.maxFlex * T.flipFlexFactor + 1e-9, `revente rapide : marge ${flip.flex} ≤ ${T.maxFlex * T.flipFlexFactor}`);
+        game.player.lastBuyDay = { item_004: day - T.flipDays };
+        const later = lowestAccepted(game, bo);
+        assert(!later.reasons.some(r => /revente rapide/.test(r)), 'après 2 jours, plus de bride');
+        assert(later.flex >= flip.flex, `marge après 2 jours ${later.flex} ≥ ${flip.flex}`);
+      } finally { restore(); }
+    }],
+    ['GD passe 8 : refus pour lassitude — la durée est affichée (« réessayez dans 1 jour »)', async () => {
+      const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
+      try {
+        const neg = game.negotiation;
+        const ref = game.npcController.refPrice('item_004', 50, 50);
+        const offer = npcListing(game, 'item_004', Math.round(ref * 1.12 * 100) / 100);
+        const mem = neg._memory(NPC);
+        mem.wins = [neg._day(), neg._day()];
+        mem.deals = 0;
+        neg._npcDay(NPC).tries = 99;
+        const q = neg.quote(offer.id);
+        assert(q.weary && q.weary.days >= 1, `lassitude ${JSON.stringify(q.weary)}`);
+        assert(/réessayez dans 1 jour/.test(q.haggleBlocked || ''), `message : ${q.haggleBlocked}`);
+        assert(/lassé de vos marchandages encore \d+ jour/.test(q.haggleBlocked || ''), `durée de lassitude : ${q.haggleBlocked}`);
+      } finally { restore(); }
+    }],
     ['achat : refus, contre-offre puis accord — argent conservé, objet reçu', async () => {
       const { game, restore } = await makeGame({ reputation: UNLOCK_ALL_REP });
       try {

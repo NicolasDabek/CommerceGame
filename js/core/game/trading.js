@@ -227,6 +227,9 @@ export const GameTrading = {
     if (tx.buyerId === 'player') {
       this.player.inventory.add(tx.itemId, tx.quantity, tx.quality, tx.perfection, tx.price);
       this.player.recordPurchase(tx.total);
+      // GD passe 8 : jour du dernier achat par produit (bride l'achat-revente immédiat, voir Negotiation.flipDays)
+      this.player.lastBuyDay = this.player.lastBuyDay || {};
+      this.player.lastBuyDay[tx.itemId] = this.negotiation?._day?.() ?? this.timeManager?.getCurrentDay?.() ?? 1;
       this._checkGoals();
 
       if (tx.type === 'matching') {
