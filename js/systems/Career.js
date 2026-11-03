@@ -166,7 +166,7 @@ export class Career {
     }
     return {
       visitedMarket: this.visited.includes('market') ? 1 : 0,
-      sales: stats.totalSales || 0,
+      sales: Math.max(0, (stats.totalSales || 0) - (stats.deliveries || 0)), // ventes au marché (livraisons : `deliveries`)
       purchases: stats.totalPurchases || 0,
       watched: g.tradingDesk?.watchlist?.length || 0,
       buysBelow: this.counters.buysBelow,

@@ -3,7 +3,7 @@
  * (méthodes de JobBoard, extraites de JobBoard.js sans changement de comportement)
  */
 
-import { ITEMS } from '../../data/items.js';
+import { ITEMS, getItemById } from '../../data/items.js';
 import { VAULT_DAILY_CAP } from '../../data/jobs.js';
 import { NPCS } from '../../data/npcs.js';
 import { moneyRound } from './helpers.js';
@@ -265,6 +265,7 @@ export const JobContracts = {
       left -= take;
     }
     this.game.addMoney(order.pay);
+    this.game.player.recordDelivery?.(order.pay, getItemById(order.itemId)?.category, order.quantity);
     this.game.npcController.noteTradeWithPlayer?.(order.npcId, 0, false);
     order.status = 'done';
     this.game.career?.noteShortageDelivery?.(order.itemId);
@@ -329,6 +330,7 @@ export const JobContracts = {
       reserve.addStock(job.itemId, job.quantity);
     }
     this.game.addMoney(payout);
+    this.game.player.recordDelivery?.(payout, getItemById(job.itemId)?.category, job.quantity);
     this.gainXp('trade', job.rush ? 20 : 15);
     this._emitJobIncome('contract', job.itemId, job.quantity, payout, costBasis);
     this.game.player.addXp(job.rush ? 18 : 12);

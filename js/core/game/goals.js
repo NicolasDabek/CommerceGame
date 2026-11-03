@@ -5,6 +5,10 @@
 
 import { getItemById } from '../../data/items.js';
 import { Transaction } from '../../models/Transaction.js';
+import { rankFor } from '../Ranks.js';
+
+/** GD passe 9 : au-delà de ce rang, les objectifs ne donnent plus de réputation (XP à la place). */
+export const GOAL_REP_MAX_RANK = 2;
 
 export const GameGoals = {
 
@@ -104,9 +108,9 @@ export const GameGoals = {
       {
         id: 'cash_5000',
         title: 'Caisse confortable',
-        description: 'Atteindre 5 000 euros de solde.',
-        progress: Math.min(this.player.money, 5000),
-        target: 5000,
+        description: 'Atteindre 3 500 euros de solde.',
+        progress: Math.min(this.player.money, 3500),
+        target: 3500,
         reward: '+4 reputation',
         reputationReward: 4
       },
@@ -149,7 +153,7 @@ export const GameGoals = {
       {
         id: 'earned_5000',
         title: 'Chiffre d affaires',
-        description: 'Encaisser 5 000 euros via les ventes.',
+        description: 'Encaisser 5 000 euros via les ventes et livraisons.',
         progress: stats.totalEarned,
         target: 5000,
         reward: '+4 reputation',
@@ -158,9 +162,9 @@ export const GameGoals = {
       {
         id: 'earned_20000',
         title: 'Maison de commerce',
-        description: 'Encaisser 20 000 euros via les ventes.',
+        description: 'Encaisser 12 000 euros via les ventes et livraisons.',
         progress: stats.totalEarned,
-        target: 20000,
+        target: 12000,
         reward: '+10 reputation',
         reputationReward: 10
       },
@@ -284,9 +288,9 @@ export const GameGoals = {
       {
         id: 'best_sale_1500',
         title: 'Transaction majeure',
-        description: 'Realiser une vente d au moins 1 500 euros.',
-        progress: Math.min(bestSale, 1500),
-        target: 1500,
+        description: 'Realiser une vente d au moins 800 euros.',
+        progress: Math.min(bestSale, 800),
+        target: 800,
         reward: '+8 reputation',
         reputationReward: 8
       },
@@ -402,7 +406,9 @@ export const GameGoals = {
 
 
   _countPlayerSoldByCategory(category) {
-    return this.transactions
+    // GD passe 9 : les livraisons de contrats / commandes comptent aussi
+    const delivered = this.player.stats?.deliveredByCategory?.[category] || 0;
+    return delivered + this.transactions
       .filter(tx => tx.sellerId === 'player')
       .reduce((sum, tx) => {
         const item = getItemById(tx.itemId);
@@ -429,7 +435,12 @@ export const GameGoals = {
     newlyCompleted.forEach(goal => {
       this.completedGoals.push(goal.id);
       if (goal.inventoryReward) this.player.inventory.expand(goal.inventoryReward);
-      if (goal.reputationReward) this.player.addReputation(goal.reputationReward);
+      // GD passe 9 : les livraisons comptent désormais dans les objectifs ; leur réputation ne doit pas
+      // précipiter les rangs 3–4 (plafonds de crédit 1 600 / 2 500 €, création monétaire par le trader). Au rang 2+, la récompense devient de l'XP (×10).
+      if (goal.reputationReward) {
+        if (rankFor(this.player.reputation || 0).id >= GOAL_REP_MAX_RANK) this.player.addXp(goal.reputationReward * 10);
+        else this.player.addReputation(goal.reputationReward);
+      }
       if (goal.xpReward) this.player.addXp(goal.xpReward);
       if (this.uiCallbacks.onStatus) this.uiCallbacks.onStatus(`Objectif termine : ${goal.title}`);
     });

@@ -90,6 +90,24 @@ export class Player {
     this.addReputation(1);
   }
 
+  /**
+   * GD passe 9 : livraison (contrat du Comptoir, commande ou demande de marchand) — c'est une vente.
+   * Avant, ces livraisons (le gros des revenus) ne comptaient ni dans les ventes ni dans « Gagner X € » :
+   * les objectifs de vente restaient bloqués pour qui jouait les contrats. Ni XP ni réputation ici
+   * (déjà données par la livraison elle-même). `category` : vente comptée dans la catégorie (objectifs).
+   */
+  recordDelivery(total, category = null, quantity = 1) {
+    this.stats.totalSales += 1;
+    this.stats.totalEarned = Math.round((this.stats.totalEarned + total) * 100) / 100;
+    this.stats.transactionsCount += 1;
+    this.stats.deliveries = (this.stats.deliveries || 0) + 1;
+    if (category) {
+      const by = { ...(this.stats.deliveredByCategory || {}) };
+      by[category] = (by[category] || 0) + quantity;
+      this.stats.deliveredByCategory = by;
+    }
+  }
+
   recordPurchase(total) {
     this.stats.totalPurchases += 1;
     this.stats.totalSpent = Math.round((this.stats.totalSpent + total) * 100) / 100;

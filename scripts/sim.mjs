@@ -36,7 +36,7 @@ if (args.csv) {
   const { dirname, resolve } = await import('node:path');
   const out = resolve(typeof args.csv === 'string' ? args.csv : 'reports/sim-bots.csv');
   // GD passe 8 : CSV mesuré sur 10 graines par défaut (écart-type entre graines 20–30 % du €/jour)
-  const csv = await botSummaryCsv({ days: DAYS, seeds: args.seeds ? SEEDS : 10 });
+  const csv = await botSummaryCsv({ days: DAYS, seeds: args.seeds ? SEEDS : 20 }) // GD passe 9 : 20 graines (10 trop bruitées);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, csv);
   console.log(csv);

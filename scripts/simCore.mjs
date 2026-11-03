@@ -148,6 +148,7 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000, bo
           const slot = acts === 1 ? end - msPerDay / 2 : end - msPerDay + (msPerDay / acts) * (botActs + 0.5);
           if (botPlayer && botActs < acts && virtualNow >= slot) { botPlayer.act(day, botActs === acts - 1); botActs += 1; }
         }
+        if (globalThis.__SIM_DAY_HOOK) globalThis.__SIM_DAY_HOOK(game, day, botPlayer);
         if (game.offers.length > 400) game.offers = game.offers.filter(o => o.status === 'active');
         if (game.transactions.length > 2000) game.transactions.length = 2000;
         const p = priceIndex(game, ITEMS);

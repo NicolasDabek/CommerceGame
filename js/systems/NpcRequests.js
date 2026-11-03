@@ -100,6 +100,7 @@ export class NpcRequests {
     }
     ctl.debitNpc(req.npcId, total);
     this.game.player.addMoney(total);
+    this.game.player.recordDelivery?.(total); // la transaction ci-dessous compte déjà la catégorie
     const tx = new Transaction({ itemId: req.itemId, quantity: req.qty, price: req.price, sellerId: 'player', buyerId: req.npcId, type: 'request', quality: q, perfection: pf, sellerAvgCost: costQty ? r2(costSum / costQty) : null, timestamp: this.game.timeManager?.now?.() ?? Date.now() });
     this.game.transactions.unshift(tx);
     req.status = 'delivered';
