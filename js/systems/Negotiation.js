@@ -143,6 +143,27 @@ export class Negotiation {
     return { wins, days };
   }
 
+  /**
+   * GD passe 10 : humeur d'un marchand AVANT d'ouvrir une offre (affichée sur les annonces) —
+   * essais restants, accords restants, lassitude et durée ; `canHaggle` faux = inutile d'essayer aujourd'hui.
+   */
+  merchantMood(npcId, offerId = null) {
+    if (!npcId || npcId === 'player' || npcId === 'city') return null;
+    const mem = this._memory(npcId);
+    const weary = this.wearyInfo(mem);
+    const triesLeft = this.triesLeft(npcId);
+    const dealsLeft = this.dealsLeft(npcId);
+    const s = offerId ? this.sessions[offerId] : null;
+    const walked = !!(s && s.day === this._day() && s.walked);
+    const canHaggle = this.unlocked() && triesLeft > 0 && dealsLeft > 0 && !walked;
+    let label;
+    if (!this.unlocked()) label = null;
+    else if (!canHaggle) label = `😤 ne discute plus aujourd'hui${weary ? ` · lassé ${weary.days} j` : ''}`;
+    else if (weary) label = `😕 lassé ${weary.days} j · ${triesLeft} essai${triesLeft > 1 ? 's' : ''}`;
+    else label = `🙂 ${triesLeft} essai${triesLeft > 1 ? 's' : ''}`;
+    return { triesLeft, dealsLeft, weary, walked, canHaggle, label };
+  }
+
   /** Séance de marchandage du jour sur une offre. */
   _session(offerId, npc) {
     const day = this._day();

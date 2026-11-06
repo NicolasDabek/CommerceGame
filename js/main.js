@@ -457,6 +457,7 @@ function initUI() {
     onCreateSell: () => openCreateSellModal(),
     onBid: (offerId) => openBidModal(offerId),
     onNegotiate: (offerId) => openNegotiation(offerId),
+    getMood: (npcId, offerId) => game.negotiation?.merchantMood?.(npcId, offerId),
     onBuyClick: (offerId) => openBuyQtyModal({ ...negCtx(), offerId, onNegotiate: (id) => openNegotiation(id) })
   });
   buyUI = new BuyHouseUI({
@@ -468,7 +469,8 @@ function initUI() {
     onCancel: (offerId) => { const result = game.cancelOffer(offerId); if (result.success) { setStatus(`Offre annulée (remboursé : ${(result.refund || 0).toFixed(2)} €)`); refreshAllUI(); } else setStatus(result.error || 'Erreur'); },
     onCreateBuy: () => openCreateBuyModal(),
     onFulfill: (offerId, maxQty) => openFulfillModal(offerId, maxQty),
-    onNegotiate: (offerId) => openNegotiation(offerId)
+    onNegotiate: (offerId) => openNegotiation(offerId),
+    getMood: (npcId, offerId) => game.negotiation?.merchantMood?.(npcId, offerId)
   });
   inventoryUI = new InventoryUI({
     getInventory: () => game.inventory,

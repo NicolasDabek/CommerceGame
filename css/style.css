@@ -1822,3 +1822,5 @@ h1.logo { margin: 0; font-weight: 700; line-height: inherit; }
   .hud-controls { gap: 6px; }
   .eco-chip { padding-inline: 8px; font-size: 0.78rem; }
 }
+.mood-chip { margin-left: 4px; white-space: nowrap; font-size: 0.72rem; }
+.mood-chip.mood-off { opacity: 0.8; }

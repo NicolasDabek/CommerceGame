@@ -281,7 +281,7 @@ export function summarize(runs, days, seeds, elapsedMs) {
  * subventions et interventions du Comptoir (moyenne par partie), pénuries, masse monétaire.
  */
 export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'honest', 'haggler', 'trader', 'trader_no_loan', 'exploit', 'defaulter'] } = {}) {
-  const head = ['bot', 'days', 'seeds', 'eur_per_day', 'eur_per_day_early', 'eur_per_day_late', 'worth_start', 'worth_end', 'haggle_deals_per_day', 'loans', 'contracts', 'subsidies', 'interventions', 'interventions_per_day', 'procurement_orders_per_day', 'public_orders_per_day', 'shortages_per_day', 'shortage_longest', 'price_end', 'money_min', 'money_max', 'big_contracts', 'big_contract_fail', 'haggle_gain_per_deal', 'haggle_attempts_per_day', 'haggle_blocked_fatigue', 'eur_per_day_sd', 'eur_per_day_ci95', 'haggle_sells_per_day', 'trader_no_loan'];
+  const head = ['bot', 'days', 'seeds', 'eur_per_day', 'eur_per_day_early', 'eur_per_day_late', 'worth_start', 'worth_end', 'haggle_deals_per_day', 'loans', 'contracts', 'subsidies', 'interventions', 'interventions_per_day', 'procurement_orders_per_day', 'public_orders_per_day', 'shortages_per_day', 'shortage_longest', 'price_end', 'money_min', 'money_max', 'big_contracts', 'big_contract_fail', 'haggle_gain_per_deal', 'haggle_attempts_per_day', 'haggle_blocked_fatigue', 'eur_per_day_sd', 'eur_per_day_ci95', 'haggle_sells_per_day', 'stall_sales_per_day', 'haggle_skipped_mood', 'trader_no_loan'];
   const lines = [head.join(',')];
   const num = (v) => (v == null || Number.isNaN(v) ? '' : String(v));
   // Passe 5 : « trader_no_loan » = même trader (4 actions/jour) sans aucun prêt ; colonne trader_no_loan sur la ligne trader
@@ -303,6 +303,7 @@ export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'ho
     const bigF = b ? r2c(b.diag.reduce((t, d) => t + (d.bigFail || 0), 0) / Math.max(1, b.diag.length)) : '';
     const hgd = b && b.haggleGainPerDeal != null ? b.haggleGainPerDeal : '';
     const sd = b && b.gainPerDaySd != null ? b.gainPerDaySd : '';
+    // GD passe 10 : ventes aux clients d'étal / marchandages évités grâce à l'humeur affichée
     // GD passe 8 : intervalle de confiance à 95 % du €/jour moyen (1,96 · écart-type / √graines)
     const ci = sd !== '' ? r2c(1.96 * sd / Math.sqrt(seeds)) : '';
     const contracts = b ? r2c(b.diag.reduce((t, d) => t + (d.contracts || 0), 0) / Math.max(1, b.diag.length)) : '';
@@ -311,7 +312,7 @@ export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'ho
       b ? r2c((b.worthEnd - b.worthStart) / days) : '', b ? b.gainPerDayEarly : '', b ? b.gainPerDayLate : '',
       b ? b.worthStart : '', b ? b.worthEnd : '', b ? b.haggleDealsPerDay : '', b ? b.loans : '', contracts,
       avgOf('subsidies'), avgOf('interventions'), r2c(avgRaw('regulations') / days), r2c(avgRaw('procureOrders') / days), r2c((avgRaw('procureOrders') + avgRaw('publicOrders')) / days), summary.shortagesPerDay, summary.shortageLongest, summary.priceEnd,
-      summary.moneyBand[0], summary.moneyBand[1], bigC, bigF, hgd, b ? b.haggleAttemptsPerDay : '', b ? b.haggleBlockedFatigue : '', sd, ci, b ? b.haggleSellsPerDay : '', ''
+      summary.moneyBand[0], summary.moneyBand[1], bigC, bigF, hgd, b ? b.haggleAttemptsPerDay : '', b ? b.haggleBlockedFatigue : '', sd, ci, b ? b.haggleSellsPerDay : '', b ? b.stallSalesPerDay : '', b ? b.haggleSkippedMood : '', ''
     ].map(num).join(','));
   }
   // la ligne trader porte le €/jour du trader sans prêt (calculé après)

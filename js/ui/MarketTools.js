@@ -41,7 +41,9 @@ export class MarketTools {
       const d = e.target.closest?.('[data-deliver]');
       if (d) { e.preventDefault(); this.deliver(d.dataset.deliver); return; }
       const po = e.target.closest?.('[data-deliver-public]');
-      if (po) { e.preventDefault(); this.deliverPublic(po.dataset.deliverPublic); }
+      if (po) { e.preventDefault(); this.deliverPublic(po.dataset.deliverPublic); return; }
+      const sb = e.target.closest?.('[data-stall]');
+      if (sb) { e.preventDefault(); this.answerStall(sb.dataset.stall, sb.dataset.stallAction, Number(sb.dataset.stallPrice)); }
     });
   }
 
@@ -73,7 +75,19 @@ export class MarketTools {
         <span class="text-muted req-why">rupture depuis ${p.shortDays} j · vous en avez ${p.owned}</span>
         <button class="btn btn-sm ${p.owned > 0 ? 'btn-primary' : 'btn-secondary'}" data-deliver-public="${esc(p.offerId)}" ${p.owned > 0 ? '' : 'disabled title="Achetez ou fabriquez cet objet pour le livrer"'}>Livrer</button>
       </li>`).join('')}</ul></div>` : '';
-    el.innerHTML = pubHtml + `<h3 class="section-title">📜 Demandes des marchands <small class="text-muted">(${list.length})</small></h3>` + (list.length ? `<ul class="req-list">${list.map(r => `
+    // GD passe 10 : clients qui marchandent sur l'étal (rang 2+) — accepter, refuser ou demander plus
+    const stall = this.game.getStallBids ? this.game.getStallBids() : [];
+    const stallHtml = stall.length ? `<div class="stall-bids" id="stall-bids"><h3 class="section-title">🧺 Clients sur votre étal <small class="text-muted">(${stall.length})</small></h3><ul class="req-list">${stall.map(b => {
+      const offer = b.counter ?? b.bid;
+      const ask = Math.round(Math.min(b.base, b.bid * 1.05) * 100) / 100;
+      return `<li class="req-item ${b.have ? 'ready' : ''}" data-stall-bid="${esc(b.id)}">
+        <span class="req-what">${b.icon} <strong>${esc(b.itemName)}</strong> Q${b.quality} P${b.perfection} · <strong>${esc(b.npcName)}</strong> propose</span>
+        <span class="req-price">${money(offer)} €${b.counter != null ? ' (dernier prix)' : ''} · votre prix ${money(b.base)} €</span>
+        <span class="req-actions"><button class="btn btn-sm btn-primary" data-stall="${esc(b.id)}" data-stall-action="accept" ${b.have ? '' : 'disabled'}>Accepter</button>
+        ${b.counter == null ? `<button class="btn btn-sm btn-secondary btn-haggle" data-stall="${esc(b.id)}" data-stall-action="haggle" data-stall-price="${ask}" ${b.have ? '' : 'disabled'} title="Demander ${money(ask)} € : il accepte si c'est dans sa marge, sinon il fait une dernière offre">🤝 ${money(ask)} €</button>` : ''}
+        <button class="btn btn-sm btn-ghost" data-stall="${esc(b.id)}" data-stall-action="refuse">Refuser</button></span>
+      </li>`; }).join('')}</ul></div>` : '';
+    el.innerHTML = stallHtml + pubHtml + `<h3 class="section-title">📜 Demandes des marchands <small class="text-muted">(${list.length})</small></h3>` + (list.length ? `<ul class="req-list">${list.map(r => `
       <li class="req-item ${r.have ? 'ready' : ''}" data-request="${esc(r.id)}">
         <span class="req-what">${r.icon} <strong>${r.qty} × ${esc(r.itemName)}</strong> Q${r.minQuality}+ pour <strong>${esc(r.npcName)}</strong></span>
         <span class="req-price">${money(r.price)} € pièce · total ${money(r.total)} €</span>
@@ -85,6 +99,14 @@ export class MarketTools {
   deliverPublic(offerId) {
     const r = this.game.deliverPublicOrder(offerId);
     this.setStatus(r.success ? `🏛️ Commande publique livrée : ${r.qty} objet(s), +${money(r.total)} €` : `❌ ${r.error}`);
+    this.refresh?.();
+  }
+
+  answerStall(id, action, price) {
+    const r = this.game.answerStallBid(id, action, price);
+    if (!r.success) this.setStatus(`❌ ${r.error}`);
+    else if (r.outcome === 'accepted') this.setStatus(`🧺 Vendu ${money(r.price)} €${r.haggled ? ` (+${money(r.gain)} € marchandés)` : ''}`);
+    else if (r.outcome === 'counter' || r.outcome === 'walked') this.setStatus(`🤝 ${r.message}`);
     this.refresh?.();
   }
 

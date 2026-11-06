@@ -21,6 +21,14 @@ function askPrice(offer) {
   return offer.buyoutPrice != null ? offer.buyoutPrice : effectivePrice(offer);
 }
 
+/** GD passe 10 : humeur du marchand visible avant d'ouvrir l'offre (essais, lassitude et sa durée). */
+function moodChip(m) {
+  if (!m || !m.label) return '';
+  const cls = !m.canHaggle ? 'chip-warn mood-off' : m.weary ? 'chip-warn' : '';
+  const tip = !m.canHaggle ? 'Il ne marchandera plus aujourd\'hui : achat ou vente au prix affiché seulement.' : m.weary ? `Lassé de vos marchandages récents : marge et patience réduites encore ${m.weary.days} jour(s).` : 'Essais de marchandage restants aujourd\'hui avec ce marchand.';
+  return ` <span class="mini-chip mood-chip ${cls}" title="${tip}">${m.label}</span>`;
+}
+
 export class AuctionHouseUI {
   constructor(options = {}) {
     this.getActiveSellOffers = options.getActiveSellOffers || (() => []);
@@ -31,6 +39,7 @@ export class AuctionHouseUI {
     this.onCancel = options.onCancel || (() => {});
     this.onCreateSell = options.onCreateSell || (() => {});
     this.onBid = options.onBid || (() => {});
+    this.getMood = options.getMood || (() => null);
     this.onNegotiate = options.onNegotiate || null;
     this.onBuyClick = options.onBuyClick || null;
     this.resolveName = options.resolveName || ((id) => id === 'player' ? 'Vous' : id);
@@ -220,7 +229,7 @@ export class AuctionHouseUI {
         const tip = busy
           ? 'Enchère en cours : impossible de négocier un achat direct'
           : `Proposez votre prix à ${seller}. Sa marge dépend de sa confiance envers vous, de son stock et de la demande en ville.`;
-        buttons.push(`<button class="btn btn-small btn-ghost btn-haggle" data-action="negotiate" data-offer-id="${offer.id}" ${busy ? 'disabled' : ''} title="${tip}">🤝 Négocier</button>`);
+        buttons.push(`<button class="btn btn-small btn-ghost btn-haggle" data-action="negotiate" data-offer-id="${offer.id}" ${busy ? 'disabled' : ''} title="${tip}">🤝 Négocier</button>${moodChip(this.getMood(offer.ownerId, offer.id))}`);
       }
       actions = buttons.join(' ') || `<span class="text-muted">Votre enchère</span>`;
     }

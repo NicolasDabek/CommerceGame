@@ -152,6 +152,8 @@ export function enhanceGame(game) {
       (game.reserve?.lastActions || []).filter(a => a.type === 'public').forEach(a => game.uiCallbacks?.onStatus?.(`🏛️ Commande publique : le Comptoir achète ${a.qty} × ${a.icon} ${a.name} à ${a.price.toFixed(2).replace('.', ',')} € pièce (+20 %) — voir Marchands`));
       const posted = game.npcRequests?.onNewDay() || [];
       posted.forEach(r => game.uiCallbacks?.onStatus?.(`📜 Demande de ${game.npcController.getNpcName(r.npcId)} : ${r.qty} × ${getItemById(r.itemId)?.icon || ''} ${getItemById(r.itemId)?.name || r.itemId} à ${r.price.toFixed(2).replace('.', ',')} € pièce (${r.reason})`));
+      const bids = game.npcRequests?.stallBidsView?.() || [];
+      if (bids.length) game.uiCallbacks?.onStatus?.(`🧺 ${bids.length} client${bids.length > 1 ? 's' : ''} marchande${bids.length > 1 ? 'nt' : ''} sur votre étal — voir Marchands`);
       game.career?.check();
       game.save();
     } else {
@@ -245,6 +247,9 @@ export function enhanceGame(game) {
     if (r && r.success !== false) { game.career?.check(); game._notifyUI?.(); return { success: true, qty, total: Math.round(offer.price * qty * 100) / 100 }; }
     return r || { success: false, error: 'Livraison impossible' };
   };
+  // GD passe 10 : contre-offres de clients sur l'étal (rang 2+)
+  game.getStallBids = () => game.npcRequests?.stallBidsView?.() || [];
+  game.answerStallBid = (id, action, price) => { const r = game.npcRequests.answerStallBid(id, action, price); if (r.success) { game._checkGoals?.(); game.career?.check(); game._notifyUI?.(); } return r; };
   game.deliverNpcRequest = (id) => { const r = game.npcRequests.deliver(id); if (r.success) { game.career?.check(); game._notifyUI?.(); } return r; };
   /** Fil du marché : échanges entre marchands (sans le joueur ni le Comptoir). */
   game.getNpcTradeFeed = (limit = 8) => game.transactions

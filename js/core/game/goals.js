@@ -9,6 +9,8 @@ import { rankFor } from '../Ranks.js';
 
 /** GD passe 9 : au-delà de ce rang, les objectifs ne donnent plus de réputation (XP à la place). */
 export const GOAL_REP_MAX_RANK = 2;
+/** GD passe 10 : rangs requis pour les objectifs « ventes marchandées » (10 puis 30). */
+export const HAGGLE_GOAL_RANKS = [3, 4];
 
 export const GameGoals = {
 
@@ -59,7 +61,34 @@ export const GameGoals = {
     const belowMarketPurchases = playerPurchases.filter(tx => (tx.priceDeltaPct ?? 0) <= -8).length;
     const aboveMarketSales = playerSales.filter(tx => (tx.priceDeltaPct ?? 0) >= 8).length;
 
+    // GD passe 10 : objectifs de fin de partie liés au marchandage des ventes (rang 3 puis 4)
+    const rankId = rankFor(this.player.reputation || 0).id;
+    const haggledSales = this.negotiation?.stats?.sellDeals || 0;
+    const rankGated = (minRank, target) => (rankId >= minRank ? Math.min(haggledSales, target) : Math.min(haggledSales, target - 1));
+
     return [
+      {
+        id: 'haggle_sells_10',
+        title: 'Vendeur qui negocie',
+        description: 'Reussir 10 ventes marchandees (offres d achat ou clients de l etal) — rang 3 requis.',
+        progress: rankGated(HAGGLE_GOAL_RANKS[0], 10),
+        target: 10,
+        minRank: HAGGLE_GOAL_RANKS[0],
+        reward: '+250 XP, +1 case inventaire',
+        xpReward: 250,
+        inventoryReward: 1
+      },
+      {
+        id: 'haggle_sells_30',
+        title: 'Maitre de l etal',
+        description: 'Reussir 30 ventes marchandees — rang 4 requis.',
+        progress: rankGated(HAGGLE_GOAL_RANKS[1], 30),
+        target: 30,
+        minRank: HAGGLE_GOAL_RANKS[1],
+        reward: '+600 XP, +2 cases inventaire',
+        xpReward: 600,
+        inventoryReward: 2
+      },
       {
         id: 'cash_2000',
         title: 'Tresorerie solide',

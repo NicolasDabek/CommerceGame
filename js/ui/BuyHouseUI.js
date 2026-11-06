@@ -13,6 +13,14 @@ function gameNow() {
     : Date.now();
 }
 
+/** GD passe 10 : humeur du marchand visible avant d'ouvrir l'offre (essais, lassitude et sa durée). */
+function moodChip(m) {
+  if (!m || !m.label) return '';
+  const cls = !m.canHaggle ? 'chip-warn mood-off' : m.weary ? 'chip-warn' : '';
+  const tip = !m.canHaggle ? 'Il ne marchandera plus aujourd\'hui : achat ou vente au prix affiché seulement.' : m.weary ? `Lassé de vos marchandages récents : marge et patience réduites encore ${m.weary.days} jour(s).` : 'Essais de marchandage restants aujourd\'hui avec ce marchand.';
+  return ` <span class="mini-chip mood-chip ${cls}" title="${tip}">${m.label}</span>`;
+}
+
 export class BuyHouseUI {
   constructor(options = {}) {
     this.getActiveBuyOffers = options.getActiveBuyOffers || (() => []);
@@ -22,6 +30,7 @@ export class BuyHouseUI {
     this.onCancel = options.onCancel || (() => {});
     this.onCreateBuy = options.onCreateBuy || (() => {});
     this.onFulfill = options.onFulfill || (() => {});
+    this.getMood = options.getMood || (() => null);
     this.onNegotiate = options.onNegotiate || null;
     this.resolveName = options.resolveName || ((id) => id === 'player' ? 'Vous' : id);
 
@@ -173,7 +182,7 @@ export class BuyHouseUI {
       const total = Math.round(offer.price * maxQty * 100) / 100;
       actions = `<button class="btn btn-small btn-success" data-action="fulfill" data-offer-id="${offer.id}" data-max-qty="${maxQty}" title="Total ≈ ${formatMoney(total)} €">${label}</button>`;
       if (this.onNegotiate && offer.ownerId !== 'city') {
-        actions += ` <button class="btn btn-small btn-ghost btn-haggle" data-action="negotiate" data-offer-id="${offer.id}" title="Demandez un meilleur prix à ${buyer} (plafonné à environ 104 % de la valeur de référence). Sa marge dépend de sa confiance et de la pénurie en ville.">🤝 Négocier</button>`;
+        actions += ` <button class="btn btn-small btn-ghost btn-haggle" data-action="negotiate" data-offer-id="${offer.id}" title="Demandez un meilleur prix à ${buyer} (plafonné à environ 104 % de la valeur de référence). Sa marge dépend de sa confiance et de la pénurie en ville.">🤝 Négocier</button>${moodChip(this.getMood(offer.ownerId, offer.id))}`;
       }
     } else {
       actions = `<span class="text-muted">Pas en stock</span>`;

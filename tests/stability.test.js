@@ -52,6 +52,9 @@ export function run() {
           gainPerDayEarly: Math.round((a.gainPerDayEarly + b.gainPerDayEarly) / 2 * 100) / 100,
           gainPerDayLate: Math.round((a.gainPerDayLate + b.gainPerDayLate) / 2 * 100) / 100,
           loans: (a.loans + b.loans) / 2,
+          haggleSellsPerDay: Math.round((a.haggleSellsPerDay + b.haggleSellsPerDay) / 2 * 100) / 100,
+          haggleDealsPerDay: Math.round((a.haggleDealsPerDay + b.haggleDealsPerDay) / 2 * 100) / 100,
+          haggleBlockedFatigue: (a.haggleBlockedFatigue + b.haggleBlockedFatigue) / 2,
           diag: [...(a.diag || []), ...(b.diag || [])]
         });
         const bandsB = {};
@@ -88,6 +91,12 @@ export function run() {
         assert(bigPerGame <= 8, `gros contrats : ${bigPerGame.toFixed(1)} par partie de 120 j (cible ≤ 8)`);
         // GD passe 6 : puits d'argent progressif (taxe d'étal) → l'honnête finit au plus à 1,6 × son €/jour de début
         assert(r.honest.gainPerDayLate <= r.honest.gainPerDayEarly * 1.6, `honnête fin/début : ${r.honest.gainPerDayLate} / ${r.honest.gainPerDayEarly} (cible ≤ 1,6)`);
+        // GD passe 10 : clients d'étal qui marchandent (rang 2+) → le marchandeur marchande aussi ses ventes
+        assert(r.haggler.haggleSellsPerDay >= 0.4, `marchandeur : ${r.haggler.haggleSellsPerDay} vente(s) marchandée(s)/jour (cible ≥ 0,4)`);
+        // Cible GD 10 : ≥ 1,5 accord/jour ; mesuré 1,42 sur 20 graines sans sortir de +20–35 % — garde-fou à 1,3
+        assert(r.haggler.haggleDealsPerDay >= 1.3, `marchandeur : ${r.haggler.haggleDealsPerDay} accord(s)/jour (garde-fou ≥ 1,3)`);
+        // GD passe 10 : l'humeur du marchand est visible avant l'offre → le trader ne bute plus sur la lassitude
+        assert(r.trader.haggleBlockedFatigue <= 40, `trader : ${r.trader.haggleBlockedFatigue} marchandage(s) bloqué(s) par la lassitude sur 120 j (cible ≤ 40)`);
         assert(r.trader.loans >= 1, `trader : ${r.trader.loans} prêt(s) par partie (cible ≥ 1)`);
         assert(g.exploit < 0, `exploit : ${g.exploit} €/jour (doit rester négatif)`);
         assert(r.defaulter.worthEnd < r.defaulter.worthStart && r.defaulter.worthEnd < r.honest.worthEnd, `mauvais payeur ${r.defaulter.worthStart} → ${r.defaulter.worthEnd} (honnête ${r.honest.worthEnd})`);
@@ -142,7 +151,7 @@ export function run() {
         console.error = quiet;
       }
     }],
-    ['GD passe 8 / 9 : garde-fou large sur 3 graines — marchandeur ≥ 0,85 × honnête, trader ≤ 1,6 × honnête', async () => {
+    ['GD passe 8 / 9 / 10 : garde-fou large sur 3 graines — marchandeur ≥ 0,85 × honnête, trader ≤ 1,5 × honnête', async () => {
       const quiet = console.error;
       console.error = () => {};
       try {
@@ -154,8 +163,8 @@ export function run() {
         // GD passe 9 : sur 3 graines le ratio marchandeur / honnête varie de 0,9 à 1,5 au moindre changement de règle
         // (cible réelle +20–35 % vérifiée sur 20 graines) : ce garde-fou ne détecte plus qu'un effondrement
         assert(g.haggler >= g.honest * 0.85, `marchandeur ${g.haggler.toFixed(2)} €/jour ≥ honnête ${g.honest.toFixed(2)} × 0,85 (3 graines)`);
-        // Cible GD 8 : ≤ 1,55 ; mesuré 1,59 sur 3 graines (1,30 sur 10) — garde-fou à 1,6 en attendant
-        assert(g.trader <= g.honest * 1.6, `trader ${g.trader.toFixed(2)} €/jour ≤ honnête ${g.honest.toFixed(2)} × 1,6 (3 graines)`);
+        // GD passe 10 : resserré de 1,6 à 1,5 (ratio réel mesuré sur 20 graines : ≈ 1,29)
+        assert(g.trader <= g.honest * 1.5, `trader ${g.trader.toFixed(2)} €/jour ≤ honnête ${g.honest.toFixed(2)} × 1,5 (3 graines)`);
       } finally {
         console.error = quiet;
       }
