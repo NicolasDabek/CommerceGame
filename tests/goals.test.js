@@ -336,6 +336,49 @@ export function run() {
         assert(s.success && s.price === r.counter, 'vente au prix plafonné');
       } finally { STALL_TUNING.flipCap = prevCap; restore(); }
     }],
+    ['GD passe 11 (P1, expérience désactivée) : petits consommables à l\'étal — tickets ≤ plafond, budget du jour, payés par le PNJ, sauvegardés', async () => {
+      const { STALL_TUNING, NpcRequests } = await import('../js/systems/NpcRequests.js');
+      const prev = { ...STALL_TUNING };
+      const { game, restore } = await makeGame({ reputation: 20 });
+      try {
+        assertEqual(STALL_TUNING.small, false, 'désactivé par défaut (cibles non tenues, voir reports/gd11-petits-tickets.md)');
+        const nr = game.npcRequests;
+        nr._postStallBids(nr._day());
+        assertEqual(nr.smallPending, 0, 'désactivé : aucune visite « petit ticket »');
+        assert(!('smallPending' in nr.toJSON()), 'désactivé : sauvegarde inchangée');
+        Object.assign(STALL_TUNING, { small: true, smallRepeat: true, smallVisits: 3, smallExtraChance: 0, smallBudget: 30, smallMaxTicket: 30 });
+        const inv = game.player.inventory;
+        inv.items = [];
+        inv.add('item_012', 4, 60, 50, 3);   // ~4 € : petit ticket
+        inv.add('item_004', 4, 60, 50, 9);   // ~12 € : petit ticket
+        inv.add('item_003', 1, 60, 50, 300); // 420 € : jamais en petit ticket
+        nr.stallBids = [];
+        nr._postStallBids(nr._day());
+        assertEqual(nr.smallPending, 3, '3 visites prévues');
+        // sauvegarde / rechargement avant la visite : mêmes visites
+        const saved = JSON.parse(JSON.stringify(nr.toJSON()));
+        assertEqual(saved.smallPending, 3, 'visites sauvegardées'); assertEqual(saved.smallBudgetLeft, 30, 'budget sauvegardé');
+        const twin = new NpcRequests(game, saved);
+        const m0 = totalMoney(game);
+        const bids = game.getStallBids();
+        game.npcRequests = twin;
+        const twinBids = game.getStallBids();
+        game.npcRequests = nr;
+        assertEqual(JSON.stringify(twinBids.map(b => [b.npcId, b.itemId, b.bid])), JSON.stringify(bids.map(b => [b.npcId, b.itemId, b.bid])), 'rechargement = partie continue');
+        const small = nr.stallBids.filter(b => b.small);
+        assert(small.length >= 1, `${small.length} client(s) petit ticket`);
+        assert(small.every(b => b.base <= 30 && b.itemId !== 'item_003'), 'tickets ≤ plafond');
+        assert(small.reduce((t, b) => t + b.max, 0) <= 30 + 1e-9, 'budget quotidien respecté');
+        assertEqual(new Set(nr.stallBids.map(b => b.npcId)).size, nr.stallBids.length, 'un client par PNJ et par jour');
+        for (const b of game.getStallBids().filter(x => x.small)) {
+          const cap0 = game.npcController.npcStates[b.npcId].capital;
+          const r = game.answerStallBid(b.id, 'accept');
+          assert(r.success, r.error || 'vente');
+          assert(Math.abs(cap0 - game.npcController.npcStates[b.npcId].capital - r.price) < 0.005, 'payé sur la trésorerie du PNJ');
+        }
+        assert(Math.abs(totalMoney(game) - m0) < 0.01, 'masse monétaire conservée');
+      } finally { Object.assign(STALL_TUNING, prev); restore(); }
+    }],
     ['GD passe 10 : humeur du marchand lisible avant l\'offre (essais, lassitude)', async () => {
       const { game, restore } = await makeGame({ reputation: 20 });
       try {

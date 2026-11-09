@@ -26,7 +26,12 @@ export const STALL_TUNING = { minRank: 2, extraChance: 0.75, bidMin: 0.92, bidMa
   // Mesuré mais DÉSACTIVÉ : sur 2 jours il coûte 0,16 €/j au marchandeur (ratio 1,196 < 1,20 sur 20 graines) et aucune
   // adaptation du robot ne tient à la fois ce ratio, le garde-fou 3 graines (≥ 0,85) et ≥ 0,4 vente marchandée/j ;
   // limité au jour même (flipDays 1) il ne bride pas le trader hybride (1,43 × honnête) — voir reports/gd11-hybride.md.
-  flipCap: false, flipDays: 2 };
+  flipCap: false, flipDays: 2,
+  // GD passe 11 (P1, expérience) : petits consommables — en plus des 1–2 clients, des PNJ viennent acheter pour leur
+  // besoin propre des objets à petit ticket (prix de base ≤ smallMaxTicket), dans un budget quotidien d'achats d'étal
+  // (smallBudget €/jour, toutes visites « petit ticket » confondues). Même marge relative que les autres clients ;
+  // l'objet est consommé par le PNJ (payé sur sa trésorerie). Désactivé par défaut tant que les cibles ne sont pas tenues.
+  small: false, smallVisits: 2, smallExtraChance: 0.5, smallMaxTicket: 30, smallBudget: 40, smallRepeat: false };
 const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
 
 export class NpcRequests {
@@ -42,6 +47,8 @@ export class NpcRequests {
       this._stallSeed = saved.stallSeed >>> 0;
       this.stallDay = Number.isFinite(saved.stallDay) ? saved.stallDay : undefined;
       this.stallPending = Math.max(0, Math.floor(Number(saved.stallPending) || 0));
+      this.smallPending = Math.max(0, Math.floor(Number(saved.smallPending) || 0));
+      this.smallBudgetLeft = Math.max(0, Number(saved.smallBudgetLeft) || 0);
     } else if (saved.stats || saved.stallBids) this._migrateGd10();
   }
 
@@ -182,20 +189,34 @@ export class NpcRequests {
     this.stallBids = this.stallBids.filter(b => b.status === 'open' && b.day === day);
     this.stallDay = day;
     this.stallPending = rankFor(this.game.player?.reputation || 0).id >= STALL_TUNING.minRank ? 1 + (this._sr() < STALL_TUNING.extraChance ? 1 : 0) : 0;
+    // petits consommables (expérience, désactivée par défaut) : aucun tirage supplémentaire quand c'est coupé
+    this.smallPending = 0; this.smallBudgetLeft = 0;
+    if (STALL_TUNING.small && this.stallPending > 0) {
+      this.smallPending = (STALL_TUNING.smallVisits || 0) + (this._sr() < (STALL_TUNING.smallExtraChance || 0) ? 1 : 0);
+      this.smallBudgetLeft = STALL_TUNING.smallBudget || 0;
+    }
   }
 
   _spawnStallBids() {
     const day = this._day();
-    if (this.stallDay !== day || !(this.stallPending > 0)) return;
+    if (this.stallDay !== day || !(this.stallPending > 0 || (STALL_TUNING.small && this.smallPending > 0))) return;
     if (rankFor(this.game.player?.reputation || 0).id < STALL_TUNING.minRank) return;
     const ctl = this.game.npcController;
-    while (this.stallPending > 0) {
+    while (this.stallPending > 0 || (STALL_TUNING.small && this.smallPending > 0)) {
+      const small = !(this.stallPending > 0);
       const used = new Set(this.stallBids.filter(b => b.day === day).map(b => `${b.itemId}|${b.quality}|${b.perfection}`));
       const stacks = [];
       const inv = this.game.player.inventory.items.filter(s => s.quantity > 0 && (s.quality ?? 50) >= STALL_TUNING.minQuality).map(s => ({ itemId: s.itemId, quality: s.quality, perfection: s.perfection }));
       const lst = this.game.offers.filter(o => o.status === 'active' && o.type === 'sell' && o.ownerId === 'player' && o.currentBid == null && (o.quality ?? 50) >= STALL_TUNING.minQuality).map(o => ({ itemId: o.itemId, quality: o.quality, perfection: o.perfection }));
       // les objets en vitrine (annonces du joueur) attirent 3 fois plus les clients que le stock en réserve
-      for (const s of [...lst.map(x => ({ ...x, w: 3 })), ...inv.map(x => ({ ...x, w: 1 }))]) { const key = `${s.itemId}|${s.quality}|${s.perfection}`; if (!used.has(key) && !stacks.some(x => x.key === key)) stacks.push({ ...s, key }); }
+      for (const s of [...lst.map(x => ({ ...x, w: 3 })), ...inv.map(x => ({ ...x, w: 1 }))]) { const key = `${s.itemId}|${s.quality}|${s.perfection}`; if ((!used.has(key) || (small && STALL_TUNING.smallRepeat)) && !stacks.some(x => x.key === key)) stacks.push({ ...s, key }); }
+      if (small) {
+        // petit ticket : seulement les objets bon marché qui tiennent dans le budget restant du jour
+        for (let i = stacks.length - 1; i >= 0; i--) {
+          const b0 = this._stallBase(stacks[i]).base;
+          if (!(b0 <= STALL_TUNING.smallMaxTicket) || b0 > this.smallBudgetLeft) stacks.splice(i, 1);
+        }
+      }
       if (!stacks.length) return;
       let x = this._sr() * stacks.reduce((t, c) => t + c.w, 0);
       let st = stacks[stacks.length - 1];
@@ -206,12 +227,13 @@ export class NpcRequests {
       const max = r2(Math.min(base, bid * (1 + STALL_TUNING.roomMin + this._sr() * (STALL_TUNING.roomMax - STALL_TUNING.roomMin))));
       const busy = new Set(this.stallBids.filter(b => b.day === day).map(b => b.npcId));
       const buyers = NPCS.filter(p => ctl.npcStates[p.id] && ctl.npcStates[p.id].capital >= max * 1.5 && !busy.has(p.id));
-      this.stallPending -= 1;
+      if (small) this.smallPending -= 1; else this.stallPending -= 1;
       if (!buyers.length || !(bid > 0)) continue;
+      if (small) this.smallBudgetLeft = r2(this.smallBudgetLeft - max);
       const fans = buyers.filter(p => item && p.preferredCategories.includes(item.category));
       const pool = fans.length ? fans : buyers;
       const npc = pool[Math.floor(this._sr() * pool.length)];
-      this.stallBids.push({ id: `stall_${day}_${this.stats.stallBids}_${npc.id}`, day, npcId: npc.id, itemId: st.itemId, quality: st.quality, perfection: st.perfection, base, bid, max, counter: null, status: 'open' });
+      this.stallBids.push({ id: `stall_${day}_${this.stats.stallBids}_${npc.id}`, day, npcId: npc.id, itemId: st.itemId, quality: st.quality, perfection: st.perfection, base, bid, max, counter: null, status: 'open', ...(small ? { small: true } : {}) });
       this.stats.stallBids += 1;
     }
   }
@@ -331,7 +353,8 @@ export class NpcRequests {
       stallBids: this.stallBids.filter(b => b.status === 'open' || b.day === this.stallDay),
       stallSeed: this._stallSeed ?? 0x9E3779B9,
       stallDay: this.stallDay ?? null,
-      stallPending: this.stallPending ?? 0
+      stallPending: this.stallPending ?? 0,
+      ...(this.smallPending || this.smallBudgetLeft ? { smallPending: this.smallPending, smallBudgetLeft: this.smallBudgetLeft } : {})
     };
   }
 }

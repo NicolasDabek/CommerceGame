@@ -1,0 +1,241 @@
+config,bot,seed,eur_per_day,haggle_deals_per_day,haggle_sells_per_day,stall_sales_per_day,haggle_gain_per_deal,stall_tickets,stall_margin_total
+"jeu actuel (désactivé)",haggler,1000,11.32,1.64,0.54,0.53,1.52,64,370.48
+"jeu actuel (désactivé)",haggler,8919,2.81,0.98,0.33,0.33,0.79,40,132.05
+"jeu actuel (désactivé)",haggler,16838,5.63,1.33,0.43,0.43,1.13,52,292.19
+"jeu actuel (désactivé)",haggler,24757,6.98,1.26,0.46,0.46,1.78,55,452.92
+"jeu actuel (désactivé)",haggler,32676,6.91,1.16,0.28,0.27,1.2,32,156.63
+"jeu actuel (désactivé)",haggler,40595,8.29,1.53,0.44,0.44,1.45,53,346.43
+"jeu actuel (désactivé)",haggler,48514,13.97,1.59,0.5,0.48,1.88,58,504.41
+"jeu actuel (désactivé)",haggler,56433,11.12,1.43,0.42,0.42,1.14,50,190.32
+"jeu actuel (désactivé)",haggler,64352,7.43,1.78,0.57,0.57,1.08,68,291.67
+"jeu actuel (désactivé)",haggler,72271,8.36,1.65,0.5,0.5,1.56,60,344.76
+"jeu actuel (désactivé)",haggler,80190,9.38,1.53,0.43,0.41,1.59,49,317.86
+"jeu actuel (désactivé)",haggler,88109,7.7,1.61,0.53,0.53,1.42,63,321.23
+"jeu actuel (désactivé)",haggler,96028,6.31,1.31,0.52,0.52,0.92,62,243.85
+"jeu actuel (désactivé)",haggler,103947,7.45,1.41,0.48,0.47,1.07,56,306.77
+"jeu actuel (désactivé)",haggler,111866,4.62,1.28,0.35,0.34,0.74,41,132.47
+"jeu actuel (désactivé)",haggler,119785,6.13,1.5,0.48,0.48,1.1,57,259.14
+"jeu actuel (désactivé)",haggler,127704,9.1,1.71,0.53,0.53,1.57,64,340.09
+"jeu actuel (désactivé)",haggler,135623,5.98,1.34,0.45,0.44,1.27,53,276.3
+"jeu actuel (désactivé)",haggler,143542,11.8,1.28,0.47,0.45,1.75,54,286.8
+"jeu actuel (désactivé)",haggler,151461,9.07,0.98,0.32,0.3,1.86,36,272.95
+"jeu actuel (désactivé)",trader_hybrid,1000,9.07,1.15,0.63,0.57,1.47,69,561.39
+"jeu actuel (désactivé)",trader_hybrid,8919,5.96,0.91,0.42,0.38,0.85,46,142.75
+"jeu actuel (désactivé)",trader_hybrid,16838,5.59,0.91,0.43,0.41,1.4,49,306.77
+"jeu actuel (désactivé)",trader_hybrid,24757,6.63,1.04,0.53,0.46,0.9,55,224.19
+"jeu actuel (désactivé)",trader_hybrid,32676,2.98,0.87,0.48,0.39,1.08,47,190.51
+"jeu actuel (désactivé)",trader_hybrid,40595,6.01,1.18,0.58,0.51,1.62,61,344.16
+"jeu actuel (désactivé)",trader_hybrid,48514,9.5,1.13,0.58,0.5,1.41,60,441.51
+"jeu actuel (désactivé)",trader_hybrid,56433,11.13,1.31,0.64,0.61,1.37,73,486.59
+"jeu actuel (désactivé)",trader_hybrid,64352,5.9,0.98,0.47,0.42,1.27,50,208.23
+"jeu actuel (désactivé)",trader_hybrid,72271,7.41,0.82,0.42,0.39,1.03,47,375.72
+"jeu actuel (désactivé)",trader_hybrid,80190,8.13,1.22,0.54,0.48,1.3,57,310.25
+"jeu actuel (désactivé)",trader_hybrid,88109,8.57,0.84,0.38,0.33,1.41,40,325.19
+"jeu actuel (désactivé)",trader_hybrid,96028,8.66,0.88,0.41,0.38,1.41,45,254.59
+"jeu actuel (désactivé)",trader_hybrid,103947,11.8,1.28,0.62,0.54,1.48,65,403.54
+"jeu actuel (désactivé)",trader_hybrid,111866,5.11,0.93,0.49,0.46,1.07,55,282.62
+"jeu actuel (désactivé)",trader_hybrid,119785,10.57,1.09,0.49,0.44,1.89,53,372.01
+"jeu actuel (désactivé)",trader_hybrid,127704,5.33,0.98,0.45,0.41,0.71,49,158.51
+"jeu actuel (désactivé)",trader_hybrid,135623,10.19,1.02,0.46,0.43,1.85,51,506.84
+"jeu actuel (désactivé)",trader_hybrid,143542,8.93,0.95,0.4,0.37,1.11,44,163.87
+"jeu actuel (désactivé)",trader_hybrid,151461,1.49,0.72,0.37,0.33,1.27,40,174.92
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,1000,4.48,1.29,0.42,0.41,1.99,49,270.41
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,8919,5.95,0.84,0.24,0.24,1.38,29,223.44
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,16838,7.76,1.59,0.57,0.57,1.02,69,208.78
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,24757,4.45,1,0.38,0.37,1.54,44,253.21
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,32676,6.8,1.46,0.48,0.48,1.34,57,261.2
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,40595,6.6,1.6,0.44,0.43,1.1,52,216.56
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,48514,8.58,1.47,0.56,0.55,2.07,66,643.39
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,56433,12.88,1.42,0.5,0.5,1.12,60,309.17
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,64352,9.24,1.4,0.48,0.47,1.36,56,359.8
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,72271,3.52,1.4,0.5,0.49,1.2,59,229.79
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,80190,6.12,1.61,0.59,0.59,1.39,71,425.69
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,88109,14.28,1.61,0.52,0.52,1.55,62,522.68
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,96028,7.23,1.38,0.48,0.48,1.47,58,424.54
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,103947,14.47,1.8,0.68,0.68,1.87,81,549.78
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,111866,11.88,1.25,0.35,0.34,2.58,41,481.55
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,119785,7.76,1.43,0.49,0.49,1.31,59,389.43
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,127704,5.95,1.55,0.54,0.54,1.33,65,287.86
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,135623,8.98,1.73,0.56,0.56,1.82,67,538.99
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,143542,8.39,1.53,0.55,0.53,1.38,64,356.18
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",haggler,151461,7.15,1.13,0.38,0.37,1.57,44,364.29
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,1000,6.25,1.01,0.53,0.52,1.39,62,377.56
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,8919,6.65,0.68,0.35,0.31,0.86,37,114.09
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,16838,7.96,1.02,0.53,0.48,1.29,57,315.7
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,24757,6.48,1.01,0.53,0.48,1.82,58,306.84
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,32676,3.43,1.26,0.64,0.57,1,69,261.2
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,40595,3.09,1.02,0.58,0.48,1.24,57,335.71
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,48514,11.45,1.08,0.54,0.47,1.31,56,483.72
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,56433,7.24,1.02,0.49,0.45,1.53,54,304.43
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,64352,5.41,0.99,0.52,0.48,1.38,58,292.41
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,72271,3.08,0.9,0.53,0.48,1.01,57,266.17
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,80190,3.62,1.22,0.64,0.6,0.92,72,296.94
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,88109,8.26,0.94,0.44,0.4,1.27,48,284.27
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,96028,7.78,1.08,0.49,0.49,1.35,59,263.88
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,103947,12.96,1.09,0.57,0.51,2.1,61,653.96
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,111866,8.96,0.98,0.53,0.49,1.43,59,296.94
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,119785,10.78,1.49,0.83,0.79,1.39,95,550.74
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,127704,8.96,1.23,0.53,0.5,0.96,60,218.7
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,135623,6.42,0.98,0.43,0.41,1.19,49,197.22
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,143542,10.48,1.18,0.62,0.56,0.81,67,211.43
+"petits tickets ≤ 30 €, 2–3 visites, budget 40 €/j",trader_hybrid,151461,5.89,0.98,0.54,0.5,1.09,60,251.05
+"idem + assortiment 3 unités",haggler,1000,6.68,1.33,0.38,0.38,1.29,46,226.06
+"idem + assortiment 3 unités",haggler,8919,6.28,1.17,0.34,0.34,0.74,41,105.5
+"idem + assortiment 3 unités",haggler,16838,9.89,1.36,0.43,0.4,1.7,48,477.22
+"idem + assortiment 3 unités",haggler,24757,4.03,1.36,0.48,0.48,1.01,58,261.05
+"idem + assortiment 3 unités",haggler,32676,9.97,1.47,0.44,0.44,1.57,53,315.14
+"idem + assortiment 3 unités",haggler,40595,7.81,1.72,0.53,0.53,1.2,63,360.08
+"idem + assortiment 3 unités",haggler,48514,7.92,1.63,0.44,0.43,0.88,52,152.65
+"idem + assortiment 3 unités",haggler,56433,12.33,1.35,0.43,0.43,1.55,52,225.39
+"idem + assortiment 3 unités",haggler,64352,6.68,1.13,0.37,0.35,1.29,42,300.36
+"idem + assortiment 3 unités",haggler,72271,5.74,1.65,0.57,0.57,1.41,68,390.39
+"idem + assortiment 3 unités",haggler,80190,6.86,1.64,0.52,0.51,1.34,61,288.63
+"idem + assortiment 3 unités",haggler,88109,10.09,1.71,0.57,0.57,1.85,69,474.04
+"idem + assortiment 3 unités",haggler,96028,9.59,1.37,0.4,0.38,1.06,46,456.94
+"idem + assortiment 3 unités",haggler,103947,10.32,1.73,0.59,0.58,1.78,70,486.84
+"idem + assortiment 3 unités",haggler,111866,6.2,1.24,0.3,0.3,0.92,36,111.72
+"idem + assortiment 3 unités",haggler,119785,8.25,1.38,0.39,0.39,1.55,47,250.88
+"idem + assortiment 3 unités",haggler,127704,7.05,1.74,0.63,0.63,1.22,76,377.27
+"idem + assortiment 3 unités",haggler,135623,8.35,1.6,0.64,0.64,1.79,77,469.81
+"idem + assortiment 3 unités",haggler,143542,11.1,1.32,0.43,0.42,1.38,50,599.97
+"idem + assortiment 3 unités",haggler,151461,8.23,1.34,0.43,0.42,1.29,50,248.3
+"idem + assortiment 3 unités",trader_hybrid,1000,7.08,1.38,0.73,0.68,1.34,82,349.5
+"idem + assortiment 3 unités",trader_hybrid,8919,9.46,0.87,0.45,0.42,0.78,50,137.11
+"idem + assortiment 3 unités",trader_hybrid,16838,7.52,1.03,0.51,0.47,1.23,56,347.11
+"idem + assortiment 3 unités",trader_hybrid,24757,10.65,1.17,0.61,0.57,1.55,68,445.97
+"idem + assortiment 3 unités",trader_hybrid,32676,11.51,1.36,0.62,0.57,1.62,68,498.18
+"idem + assortiment 3 unités",trader_hybrid,40595,4.36,0.93,0.52,0.49,1.37,59,385.98
+"idem + assortiment 3 unités",trader_hybrid,48514,8.75,1.02,0.55,0.49,1.48,59,384.65
+"idem + assortiment 3 unités",trader_hybrid,56433,10.35,1.06,0.46,0.45,1.56,54,296.29
+"idem + assortiment 3 unités",trader_hybrid,64352,9.3,1.06,0.55,0.5,1.72,60,494.59
+"idem + assortiment 3 unités",trader_hybrid,72271,10.74,1.08,0.52,0.51,1.24,61,370.97
+"idem + assortiment 3 unités",trader_hybrid,80190,7.11,1.01,0.45,0.43,1.27,52,253.76
+"idem + assortiment 3 unités",trader_hybrid,88109,9.6,1.02,0.49,0.47,1.34,56,296.82
+"idem + assortiment 3 unités",trader_hybrid,96028,4.6,0.76,0.44,0.4,0.81,48,105.16
+"idem + assortiment 3 unités",trader_hybrid,103947,9.59,1.39,0.62,0.56,1.25,67,305.6
+"idem + assortiment 3 unités",trader_hybrid,111866,9.73,1.41,0.73,0.67,1.11,80,393.29
+"idem + assortiment 3 unités",trader_hybrid,119785,7.72,1.23,0.63,0.6,1.65,72,668.61
+"idem + assortiment 3 unités",trader_hybrid,127704,8.87,1.48,0.67,0.65,0.9,78,277.93
+"idem + assortiment 3 unités",trader_hybrid,135623,9.85,1.11,0.59,0.57,1.25,69,360.84
+"idem + assortiment 3 unités",trader_hybrid,143542,7.15,0.87,0.5,0.41,1.09,49,129.93
+"idem + assortiment 3 unités",trader_hybrid,151461,10.26,0.98,0.61,0.57,1.5,69,540.03
+"idem + plusieurs clients par lot",haggler,1000,5.58,1.48,0.5,0.48,1.2,58,302.75
+"idem + plusieurs clients par lot",haggler,8919,7.72,1.31,0.43,0.43,1.28,51,288.87
+"idem + plusieurs clients par lot",haggler,16838,6.07,1.46,0.48,0.48,1.46,57,377.31
+"idem + plusieurs clients par lot",haggler,24757,5.14,1.48,0.52,0.52,1.27,62,286.97
+"idem + plusieurs clients par lot",haggler,32676,8.43,1.44,0.51,0.51,1.49,61,264.5
+"idem + plusieurs clients par lot",haggler,40595,8.29,1.82,0.63,0.63,1.2,75,335.56
+"idem + plusieurs clients par lot",haggler,48514,8.37,1.43,0.47,0.45,1.5,54,319.62
+"idem + plusieurs clients par lot",haggler,56433,13.11,1.69,0.59,0.58,2,70,528.71
+"idem + plusieurs clients par lot",haggler,64352,8.27,1.49,0.5,0.5,1.34,60,417.49
+"idem + plusieurs clients par lot",haggler,72271,6.36,1.48,0.58,0.57,1.69,69,504.54
+"idem + plusieurs clients par lot",haggler,80190,6.8,1.87,0.68,0.68,1.25,81,252.16
+"idem + plusieurs clients par lot",haggler,88109,7.77,1.63,0.55,0.55,1.3,66,255.43
+"idem + plusieurs clients par lot",haggler,96028,9,1.65,0.57,0.57,1.33,68,315.38
+"idem + plusieurs clients par lot",haggler,103947,11.46,1.85,0.61,0.59,1.33,71,582.86
+"idem + plusieurs clients par lot",haggler,111866,5.58,1.14,0.39,0.39,1.4,47,213.04
+"idem + plusieurs clients par lot",haggler,119785,5.76,1.56,0.56,0.56,1.3,67,283.86
+"idem + plusieurs clients par lot",haggler,127704,5.18,1.63,0.54,0.54,1.07,65,251.65
+"idem + plusieurs clients par lot",haggler,135623,7.77,1.62,0.58,0.58,1.3,70,439.42
+"idem + plusieurs clients par lot",haggler,143542,9.51,1.51,0.48,0.48,1.61,57,345.04
+"idem + plusieurs clients par lot",haggler,151461,8.27,1.35,0.47,0.45,1.28,54,338.26
+"idem + plusieurs clients par lot",trader_hybrid,1000,7.87,0.84,0.51,0.48,1.45,58,440.75
+"idem + plusieurs clients par lot",trader_hybrid,8919,7.73,1.15,0.57,0.52,1.57,62,363.06
+"idem + plusieurs clients par lot",trader_hybrid,16838,6.59,0.97,0.52,0.48,1.56,57,363.09
+"idem + plusieurs clients par lot",trader_hybrid,24757,7.21,1.23,0.63,0.58,1.22,70,323.03
+"idem + plusieurs clients par lot",trader_hybrid,32676,11.27,1.11,0.47,0.43,1.64,51,288.39
+"idem + plusieurs clients par lot",trader_hybrid,40595,5.38,1.02,0.52,0.5,0.85,60,209.22
+"idem + plusieurs clients par lot",trader_hybrid,48514,10.53,0.94,0.42,0.36,1.34,43,212.15
+"idem + plusieurs clients par lot",trader_hybrid,56433,10.07,1.48,0.7,0.63,1.08,76,270.91
+"idem + plusieurs clients par lot",trader_hybrid,64352,6.97,1.06,0.46,0.43,1.42,52,279.94
+"idem + plusieurs clients par lot",trader_hybrid,72271,8.55,1.14,0.62,0.57,1.03,69,254.31
+"idem + plusieurs clients par lot",trader_hybrid,80190,6.97,0.93,0.39,0.37,1.75,44,337.94
+"idem + plusieurs clients par lot",trader_hybrid,88109,8.93,1.27,0.63,0.58,1.43,70,451.52
+"idem + plusieurs clients par lot",trader_hybrid,96028,5.47,0.88,0.43,0.43,0.94,51,184.4
+"idem + plusieurs clients par lot",trader_hybrid,103947,9.98,1.18,0.63,0.54,1.36,65,298.63
+"idem + plusieurs clients par lot",trader_hybrid,111866,6.38,0.94,0.55,0.51,0.84,61,189.23
+"idem + plusieurs clients par lot",trader_hybrid,119785,10.87,1.12,0.55,0.51,1.39,61,303.15
+"idem + plusieurs clients par lot",trader_hybrid,127704,9.93,1.15,0.47,0.44,1,53,176.86
+"idem + plusieurs clients par lot",trader_hybrid,135623,8.78,1.13,0.68,0.63,1.76,76,586.7
+"idem + plusieurs clients par lot",trader_hybrid,143542,7.65,1.03,0.56,0.51,1.32,61,179.63
+"idem + plusieurs clients par lot",trader_hybrid,151461,5.63,1.02,0.6,0.51,1.34,61,407.57
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,1000,5.83,1.7,0.52,0.52,1.08,62,276.87
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,8919,5.74,0.89,0.23,0.23,1.25,28,75.54
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,16838,6.93,1.35,0.45,0.44,1.27,53,383.35
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,24757,4.92,1.13,0.3,0.3,1.05,36,134.59
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,32676,9.64,1.42,0.4,0.38,1.83,46,351.14
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,40595,9.84,1.28,0.43,0.43,1.62,52,176
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,48514,9.51,1.73,0.7,0.69,1.11,83,389.52
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,56433,14.14,1.37,0.42,0.42,1.65,50,462.7
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,64352,9.8,1.32,0.47,0.47,2.08,56,640.64
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,72271,6.23,1.39,0.48,0.48,1.4,58,336.12
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,80190,8.17,1.56,0.5,0.48,1.31,57,320.07
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,88109,10.74,1.43,0.53,0.52,1.76,62,425.11
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,96028,10.72,1.59,0.49,0.48,1.48,58,327.56
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,103947,10.7,1.98,0.72,0.7,1.38,84,403.26
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,111866,6.76,1.16,0.38,0.37,1.71,44,258.15
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,119785,7.34,1.33,0.46,0.46,1.66,55,324.54
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,127704,10.07,1.94,0.75,0.74,1.55,89,406.98
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,135623,8.78,1.54,0.57,0.57,1.77,69,576.17
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,143542,9.73,1.36,0.53,0.53,1.85,64,616.11
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",haggler,151461,8.69,1.58,0.49,0.47,1.03,56,225.51
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,1000,8.04,0.98,0.62,0.6,1.51,72,383.43
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,8919,9.28,1.34,0.63,0.59,1.22,71,321.86
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,16838,3.46,0.83,0.53,0.48,0.85,58,195.53
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,24757,9.28,0.72,0.31,0.28,2.14,34,291.52
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,32676,6.34,1.1,0.54,0.5,1.07,60,215.82
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,40595,11.21,1.14,0.53,0.49,1.46,59,451.05
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,48514,9.5,1.08,0.53,0.51,1.22,61,349.5
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,56433,15.05,1.27,0.59,0.55,0.97,66,201.11
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,64352,8.32,1.02,0.48,0.45,1.81,54,443.94
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,72271,6.78,0.83,0.48,0.43,0.99,52,203.06
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,80190,12.13,1.28,0.76,0.68,1.84,81,652.5
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,88109,9.27,1.33,0.63,0.62,1.3,74,358.15
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,96028,6.36,0.81,0.38,0.33,1.52,40,204.43
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,103947,14.06,1.13,0.52,0.49,1.38,59,270.27
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,111866,4.78,0.75,0.41,0.36,1.18,43,129.8
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,119785,12.38,1.13,0.54,0.5,1.31,60,398.74
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,127704,6.52,1.08,0.53,0.48,0.94,58,201.43
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,135623,8.38,1.18,0.58,0.53,1.22,63,400.68
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,143542,11.04,1.44,0.81,0.78,1.32,94,485.56
+"≤ 30 €, 3–4 visites, budget 60 €/j, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,151461,6.63,1.08,0.67,0.61,1.82,73,467.16
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,1000,6.86,1.47,0.54,0.53,1.49,64,402.19
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,8919,7.59,1.18,0.27,0.27,1.11,32,61.27
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,16838,7.38,1.4,0.4,0.4,1.66,48,453.8
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,24757,6.96,1.53,0.57,0.56,1.28,67,399.15
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,32676,6.39,1.27,0.42,0.42,1.27,50,180.81
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,40595,8.8,1.48,0.43,0.43,1.44,51,426.55
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,48514,10.55,1.48,0.45,0.44,2.16,53,655.22
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,56433,13.23,1.61,0.56,0.56,1.36,67,261.48
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,64352,6.29,1.39,0.43,0.43,1.25,51,323.35
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,72271,8.32,1.59,0.63,0.63,2.27,76,623.19
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,80190,4.28,1.41,0.51,0.51,1.02,61,270.18
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,88109,11,1.77,0.63,0.62,1.97,74,505.76
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,96028,7.48,1.38,0.4,0.4,1.35,48,281.28
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,103947,11,2.06,0.68,0.68,1.56,82,545.82
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,111866,6.31,1.27,0.36,0.36,1.16,43,167.26
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,119785,7.53,1.53,0.53,0.53,1.52,63,382.92
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,127704,6.85,1.57,0.43,0.43,1.34,51,242.21
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,135623,12.2,1.81,0.68,0.67,1.63,80,453.55
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,143542,8.6,1.35,0.44,0.44,1.69,53,264.52
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",haggler,151461,8.38,1.38,0.46,0.44,1.37,53,190.77
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,1000,6.41,1.04,0.56,0.54,1.44,65,451.14
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,8919,9.18,1,0.48,0.44,1.29,53,264.54
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,16838,7.33,0.93,0.43,0.38,1.04,45,180.31
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,24757,8.06,0.77,0.36,0.33,0.96,39,154.67
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,32676,5.63,0.79,0.48,0.43,1.74,52,408.11
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,40595,6.08,1.13,0.54,0.51,1.16,61,204.61
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,48514,10.6,0.94,0.53,0.45,1.82,54,754.88
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,56433,6.88,1.24,0.54,0.53,1.08,64,189.78
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,64352,9.04,1.11,0.55,0.44,1.23,53,213.14
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,72271,9.73,1.02,0.49,0.47,1.81,56,412.1
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,80190,8.89,1.1,0.48,0.45,1.2,54,225.33
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,88109,6.97,0.94,0.48,0.46,1.91,55,376.04
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,96028,6.93,0.72,0.42,0.37,1.46,44,168.57
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,103947,9.83,1.25,0.67,0.64,1.28,77,397.02
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,111866,12.31,1.04,0.49,0.45,1.56,54,279.62
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,119785,6.23,1.18,0.6,0.57,1.03,69,313.55
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,127704,7.96,1.15,0.53,0.49,1.07,59,331.96
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,135623,7.22,1.02,0.51,0.49,1.14,59,281.44
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,143542,9.61,1.1,0.57,0.55,1.64,66,338.82
+"≤ 15 €, 3–4 visites, assortiment 4 (achat ≤ 1,03 × juste)",trader_hybrid,151461,10.43,0.99,0.57,0.43,1.49,51,348.83
