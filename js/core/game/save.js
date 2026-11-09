@@ -27,7 +27,8 @@ export const GameSave = {
       economy: this.economy.toJSON(),
       reserve: this.reserve.toJSON(),
       supplyDemand: this.supplyDemand.toJSON(),
-      completedGoals: [...this.completedGoals]
+      completedGoals: [...this.completedGoals],
+      rewardedTiers: [...(this.rewardedTiers || [])]
     };
     Storage.save(data);
   },
@@ -72,6 +73,9 @@ export const GameSave = {
     this._lastSnapshotTx = 0;
 
     this.completedGoals = data.completedGoals || [];
+    // GD passe 11 : paliers de maîtrise déjà récompensés (sauvegardes GD10 : déduits des objectifs de marchandage validés)
+    this.rewardedTiers = Array.isArray(data.rewardedTiers) ? data.rewardedTiers
+      : [['haggle_sells_10', 'mastery_3'], ['haggle_sells_30', 'mastery_4']].filter(([g]) => this.completedGoals.includes(g)).map(([, t]) => t);
 
     return true;
   },

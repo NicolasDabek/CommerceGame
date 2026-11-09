@@ -255,17 +255,17 @@ export const JobContracts = {
       return { success: false, error: `${npcName} n'a plus assez d'argent` };
     }
     let left = order.quantity;
-    let costBasis = 0;
+    let costBasis = 0; let costUnknown = false;
     for (const st of stacks) {
       if (left <= 0) break;
       const take = Math.min(left, st.quantity);
       inv.remove(order.itemId, take, st.quality, st.perfection);
       this._giveNpcItem(order.npcId, order.itemId, take, st.quality, st.perfection);
-      if (st.avgBuyPrice != null) costBasis += st.avgBuyPrice * take;
+      if (st.avgBuyPrice != null) costBasis += st.avgBuyPrice * take; else costUnknown = true;
       left -= take;
     }
     this.game.addMoney(order.pay);
-    this.game.player.recordDelivery?.(order.pay, getItemById(order.itemId)?.category, order.quantity);
+    this.game.player.recordDelivery?.(order.pay, getItemById(order.itemId)?.category, order.quantity, costUnknown ? null : costBasis);
     this.game.npcController.noteTradeWithPlayer?.(order.npcId, 0, false);
     order.status = 'done';
     this.game.career?.noteShortageDelivery?.(order.itemId);
@@ -301,12 +301,12 @@ export const JobContracts = {
     }
     const inv = this.game.player.inventory;
     const stacks = inv.getStacks(job.itemId).slice().sort((a, b) => a.quality - b.quality);
-    let costBasis = 0;
+    let costBasis = 0; let costUnknown = false;
     let left = job.quantity;
     stacks.forEach(st => {
       if (left <= 0) return;
       const take = Math.min(left, st.quantity);
-      if (st.avgBuyPrice != null) costBasis += st.avgBuyPrice * take;
+      if (st.avgBuyPrice != null) costBasis += st.avgBuyPrice * take; else costUnknown = true;
       left -= take;
     });
     const removed = inv.remove(job.itemId, job.quantity);
@@ -330,7 +330,7 @@ export const JobContracts = {
       reserve.addStock(job.itemId, job.quantity);
     }
     this.game.addMoney(payout);
-    this.game.player.recordDelivery?.(payout, getItemById(job.itemId)?.category, job.quantity);
+    this.game.player.recordDelivery?.(payout, getItemById(job.itemId)?.category, job.quantity, costUnknown ? null : costBasis);
     this.gainXp('trade', job.rush ? 20 : 15);
     this._emitJobIncome('contract', job.itemId, job.quantity, payout, costBasis);
     this.game.player.addXp(job.rush ? 18 : 12);

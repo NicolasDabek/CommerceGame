@@ -11,6 +11,9 @@ import { rankFor } from '../Ranks.js';
 export const GOAL_REP_MAX_RANK = 2;
 /** GD passe 10 : rangs requis pour les objectifs « ventes marchandées » (10 puis 30). */
 export const HAGGLE_GOAL_RANKS = [3, 4];
+/** GD passe 11 : branche sans marchandage — livraisons rentables pour les paliers 3 et 4 (et catégories distinctes au palier 4). */
+export const SUPPLY_GOAL_TARGETS = [20, 40];
+export const SUPPLY_GOAL_MIN_CATEGORIES = 3;
 
 export const GameGoals = {
 
@@ -64,7 +67,12 @@ export const GameGoals = {
     // GD passe 10 : objectifs de fin de partie liés au marchandage des ventes (rang 3 puis 4)
     const rankId = rankFor(this.player.reputation || 0).id;
     const haggledSales = this.negotiation?.stats?.sellDeals || 0;
-    const rankGated = (minRank, target) => (rankId >= minRank ? Math.min(haggledSales, target) : Math.min(haggledSales, target - 1));
+    const rankGated = (minRank, target, value = haggledSales) => (rankId >= minRank ? Math.min(value, target) : Math.min(value, target - 1));
+    // GD passe 11 : branche « approvisionneur » (sans marchandage) — livraisons rentables (coût connu, marge ≥ 5 %)
+    const profDeliveries = this.player.stats?.profitableDeliveries || 0;
+    const profCats = (this.player.stats?.profitableCategories || []).length;
+    const supplyTarget = SUPPLY_GOAL_TARGETS[1];
+    const supply4 = profCats >= SUPPLY_GOAL_MIN_CATEGORIES ? profDeliveries : Math.min(profDeliveries, supplyTarget - 1);
 
     return [
       {
@@ -74,6 +82,7 @@ export const GameGoals = {
         progress: rankGated(HAGGLE_GOAL_RANKS[0], 10),
         target: 10,
         minRank: HAGGLE_GOAL_RANKS[0],
+        tier: 'mastery_3',
         reward: '+250 XP, +1 case inventaire',
         xpReward: 250,
         inventoryReward: 1
@@ -85,6 +94,32 @@ export const GameGoals = {
         progress: rankGated(HAGGLE_GOAL_RANKS[1], 30),
         target: 30,
         minRank: HAGGLE_GOAL_RANKS[1],
+        tier: 'mastery_4',
+        reward: '+600 XP, +2 cases inventaire',
+        xpReward: 600,
+        inventoryReward: 2
+      },
+      // GD passe 11 : même palier, même récompense que les ventes marchandées — un seul des deux est récompensé (tier)
+      {
+        id: 'supply_deliveries_20',
+        title: 'Fournisseur fiable',
+        description: `Livrer ${SUPPLY_GOAL_TARGETS[0]} commandes rentables (contrats, demandes, commandes publiques ; marge d au moins 5 %) — rang 3 requis. Meme palier que « Vendeur qui negocie » : un seul est recompense.`,
+        progress: rankGated(HAGGLE_GOAL_RANKS[0], SUPPLY_GOAL_TARGETS[0], profDeliveries),
+        target: SUPPLY_GOAL_TARGETS[0],
+        minRank: HAGGLE_GOAL_RANKS[0],
+        tier: 'mastery_3',
+        reward: '+250 XP, +1 case inventaire',
+        xpReward: 250,
+        inventoryReward: 1
+      },
+      {
+        id: 'supply_deliveries_40',
+        title: 'Maison d approvisionnement',
+        description: `Livrer ${SUPPLY_GOAL_TARGETS[1]} commandes rentables dans au moins ${SUPPLY_GOAL_MIN_CATEGORIES} categories — rang 4 requis. Meme palier que « Maitre de l etal » : un seul est recompense.`,
+        progress: rankGated(HAGGLE_GOAL_RANKS[1], supplyTarget, supply4),
+        target: supplyTarget,
+        minRank: HAGGLE_GOAL_RANKS[1],
+        tier: 'mastery_4',
         reward: '+600 XP, +2 cases inventaire',
         xpReward: 600,
         inventoryReward: 2
@@ -462,7 +497,11 @@ export const GameGoals = {
     );
 
     newlyCompleted.forEach(goal => {
+      // GD passe 11 : paliers de maîtrise — la première branche validée est récompensée, l'autre est validée sans récompense
+      const tierPaid = goal.tier && (this.rewardedTiers || []).includes(goal.tier);
       this.completedGoals.push(goal.id);
+      if (tierPaid) { if (this.uiCallbacks.onStatus) this.uiCallbacks.onStatus(`Objectif termine : ${goal.title} (palier deja recompense)`); return; }
+      if (goal.tier) this.rewardedTiers = [...(this.rewardedTiers || []), goal.tier];
       if (goal.inventoryReward) this.player.inventory.expand(goal.inventoryReward);
       // GD passe 9 : les livraisons comptent désormais dans les objectifs ; leur réputation ne doit pas
       // précipiter les rangs 3–4 (plafonds de crédit 1 600 / 2 500 €, création monétaire par le trader). Au rang 2+, la récompense devient de l'XP (×10).

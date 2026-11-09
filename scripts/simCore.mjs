@@ -125,6 +125,21 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000, bo
       const handle = game._handleTransaction.bind(game);
       game._handleTransaction = (tx) => { txCount += 1; return handle(tx); };
       game.matchingEngine.onTransaction = (tx) => game._handleTransaction(tx);
+      // GD passe 11 : contrôle des paiements PNJ (montant ≤ 0 ou trésorerie négative) et tickets des ventes d'étal
+      const pay = { negPayments: 0, minCapital: Infinity, stall: [] };
+      const ctlDebit = game.npcController.debitNpc.bind(game.npcController);
+      game.npcController.debitNpc = (id, amount) => {
+        if (!(amount >= 0)) pay.negPayments += 1;
+        const ok = ctlDebit(id, amount);
+        const cap = game.npcController.npcStates[id]?.capital;
+        if (cap != null && cap < pay.minCapital) pay.minCapital = cap;
+        return ok;
+      };
+      const handleTx = game._handleTransaction;
+      game._handleTransaction = (tx) => {
+        if (tx.type === 'stall') pay.stall.push({ price: tx.price, cost: tx.sellerAvgCost ?? null });
+        return handleTx(tx);
+      };
 
       const series = [];
       const msPerDay = game.timeManager.msPerGameDay / game.timeManager.speed;
@@ -212,7 +227,9 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000, bo
         rivals: minds.filter(m => Object.values(m.rivals).some(v => v >= 2)).length,
         goals: minds.reduce((acc, m) => { const g = m.goal?.id || 'none'; acc[g] = (acc[g] || 0) + 1; return acc; }, {})
       };
-      runs.push({ seed, start, series, npcMind, shortDurations, shortByItem, shortNoListing, cityResolved: game.supplyDemand ? [...game.supplyDemand.resolved] : null, reserveStats: game.reserve ? { ...game.reserve.stats } : null, creditStats: game.credit ? { ...game.credit.stats } : null });
+      const caps = Object.values(game.npcController.npcStates).map(st => st.capital ?? 0);
+      pay.minCapital = Math.min(pay.minCapital, ...caps);
+      runs.push({ seed, start, series, npcMind, pay, shortDurations, shortByItem, shortNoListing, cityResolved: game.supplyDemand ? [...game.supplyDemand.resolved] : null, reserveStats: game.reserve ? { ...game.reserve.stats } : null, creditStats: game.credit ? { ...game.credit.stats } : null });
     }
   } finally {
     Date.now = realNow;
@@ -280,7 +297,56 @@ export function summarize(runs, days, seeds, elapsedMs) {
  * Une ligne par robot (et « aucun » = PNJ seuls) : €/jour en début et fin de partie, gain total,
  * subventions et interventions du Comptoir (moyenne par partie), pénuries, masse monétaire.
  */
-export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'honest', 'haggler', 'trader', 'trader_no_loan', 'exploit', 'defaulter'] } = {}) {
+/**
+ * GD passe 11 : variantes du trader. Le scénario historique (« trader » : crédit + marchandage, ignore les clients d'étal)
+ * est conservé ; « trader_hybrid » combine crédit ET clients d'étal, « trader_hybrid_no_loan » le même sans prêt.
+ */
+export const BOT_VARIANTS = {
+  trader_no_loan: { traderMaxLoans: 0 },
+  trader_hybrid: { traderStall: true },
+  trader_hybrid_no_loan: { traderStall: true, traderMaxLoans: 0 },
+  // variante « garde son stock » : ne vend à l'étal aucun objet réservé à un contrat / une demande / une commande publique
+  trader_hybrid_keep: { traderStall: true, stallKeep: 99 },
+  trader_hybrid_keep_no_loan: { traderStall: true, stallKeep: 99, traderMaxLoans: 0 }
+};
+
+/** Graines appariées des tests de stabilité (lot A : 1000 + i·7919, lot B : 1000 + 10·7919 + i·7919). */
+export const PAIRED_SEED_BASES = Array.from({ length: 20 }, (_, i) => (i < 10 ? 1000 + i * 7919 : 1000 + 10 * 7919 + (i - 10) * 7919));
+
+/**
+ * GD passe 11 : un robot (ou une variante) sur chaque graine appariée, partie par partie :
+ * €/jour, patrimoine, prêts, ventes d'étal (tickets, marges), paiements PNJ, masse monétaire.
+ */
+export async function pairedBotRuns({ bot, days = 120, seedBases = PAIRED_SEED_BASES, params = null } = {}) {
+  const prev = globalThis.__BOT_PARAMS;
+  const out = [];
+  try {
+    globalThis.__BOT_PARAMS = { ...(prev || {}), ...(BOT_VARIANTS[bot] || {}), ...(params || {}) };
+    const mode = BOT_VARIANTS[bot] ? 'trader' : bot;
+    for (const seedBase of seedBases) {
+      const { summary, runs } = await runSimulation({ days, seeds: 1, seedBase, bot: mode });
+      const b = summary.bot;
+      const r = runs[0];
+      out.push({
+        seed: seedBase, gain: Math.round((b.worthEnd - b.worthStart) / days * 100) / 100, worthStart: b.worthStart, worthEnd: b.worthEnd,
+        early: b.gainPerDayEarly, late: b.gainPerDayLate, loans: b.loans, haggleDealsPerDay: b.haggleDealsPerDay, haggleSellsPerDay: b.haggleSellsPerDay,
+        stallSalesPerDay: b.stallSalesPerDay, haggleGainPerDeal: b.haggleGainPerDeal, moneyBand: summary.moneyBand,
+        negPayments: r.pay?.negPayments ?? 0, minCapital: r.pay?.minCapital ?? null, stall: r.pay?.stall || [], diag: b.diag?.[0] || {}
+      });
+    }
+  } finally { globalThis.__BOT_PARAMS = prev; }
+  return out;
+}
+
+/** Moyenne, IC95 (1,96·σ/√n) d'une série ; différences appariées a − b par graine. */
+export function meanCi(xs) {
+  const n = xs.length; const m = xs.reduce((t, v) => t + v, 0) / Math.max(1, n);
+  const sd = Math.sqrt(xs.reduce((t, v) => t + (v - m) ** 2, 0) / Math.max(1, n - 1));
+  return { mean: Math.round(m * 100) / 100, ci95: Math.round(1.96 * sd / Math.sqrt(Math.max(1, n)) * 100) / 100, n };
+}
+export function pairedDiff(a, b) { return meanCi(a.map((x, i) => x.gain - b[i].gain)); }
+
+export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'honest', 'haggler', 'trader', 'trader_no_loan', 'trader_hybrid', 'trader_hybrid_no_loan', 'exploit', 'defaulter'] } = {}) {
   const head = ['bot', 'days', 'seeds', 'eur_per_day', 'eur_per_day_early', 'eur_per_day_late', 'worth_start', 'worth_end', 'haggle_deals_per_day', 'loans', 'contracts', 'subsidies', 'interventions', 'interventions_per_day', 'procurement_orders_per_day', 'public_orders_per_day', 'shortages_per_day', 'shortage_longest', 'price_end', 'money_min', 'money_max', 'big_contracts', 'big_contract_fail', 'haggle_gain_per_deal', 'haggle_attempts_per_day', 'haggle_blocked_fatigue', 'eur_per_day_sd', 'eur_per_day_ci95', 'haggle_sells_per_day', 'stall_sales_per_day', 'haggle_skipped_mood', 'trader_no_loan'];
   const lines = [head.join(',')];
   const num = (v) => (v == null || Number.isNaN(v) ? '' : String(v));
@@ -288,8 +354,8 @@ export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'ho
   const noLoanGain = {};
   const prevParams = globalThis.__BOT_PARAMS;
   for (const bot of bots) {
-    const mode = bot === 'none' ? null : bot === 'trader_no_loan' ? 'trader' : bot;
-    globalThis.__BOT_PARAMS = bot === 'trader_no_loan' ? { ...(prevParams || {}), traderMaxLoans: 0 } : prevParams;
+    const mode = bot === 'none' ? null : BOT_VARIANTS[bot] ? 'trader' : bot;
+    globalThis.__BOT_PARAMS = BOT_VARIANTS[bot] ? { ...(prevParams || {}), ...BOT_VARIANTS[bot] } : prevParams;
     let sim;
     try { sim = await runSimulation({ days, seeds, bot: mode }); } finally { globalThis.__BOT_PARAMS = prevParams; }
     const { summary, runs } = sim;

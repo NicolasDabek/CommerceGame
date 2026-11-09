@@ -29,6 +29,30 @@ export function priceChartSvg(series, { days = null, width = 520, height = 200, 
     ${fairLine}<path class="chart-line" d="${path}" fill="none"/>${dots}</svg>`;
 }
 
+/**
+ * GD passe 11 : une ligne de client d'étal (pur, testable) — prix proposé, coût de revient connu ou « inconnu »,
+ * bénéfice net (aucun frais sur une vente d'étal), quantité restante, expiration en fin de journée.
+ * Le maximum caché du client n'est jamais affiché.
+ */
+export function stallBidItemHtml(b) {
+  const offer = b.offer ?? b.counter ?? b.bid;
+  const ask = Math.round(Math.min(b.base, b.bid * 1.05) * 100) / 100;
+  const netOf = (p) => (b.cost == null ? null : Math.round((p - b.cost) * 100) / 100);
+  const net = netOf(offer);
+  const netAsk = netOf(ask);
+  const netTxt = (n) => (n == null ? 'bénéfice inconnu' : `${n < 0 ? 'perte' : 'bénéfice net'} ${n < 0 ? '−' : '+'}${money(Math.abs(n))} €`);
+  const loss = (p, n) => (n != null && n < 0 ? ` data-stall-loss="${esc(`Vente à perte : ${money(p)} € pour un coût de ${money(b.cost)} € (−${money(Math.abs(n))} €). Confirmer ?`)}"` : '');
+  const dis = b.have ? '' : 'disabled';
+  return `<li class="req-item ${b.have ? 'ready' : ''} ${net != null && net < 0 ? 'stall-loss' : ''}" data-stall-bid="${esc(b.id)}">
+        <span class="req-what">${b.icon} <strong>${esc(b.itemName)}</strong> Q${b.quality} P${b.perfection} · <strong>${esc(b.npcName)}</strong> propose</span>
+        <span class="req-price">${money(offer)} €${b.counter != null ? ' (dernier prix)' : ''} · votre prix ${money(b.base)} € · coût ${b.cost == null ? 'inconnu' : `${money(b.cost)} €`} · <span class="stall-net ${net == null ? 'text-muted' : net < 0 ? 'text-danger' : 'text-success'}">${netTxt(net)}</span></span>
+        <span class="text-muted req-why">${b.qtyLeft ?? (b.have ? 1 : 0)} en stock${b.fromListing ? ' (prélevé sur votre annonce)' : ''} · sans frais · expire en fin de journée${b.flip ? ' · revente rapide : il lâchera peu' : ''}</span>
+        <span class="req-actions"><button class="btn btn-sm btn-primary" data-stall="${esc(b.id)}" data-stall-action="accept"${loss(offer, net)} ${dis}>Accepter ${money(offer)} €</button>
+        ${b.counter == null ? `<button class="btn btn-sm btn-secondary btn-haggle" data-stall="${esc(b.id)}" data-stall-action="haggle" data-stall-price="${ask}"${loss(ask, netAsk)} ${dis} title="Demander ${money(ask)} € (${netTxt(netAsk)}) : il accepte si c'est dans sa marge, sinon il fait une dernière offre">🤝 ${money(ask)} €</button>` : ''}
+        <button class="btn btn-sm btn-ghost" data-stall="${esc(b.id)}" data-stall-action="refuse">Refuser</button></span>
+      </li>`;
+}
+
 export class MarketTools {
   constructor({ game, Modal, setStatus, openNegotiation, refresh }) {
     Object.assign(this, { game, Modal, setStatus, openNegotiation, refresh });
@@ -43,7 +67,14 @@ export class MarketTools {
       const po = e.target.closest?.('[data-deliver-public]');
       if (po) { e.preventDefault(); this.deliverPublic(po.dataset.deliverPublic); return; }
       const sb = e.target.closest?.('[data-stall]');
-      if (sb) { e.preventDefault(); this.answerStall(sb.dataset.stall, sb.dataset.stallAction, Number(sb.dataset.stallPrice)); }
+      if (sb) {
+        e.preventDefault();
+        if (sb.disabled || sb.dataset.busy) return;
+        // GD passe 11 : vente à perte → confirmation explicite
+        if (sb.dataset.stallLoss && !(globalThis.confirm ? globalThis.confirm(sb.dataset.stallLoss) : true)) return;
+        sb.dataset.busy = '1';
+        this.answerStall(sb.dataset.stall, sb.dataset.stallAction, Number(sb.dataset.stallPrice));
+      }
     });
   }
 
@@ -77,16 +108,7 @@ export class MarketTools {
       </li>`).join('')}</ul></div>` : '';
     // GD passe 10 : clients qui marchandent sur l'étal (rang 2+) — accepter, refuser ou demander plus
     const stall = this.game.getStallBids ? this.game.getStallBids() : [];
-    const stallHtml = stall.length ? `<div class="stall-bids" id="stall-bids"><h3 class="section-title">🧺 Clients sur votre étal <small class="text-muted">(${stall.length})</small></h3><ul class="req-list">${stall.map(b => {
-      const offer = b.counter ?? b.bid;
-      const ask = Math.round(Math.min(b.base, b.bid * 1.05) * 100) / 100;
-      return `<li class="req-item ${b.have ? 'ready' : ''}" data-stall-bid="${esc(b.id)}">
-        <span class="req-what">${b.icon} <strong>${esc(b.itemName)}</strong> Q${b.quality} P${b.perfection} · <strong>${esc(b.npcName)}</strong> propose</span>
-        <span class="req-price">${money(offer)} €${b.counter != null ? ' (dernier prix)' : ''} · votre prix ${money(b.base)} €</span>
-        <span class="req-actions"><button class="btn btn-sm btn-primary" data-stall="${esc(b.id)}" data-stall-action="accept" ${b.have ? '' : 'disabled'}>Accepter</button>
-        ${b.counter == null ? `<button class="btn btn-sm btn-secondary btn-haggle" data-stall="${esc(b.id)}" data-stall-action="haggle" data-stall-price="${ask}" ${b.have ? '' : 'disabled'} title="Demander ${money(ask)} € : il accepte si c'est dans sa marge, sinon il fait une dernière offre">🤝 ${money(ask)} €</button>` : ''}
-        <button class="btn btn-sm btn-ghost" data-stall="${esc(b.id)}" data-stall-action="refuse">Refuser</button></span>
-      </li>`; }).join('')}</ul></div>` : '';
+    const stallHtml = stall.length ? `<div class="stall-bids" id="stall-bids"><h3 class="section-title">🧺 Clients sur votre étal <small class="text-muted">(${stall.length})</small></h3><p class="text-muted stall-note">Les clients repartent à la fin de la journée : une proposition non traitée expire sans vente.</p><ul class="req-list">${stall.map(stallBidItemHtml).join('')}</ul></div>` : '';
     el.innerHTML = stallHtml + pubHtml + `<h3 class="section-title">📜 Demandes des marchands <small class="text-muted">(${list.length})</small></h3>` + (list.length ? `<ul class="req-list">${list.map(r => `
       <li class="req-item ${r.have ? 'ready' : ''}" data-request="${esc(r.id)}">
         <span class="req-what">${r.icon} <strong>${r.qty} × ${esc(r.itemName)}</strong> Q${r.minQuality}+ pour <strong>${esc(r.npcName)}</strong></span>

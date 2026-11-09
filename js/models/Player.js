@@ -96,8 +96,13 @@ export class Player {
    * les objectifs de vente restaient bloqués pour qui jouait les contrats. Ni XP ni réputation ici
    * (déjà données par la livraison elle-même). `category` : vente comptée dans la catégorie (objectifs).
    */
-  recordDelivery(total, category = null, quantity = 1) {
+  recordDelivery(total, category = null, quantity = 1, cost = null) {
     this.stats.totalSales += 1;
+    // GD passe 11 : livraison rentable (coût de revient connu pour toutes les unités, marge ≥ 5 %) — objectifs de la branche « approvisionneur »
+    if (cost != null && Number.isFinite(cost) && total >= cost * 1.05) {
+      this.stats.profitableDeliveries = (this.stats.profitableDeliveries || 0) + 1;
+      if (category) this.stats.profitableCategories = [...new Set([...(this.stats.profitableCategories || []), category])];
+    }
     this.stats.totalEarned = Math.round((this.stats.totalEarned + total) * 100) / 100;
     this.stats.transactionsCount += 1;
     this.stats.deliveries = (this.stats.deliveries || 0) + 1;

@@ -11,6 +11,7 @@ import { NPCS } from '../data/npcs.js';
 import { ITEMS, getItemById } from '../data/items.js';
 import { Transaction } from '../models/Transaction.js';
 import { rankFor } from '../core/Ranks.js';
+import { NEGOTIATION_TUNING } from './negotiation/tuning.js';
 
 export const REQUEST_TUNING = { maxActive: 3, chance: 0.5, premium: 1.05, fairCap: 1.1, days: 2, minQuality: 40, rep: 1, trust: 0.08 };
 /**
@@ -20,7 +21,12 @@ export const REQUEST_TUNING = { maxActive: 3, chance: 0.5, premium: 1.05, fairCa
  * de 3–7 % au-dessus. Le joueur accepte, refuse, ou marchande (une contre-offre du PNJ au plus, puis il s'en va).
  * Paiement depuis la trésorerie du PNJ : aucune création d'argent.
  */
-export const STALL_TUNING = { minRank: 2, extraChance: 0.75, bidMin: 0.92, bidMax: 0.97, roomMin: 0.03, roomMax: 0.07, minQuality: 30, fairBase: 1.10 };
+export const STALL_TUNING = { minRank: 2, extraChance: 0.75, bidMin: 0.92, bidMax: 0.97, roomMin: 0.03, roomMax: 0.07, minQuality: 30, fairBase: 1.10,
+  // GD passe 11 : plafond anti-flip à l'étal (comme Negotiation : revente < 2 j → marge du client ≤ maxFlex × 0,5 = 3 %).
+  // Mesuré mais DÉSACTIVÉ : sur 2 jours il coûte 0,16 €/j au marchandeur (ratio 1,196 < 1,20 sur 20 graines) et aucune
+  // adaptation du robot ne tient à la fois ce ratio, le garde-fou 3 graines (≥ 0,85) et ≥ 0,4 vente marchandée/j ;
+  // limité au jour même (flipDays 1) il ne bride pas le trader hybride (1,43 × honnête) — voir reports/gd11-hybride.md.
+  flipCap: false, flipDays: 2 };
 const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
 
 export class NpcRequests {
@@ -30,6 +36,28 @@ export class NpcRequests {
     this.stats = { posted: 0, delivered: 0, expired: 0, paid: 0, stallBids: 0, stallSold: 0, stallHaggled: 0, ...(saved.stats || {}) };
     this.stallBids = Array.isArray(saved.stallBids) ? saved.stallBids : [];
     this.rand = saved.__rand || Math.random;
+    // GD passe 11 : la visite du jour (graine dédiée, jour, clients encore attendus) est sauvegardée —
+    // un rechargement ne relance pas le tirage et ne fait ni gagner ni perdre de client.
+    if (Number.isFinite(saved.stallSeed)) {
+      this._stallSeed = saved.stallSeed >>> 0;
+      this.stallDay = Number.isFinite(saved.stallDay) ? saved.stallDay : undefined;
+      this.stallPending = Math.max(0, Math.floor(Number(saved.stallPending) || 0));
+    } else if (saved.stats || saved.stallBids) this._migrateGd10();
+  }
+
+  /**
+   * GD passe 11 : sauvegarde GD10 (sans graine ni visite du jour). On reprend le jour courant ; s'il n'y a eu
+   * aucun client aujourd'hui, un client reste attendu (le minimum garanti), sinon plus aucun (pas de client bonus).
+   * La graine est dérivée du jour et des compteurs pour ne pas repartir de la constante.
+   */
+  _migrateGd10() {
+    const day = this._day();
+    const today = this.stallBids.filter(b => b.day === day).length;
+    this.stallDay = day;
+    this.stallPending = rankFor(this.game.player?.reputation || 0).id >= STALL_TUNING.minRank ? Math.max(0, 1 - today) : 0;
+    const st = this.stats;
+    this._stallSeed = (Math.imul((day | 0) + 1, 0x85EBCA6B) ^ Math.imul((st.stallBids | 0) + 1, 0xC2B2AE35) ^ ((st.stallSold | 0) << 8) ^ 0x9E3779B9) >>> 0;
+    this.migratedGd10 = true;
   }
 
   _day() { return this.game.timeManager?.getCurrentDay?.() ?? 0; }
@@ -111,7 +139,7 @@ export class NpcRequests {
     }
     ctl.debitNpc(req.npcId, total);
     this.game.player.addMoney(total);
-    this.game.player.recordDelivery?.(total); // la transaction ci-dessous compte déjà la catégorie
+    this.game.player.recordDelivery?.(total, null, req.qty, costQty === req.qty ? costSum : null); // la transaction ci-dessous compte déjà la catégorie
     const tx = new Transaction({ itemId: req.itemId, quantity: req.qty, price: req.price, sellerId: 'player', buyerId: req.npcId, type: 'request', quality: q, perfection: pf, sellerAvgCost: costQty ? r2(costSum / costQty) : null, timestamp: this.game.timeManager?.now?.() ?? Date.now() });
     this.game.transactions.unshift(tx);
     req.status = 'delivered';
@@ -194,8 +222,44 @@ export class NpcRequests {
     const ctl = this.game.npcController;
     return this.stallBids.filter(b => b.status === 'open' && b.day === day).map(b => {
       const item = getItemById(b.itemId);
-      return { id: b.id, npcId: b.npcId, npcName: ctl.getNpcName(b.npcId), itemId: b.itemId, itemName: item?.name || b.itemId, icon: item?.icon || '', quality: b.quality, perfection: b.perfection, base: b.base, bid: b.bid, counter: b.counter, have: this._stallHas(b) };
+      // GD passe 11 : choix informé — coût de revient connu (sinon « inconnu », jamais 0), bénéfice net, quantité restante.
+      // Le maximum caché du client n'est pas exposé.
+      const { cost, inInv, listed } = this._stallCost(b);
+      const offer = r2(b.counter ?? b.bid);
+      const net = cost == null ? null : r2(offer - cost);
+      return {
+        id: b.id, npcId: b.npcId, npcName: ctl.getNpcName(b.npcId), itemId: b.itemId, itemName: item?.name || b.itemId, icon: item?.icon || '',
+        quality: b.quality, perfection: b.perfection, base: b.base, bid: b.bid, counter: b.counter, have: this._stallHas(b),
+        offer, cost, costKnown: cost != null, net, loss: net != null && net < 0, fee: 0,
+        qtyLeft: inInv + listed, fromListing: inInv <= 0 && listed > 0,
+        flip: this._stallFlip(b),
+        expires: 'fin de journée', expiresDay: b.day
+      };
     });
+  }
+
+  /** GD passe 11 : coût de revient de l'unité qui partirait (stock d'abord, sinon l'annonce retirée), quantités disponibles. */
+  _stallCost(b) {
+    const same = (x) => x.itemId === b.itemId && x.quality === b.quality && x.perfection === b.perfection;
+    const stack = this.game.player.inventory.items.find(s => same(s) && s.quantity > 0);
+    const inInv = this.game.player.inventory.items.filter(s => same(s)).reduce((t, s) => t + Math.max(0, s.quantity), 0);
+    const lsts = this.game.offers.filter(o => o.status === 'active' && o.type === 'sell' && o.ownerId === 'player' && o.currentBid == null && same(o));
+    const listed = lsts.reduce((t, o) => t + (o.quantity || 0), 0);
+    const raw = stack ? stack.avgBuyPrice : lsts[0]?.avgCost;
+    return { cost: raw == null || !Number.isFinite(Number(raw)) ? null : r2(raw), inInv, listed, offer: stack ? null : lsts[0] || null };
+  }
+
+  /** GD passe 11 : revente rapide à l'étal — objet acheté il y a moins de `STALL_TUNING.flipDays` jour(s). */
+  _stallFlip(b) {
+    if (!STALL_TUNING.flipCap) return false;
+    const d = this.game.player?.lastBuyDay?.[b.itemId];
+    return d != null && this._day() - d < (STALL_TUNING.flipDays ?? NEGOTIATION_TUNING.flipDays);
+  }
+
+  /** GD passe 11 : plafond anti-flip (comme Negotiation) — produit acheté il y a moins de `flipDays` jours → marge du client ≤ maxFlex × flipFlexFactor. */
+  _stallMax(b) {
+    if (!this._stallFlip(b)) return b.max;
+    return r2(Math.min(b.max, b.bid * (1 + NEGOTIATION_TUNING.maxFlex * NEGOTIATION_TUNING.flipFlexFactor)));
   }
 
   _stallHas(b) {
@@ -216,8 +280,9 @@ export class NpcRequests {
     if (action === 'accept') return this._sellStall(b, b.counter ?? b.bid, b.counter != null);
     const p = r2(Math.max(b.bid, Math.min(Number(price) || 0, b.base)));
     if (rankFor(this.game.player?.reputation || 0).id < STALL_TUNING.minRank) return { success: false, error: 'Marchandage d\'étal : rang 2 requis' };
-    if (p <= b.max) return this._sellStall(b, p, true);
-    if (b.counter == null) { b.counter = b.max; return { success: true, outcome: 'counter', counter: b.counter, message: `${name} : « ${b.counter.toFixed(2).replace('.', ',')} €, pas un centime de plus. »` }; }
+    const max = this._stallMax(b);
+    if (p <= max) return this._sellStall(b, p, true);
+    if (b.counter == null) { b.counter = max; b.flipCapped = max < b.max; return { success: true, outcome: 'counter', counter: b.counter, message: `${name} : « ${b.counter.toFixed(2).replace('.', ',')} €, pas un centime de plus. »` }; }
     b.status = 'walked';
     return { success: true, outcome: 'walked', message: `${name} s'en va.` };
   }
@@ -228,16 +293,18 @@ export class NpcRequests {
     const st = ctl.npcStates[b.npcId];
     const p = r2(price);
     if (!st || st.capital < p) { b.status = 'gone'; return { success: false, error: `${ctl.getNpcName(b.npcId)} n'a plus assez de trésorerie` }; }
-    const inInv = () => game.player.inventory.items.find(s => s.itemId === b.itemId && s.quality === b.quality && s.perfection === b.perfection && s.quantity > 0);
-    if (!inInv()) {
-      const o = game.offers.find(x => x.status === 'active' && x.type === 'sell' && x.ownerId === 'player' && x.itemId === b.itemId && x.quality === b.quality && x.perfection === b.perfection && x.currentBid == null);
-      if (o) game.auctionHouse.cancel(o);
-    }
-    const stack = inInv();
-    if (!stack) { b.status = 'gone'; return { success: false, error: 'Vous n\'avez plus cet objet' }; }
-    const cost = stack.avgBuyPrice ?? null;
-    game.player.inventory.remove(b.itemId, 1, b.quality, b.perfection);
-    ctl.debitNpc(b.npcId, p);
+    // GD passe 11 : le coût affiché est celui enregistré (stock, sinon coût de l'annonce). Vente depuis l'annonce :
+    // une unité est prélevée sur l'annonce (les autres restent en vente) — plus de retour en inventaire qui pouvait
+    // échouer (inventaire plein) et faire disparaître l'objet.
+    const known = this._stallCost(b);
+    const stack = this.game.player.inventory.items.find(s => s.itemId === b.itemId && s.quality === b.quality && s.perfection === b.perfection && s.quantity > 0);
+    const lst = stack ? null : known.offer;
+    if (!stack && !(lst && lst.status === 'active' && lst.quantity > 0)) { b.status = 'gone'; return { success: false, error: 'Vous n\'avez plus cet objet' }; }
+    const cost = known.cost;
+    // le client paie d'abord (trésorerie réelle, jamais négative) ; échec → rien ne bouge
+    if (!(p > 0) || !ctl.debitNpc(b.npcId, p)) { b.status = 'gone'; return { success: false, error: `${ctl.getNpcName(b.npcId)} n'a plus assez de trésorerie` }; }
+    if (stack) game.player.inventory.remove(b.itemId, 1, b.quality, b.perfection);
+    else { lst.quantity -= 1; if (lst.quantity <= 0) { lst.quantity = 0; lst.status = 'completed'; } }
     const tx = new Transaction({ itemId: b.itemId, quantity: 1, price: p, sellerId: 'player', buyerId: b.npcId, type: 'stall', quality: b.quality, perfection: b.perfection, sellerAvgCost: cost, timestamp: game.timeManager?.now?.() ?? Date.now() });
     game._handleTransaction(tx);
     b.status = 'sold';
@@ -250,8 +317,21 @@ export class NpcRequests {
       if (neg?.stats) { neg.stats.deals += 1; neg.stats.sellDeals += 1; neg.stats.extra = r2((neg.stats.extra || 0) + gain); neg.stats.stallDeals = (neg.stats.stallDeals || 0) + 1; }
     }
     game.save?.();
-    return { success: true, outcome: 'accepted', price: p, gain: haggled ? gain : 0, haggled: haggled && gain > 0, message: `${ctl.getNpcName(b.npcId)} achète à ${p.toFixed(2).replace('.', ',')} €` };
+    return { success: true, outcome: 'accepted', price: p, cost, net: cost == null ? null : r2(p - cost), fromListing: !stack, gain: haggled ? gain : 0, haggled: haggled && gain > 0, message: `${ctl.getNpcName(b.npcId)} achète à ${p.toFixed(2).replace('.', ',')} €` };
   }
 
-  toJSON() { return { list: this.list, stats: { ...this.stats }, stallBids: this.stallBids.filter(b => b.status === 'open') }; }
+  /**
+   * GD passe 11 : on garde tous les clients du jour (vendus, refusés, partis compris — ils occupent l'objet et le marchand)
+   * ainsi que la graine, le jour et le nombre de visites restantes.
+   */
+  toJSON() {
+    return {
+      list: this.list,
+      stats: { ...this.stats },
+      stallBids: this.stallBids.filter(b => b.status === 'open' || b.day === this.stallDay),
+      stallSeed: this._stallSeed ?? 0x9E3779B9,
+      stallDay: this.stallDay ?? null,
+      stallPending: this.stallPending ?? 0
+    };
+  }
 }
