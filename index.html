@@ -194,7 +194,7 @@
       <button class="tab-btn dock-btn" data-panel="history" title="Carnet des transactions"><span class="tab-ico" aria-hidden="true">📒</span><span class="tab-txt">Carnet</span></button>
       <button class="tab-btn" id="btn-more" aria-expanded="false" aria-controls="more-sheet"><span class="tab-ico" aria-hidden="true">☰</span><span class="tab-txt">Plus</span><span class="dock-badge" id="more-badge" hidden></span></button>
     </nav>
-    <div class="more-sheet" id="more-sheet" hidden role="dialog" aria-label="Plus de lieux et d'outils">
+    <div class="more-sheet" id="more-sheet" hidden role="dialog" aria-modal="true" aria-label="Plus de lieux et d'outils" tabindex="-1">
       <div class="more-grid">
         <button class="more-btn dock-btn" data-panel="goals" title="Parcours du marchand, rang de réputation et objectifs">🏆 Parcours</button>
         <button class="more-btn dock-btn" data-panel="trading" title="Liste de suivi, alertes de prix, ordres permanents et bilan">⭐ Suivi <span class="dock-badge" id="trading-badge" hidden></span></button>
@@ -243,12 +243,14 @@
     (function () {
       var TITLES = { inventory: 'Sac', auction: 'Hôtel de vente', buyhouse: "Hôtel d'achat", market: 'Halle des prix', jobs: 'Atelier', npcs: 'Marchands', trading: 'Suivi & ordres', goals: 'Parcours', history: 'Carnet' };
       var TAB = { town: 'town', inventory: 'inventory', market: 'market', history: 'history' };
-      function sheet(open) {
+      /* Basculement de base ; js/ui/MoreSheet.js le remplace pour le piège de focus (UX passe 11). */
+      window.toggleMoreSheet = function (open) {
         var sh = document.getElementById('more-sheet'); var b = document.getElementById('btn-more');
         if (!sh || !b) return;
-        sh.hidden = !open; b.setAttribute('aria-expanded', String(open));
-      }
-      window.toggleMoreSheet = function (open) { sheet(open == null ? document.getElementById('more-sheet').hidden : open); };
+        var next = open == null ? sh.hidden : !!open;
+        sh.hidden = !next; b.setAttribute('aria-expanded', String(next));
+        document.body.classList.toggle('more-open', next);
+      };
       window.addEventListener('panel-changed', function (e) {
         // UI passe 4 : les rafraîchissements de données émettent « panel-changed » sans détail → garder l'onglet du panneau ouvert
         var open = document.querySelector('#interior-overlay.open .panel.active');
@@ -259,7 +261,7 @@
           var id = b.dataset.nav || b.dataset.panel || 'more';
           if (id === cur) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
         });
-        sheet(false);
+        window.toggleMoreSheet(false);
       });
       document.addEventListener('click', function (e) {
         var t = e.target.closest ? e.target : null; if (!t) return;
@@ -267,15 +269,15 @@
         if (t.closest('[data-nav="town"]')) { window.showWorldPanel('town'); return; }
         var m = t.closest('[data-more]');
         if (m) {
-          sheet(false);
+          window.toggleMoreSheet(false);
           if (m.dataset.more === 'palette') document.getElementById('btn-palette').click();
           else if (m.dataset.more === 'notes') setTimeout(function () { document.getElementById('btn-notes').click(); }, 0);
           else if (m.dataset.more === 'a11y') window.openA11y && window.openA11y();
           return;
         }
-        if (t.closest('#more-sheet .dock-btn, #btn-help')) { sheet(false); return; }
+        if (t.closest('#more-sheet .dock-btn, #btn-help')) { window.toggleMoreSheet(false); return; }
         var sh = document.getElementById('more-sheet');
-        if (sh && !sh.hidden && !t.closest('#more-sheet')) sheet(false);
+        if (sh && !sh.hidden && !t.closest('#more-sheet') && !t.closest('#btn-more')) window.toggleMoreSheet(false);
       });
     })();
     document.addEventListener('keydown', function (e) {

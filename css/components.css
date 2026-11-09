@@ -278,7 +278,8 @@
 } }
 
 .btn-success {
-  background: var(--success);
+  /* UX passe 11 : blanc sur #00b894 = 2,54:1 → fond #00806a ≥ 4,5:1 */
+  background: #00806a;
   color: white;
 }
 

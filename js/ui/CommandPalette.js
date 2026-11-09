@@ -1,10 +1,12 @@
 /**
  * Palette de commandes (Ctrl+K ou K) : chercher un lieu, un objet, un marchand ou une action
  * et y aller au clavier (↑ ↓ Entrée, Échap).
+ * UX passe 11 : piège de focus Tab/Shift+Tab, Échap au niveau document, focus rendu à #btn-palette.
  */
 import { ITEMS } from '../data/items.js';
 import { NPCS } from '../data/npcs.js';
 import { PANEL_KEYS } from './Shortcuts.js';
+import { createFocusTrap } from './focusTrap.js';
 
 export const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
@@ -45,10 +47,12 @@ export class CommandPalette {
         <div class="palette-foot text-muted"><kbd>↑</kbd><kbd>↓</kbd> choisir · <kbd>Entrée</kbd> valider · <kbd>Échap</kbd> fermer</div>
       </div>`;
     document.body.appendChild(this.el);
+    this.dialog = this.el.querySelector('.palette');
     this.input = this.el.querySelector('#palette-input');
     this.list = this.el.querySelector('#palette-list');
     this.sel = 0;
     this.results = [];
+    this._trap = null;
     this.input.addEventListener('input', () => { this.sel = 0; this.render(); });
     this.input.addEventListener('keydown', (e) => this._key(e));
     this.el.addEventListener('click', (e) => { if (e.target === this.el) this.close(); });
@@ -97,10 +101,23 @@ export class CommandPalette {
     this.input.value = '';
     this.sel = 0;
     this.render();
-    setTimeout(() => this.input.focus(), 0);
+    const restore = document.getElementById('btn-palette')
+      || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    this._trap?.release(false);
+    this._trap = createFocusTrap(this.dialog, {
+      onEscape: () => this.close(),
+      initialFocus: this.input,
+      restoreFocus: restore
+    });
   }
 
-  close() { this.el.hidden = true; this.input.blur(); }
+  close() {
+    if (this.el.hidden) return;
+    this.el.hidden = true;
+    this.input.blur();
+    this._trap?.release(true);
+    this._trap = null;
+  }
 
   render() {
     this.results = filterCommands(this.all || [], this.input.value);

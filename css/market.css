@@ -253,7 +253,8 @@
 }
 .deal-bad {
   background: rgba(225, 112, 85, 0.2);
-  color: var(--danger);
+  /* UX passe 11 : #e17055 ≈ 3,5:1 → #ffb39a ≥ 4,5:1 sur le fond teinté */
+  color: #ffb39a;
 }
 .deal-fair {
   background: rgba(164, 176, 190, 0.15);

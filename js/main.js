@@ -19,6 +19,7 @@ import { UiPrefs } from './utils/prefs.js';
 import { NotificationCenter } from './ui/Notifications.js';
 import { ItemPreview } from './ui/ItemPreview.js';
 import { CommandPalette } from './ui/CommandPalette.js';
+import { initMoreSheet } from './ui/MoreSheet.js';
 import { applyA11y, openA11yModal } from './ui/A11y.js';
 import { getItemById } from './data/items.js';
 import { formatMoney as fmtMoney, insightCardHtml, qtyQuickButtons, wireQtyQuick, economyChipHtml, signedMoney, moneyClass } from './ui/TradeInsights.js';
@@ -746,6 +747,7 @@ function init() {
     }
   });
   document.getElementById('btn-palette')?.addEventListener('click', () => palette.open());
+  initMoreSheet();
   window.openA11y = () => openA11yModal({ Modal, prefs: UiPrefs, setStatus });
   // Boutons « Effacer les filtres » des listes vides
   document.addEventListener('click', (e) => {

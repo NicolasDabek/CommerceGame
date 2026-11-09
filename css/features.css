@@ -165,6 +165,9 @@ kbd { display: inline-block; min-width: 18px; padding: 1px 6px; border-radius: 4
 .pal-icon { width: 24px; text-align: center; }
 .pal-title { flex: 1; }
 .palette-foot { padding: 6px 12px; font-size: 0.75rem; border-top: 1px solid var(--border); display: flex; gap: 4px; align-items: center; }
+/* UX passe 11 : « touche N » #9aa3b2 sur .sel (accent-soft) ≈ 4,43:1 → #a8b2c0 ≥ 4,5:1 */
+.palette .text-muted,
+.palette-list small.text-muted { color: #a8b2c0; }
 
 /* États vides */
 .empty-state { color: var(--text-secondary); padding: 10px 4px; text-align: center; }

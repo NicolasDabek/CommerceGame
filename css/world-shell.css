@@ -62,11 +62,14 @@ body:not(.in-panel) #interior-overlay { --tabbar-h: 0px; }
 
 /* Feuille « Plus » */
 .more-sheet {
-  position: fixed; z-index: 27; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabbar-h) + 24px);
+  /* UX passe 11 : au-dessus de .quick-tools (z-index 30) pour ne plus masquer « Effacer la sauvegarde » */
+  position: fixed; z-index: 35; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabbar-h) + 24px);
   width: min(560px, calc(100vw - 24px)); max-height: calc(100vh - var(--tabbar-h) - 120px); overflow: auto;
   background: var(--bg-card, #2a2f40); border: 1px solid #3a3f78; border-radius: 16px; padding: 12px; box-shadow: 0 12px 40px rgba(0, 0, 0, .5);
 }
 .more-sheet[hidden] { display: none; }
+/* UX passe 11 : en 390 px, #btn-town-recenter / #btn-palette / #btn-notes recouvraient le panneau */
+body.more-open .quick-tools { visibility: hidden; pointer-events: none; }
 .more-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
 .more-btn { position: relative; min-height: 48px; padding: 8px 12px; text-align: left; border: 1px solid var(--border); border-radius: 12px; background: rgba(36, 40, 54, .95); color: var(--text-primary); font: inherit; font-weight: 700; cursor: pointer; }
 .more-btn:focus-visible { border-color: var(--accent); }

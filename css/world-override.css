@@ -36,16 +36,18 @@ body.world-mode .footer {
   border-radius: 999px;
   cursor: pointer;
 }
-.speed-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+@media (hover: hover) {
+  .speed-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .dock-btn:hover {
+    background: var(--bg-hover);
+  }
 }
 .speed-btn.active {
   background: var(--accent);
   color: #fff;
-}
-.dock-btn:hover {
-  background: var(--bg-hover);
 }
 
 /* Étiquettes de la place */
