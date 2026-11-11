@@ -1,3 +1,4 @@
+import { GAME_VERSION } from '../version.js';
 /**
  * Raccourcis clavier + aide (touche ?).
  * Inactifs pendant une saisie (champ texte, liste) ; la modale garde Échap / Entrée.
@@ -109,7 +110,8 @@ export class Shortcuts {
             <tr><td><kbd>?</kbd> ou <kbd>H</kbd></td><td>Cette aide</td></tr>
           </tbody>
         </table>
-        <p class="text-muted" style="margin-top:10px">Vos filtres, tris et onglets sont mémorisés d'une visite à l'autre.</p>`,
+        <p class="text-muted" style="margin-top:10px">Vos filtres, tris et onglets sont mémorisés d'une visite à l'autre.</p>
+        <p class="text-muted help-version">Commerce Tycoon v${GAME_VERSION}</p>`,
       buttons: [
         { label: '👁️ Affichage & accessibilité', className: 'btn-ghost', onClick: () => { this.Modal.close(); window.openA11y?.(); } },
         { label: 'Réafficher la carte Parcours et les astuces', className: 'btn-ghost', onClick: () => {

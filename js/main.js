@@ -26,6 +26,7 @@ import { formatMoney as fmtMoney, insightCardHtml, qtyQuickButtons, wireQtyQuick
 import { Offer } from './models/Offer.js';
 import { initStatusTicker } from './ui/statusTicker.js';
 import { tapWord, applyPointerWords, watchPointerWords } from './ui/pointerWords.js';
+import { GAME_VERSION } from './version.js';
 
 const game = new Game();
 
@@ -699,9 +700,11 @@ function resetUiPrefs() {
 
 function init() {
   const loaded = game.load();
-  if (loaded) setStatus('Sauvegarde chargée');
+  if (loaded) setStatus(game.saveIsNewer ? `Sauvegarde d'une version plus récente que ${GAME_VERSION} : chargée au mieux (copie de secours conservée)`
+    : game.saveMigratedFrom != null ? `Sauvegarde chargée et mise au format ${GAME_VERSION} (copie de secours conservée)` : 'Sauvegarde chargée');
   else { game.__newGame = true; game.giveStarterItems(); setStatus('Nouvelle partie — objets de départ ajoutés · les marchands ouvrent boutique'); }
   initNavigation(); Modal.init(); initUI(); refreshAllUI();
+  document.querySelectorAll('[data-app-version]').forEach(el => { el.textContent = `v${GAME_VERSION}`; });
   try { restoreUiPrefs(); } catch (e) { console.warn('Préférences ignorées', e); }
   wireUiPrefs();
   shortcuts = new Shortcuts({ Modal, prefs: UiPrefs, setStatus, onPrefsReset: resetUiPrefs, onShowHud: () => careerUI?.render() });

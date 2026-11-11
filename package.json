@@ -1,9 +1,22 @@
 {
   "name": "commerce-game",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "private": true,
+  "description": "Commerce Tycoon — jeu de commerce en 3D (hôtel de vente / hôtel d'achat, marchandage, crédit, PNJ), 100 % local, sans CDN",
+  "license": "MIT",
+  "author": "NicolasDabek",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NicolasDabek/CommerceGame.git"
+  },
+  "homepage": "https://nicolasdabek.github.io/CommerceGame/",
+  "bugs": {
+    "url": "https://github.com/NicolasDabek/CommerceGame/issues"
+  },
   "type": "module",
-  "description": "Prototype de jeu de commerce (hôtel de vente / hôtel d'achat)",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node scripts/serve.mjs --port=8080",
     "test": "node tests/run.mjs",

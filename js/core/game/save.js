@@ -37,6 +37,9 @@ export const GameSave = {
   load() {
     const data = Storage.load();
     if (!data) return false;
+    // 1.0.0 : format de sauvegarde versionné (migration faite par Storage.load)
+    this.saveMigratedFrom = data.__migratedFrom ?? null;
+    this.saveIsNewer = !!data.__newer;
 
     // Compatibilité anciennes sauvegardes (player plat + inventory séparé)
     if (data.player && data.player.inventory) {

@@ -77,6 +77,7 @@ body.more-open .quick-tools { visibility: hidden; pointer-events: none; }
 .more-btn .dock-badge { position: static; margin-left: 6px; }
 .more-networth { margin: 10px 2px 6px; color: var(--text-secondary); }
 .more-networth strong { color: var(--money); }
+.more-version { margin: 8px 2px 0; font-size: 12px; text-align: right; }
 .more-reset { min-height: 44px; width: 100%; }
 
 /* Outils rapides (recherche, notifications, recadrer) au-dessus de la barre d'onglets */

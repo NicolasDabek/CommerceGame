@@ -2,7 +2,7 @@
 
 Jeu de commerce inspiré des hôtels de vente de Dofus / Wakfu / Albion Online (hôtel d’achat, matching, enchères, économie dynamique).
 
-Prototype solo avec PNJ. Le jeu se déroule sur **La Place**, une place de marché en 3D pixelisée (Three.js) : on y marche, on entre dans les bâtiments, et les tableaux (hôtels, marché, atelier…) s'ouvrent à l'intérieur.
+Jeu solo avec PNJ — **version 1.0.0** (voir `CHANGELOG.md`). Le jeu se déroule sur **La Place**, une place de marché en 3D pixelisée (Three.js) : on y marche, on entre dans les bâtiments, et les tableaux (hôtels, marché, atelier…) s'ouvrent à l'intérieur.
 
 ## Démarrage
 
@@ -247,7 +247,7 @@ Tout est en local, sans CDN : Three.js r170 (`lib/three.module.js`, résolu par 
 - À 1× : 10 minutes réelles = 1 jour de jeu
 - Les durées d’annonces suivent le temps de jeu
 
-Reset sauvegarde : bouton **Reset** ou `localStorage.clear(); location.reload();`
+Effacer la partie : menu **Plus → Effacer la sauvegarde** (n'efface que les clés de ce jeu, pas celles d'autres jeux servis depuis la même origine).
 
 ## Fonctionnalités
 
@@ -257,29 +257,35 @@ Reset sauvegarde : bouton **Reset** ou `localStorage.clear(); location.reload();
 - Économie : prix moyens, inflation, événements **réversibles**, Comptoir municipal régulateur, santé de l'économie
 - Offre et demande par objet (population, saisons, consommation, objets usés), métiers des PNJ et du joueur, établi minuté
 - Suivi & alertes, ordres d'achat permanents, bilan P&L, commandes des marchands
-- 24 objets, 15 PNJ, objectifs, graphique de prix (sparkline)
-- Sauvegarde localStorage plafonnée
+- 15 objets, 15 PNJ, objectifs, graphique de prix (sparkline)
+- Sauvegarde localStorage plafonnée et **versionnée** (`saveVersion`, migration des sauvegardes 0.x, copie de secours avant migration, sauvegarde illisible mise de côté)
 
 ## Structure
 
 ```
 .
 ├── index.html
-├── css/style.css     # + fonts.css (polices locales), world-override.css (HUD du monde 3D)
+├── css/style.css     # point d'entrée : importe base, components, market, features, world-shell, ranks-quests (+ fonts.css, world-override.css)
 ├── js/
 │   ├── main.js
+│   ├── version.js     # GAME_VERSION (1.0.0) et SAVE_VERSION (format de sauvegarde)
 │   ├── core/          # Game, Economy, SupplyDemand, condition (état des objets), TimeManager, GamePatch
 │   ├── models/
 │   ├── systems/       # PNJ (+ NpcMind), Comptoir, JobBoard (métiers/atelier), TradingDesk (suivi/ordres/bilan), Negotiation, Credit, Career…
 │   ├── ui/            # … + CommandPalette, Notifications, ItemPreview, A11y, NegotiationUI
 │   ├── world/         # TownWorld (place 3D) + mount (branchement sur index.html)
 │   ├── data/
-│   └── utils/storage.js
+│   └── utils/storage.js   # + core/game/saveMigration.js (migrations du format de sauvegarde)
 ├── scripts/           # sim.mjs + simCore.mjs (simulation headless de l'économie) + exploitBot.mjs (robots joueurs)
 ├── tests/
 ├── lib/               # Three.js r170, OrbitControls, Scene3D (voir lib/README.md)
 └── assets/fonts/      # Nunito + Fredoka (woff2, licence OFL)
 ```
+
+## Versions
+
+Historique dans `CHANGELOG.md`. Version affichée dans l'aide (touche ?) et le menu Plus.
+Une sauvegarde porte `saveVersion` ; si son format change, ajouter une étape dans `js/core/game/saveMigration.js`.
 
 ## Licence
 

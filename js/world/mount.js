@@ -1,6 +1,7 @@
 import { TownWorld } from './TownWorld.js';
 import { enhanceGame } from '../core/GamePatch.js';
 import { getClanById } from '../data/npcs.js';
+import { Storage } from '../utils/storage.js';
 
 function hideLegacyPanels() {
   document.querySelectorAll('.panel').forEach((p) => {
@@ -71,7 +72,8 @@ function wireHud(game, world) {
   });
   document.getElementById('btn-reset-save')?.addEventListener('click', () => {
     if (confirm('Effacer la sauvegarde ?')) {
-      localStorage.clear();
+      // seulement les clés de ce jeu : d'autres jeux peuvent partager l'origine (GitHub Pages)
+      Storage.clearAll();
       location.reload();
     }
   });
