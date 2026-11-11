@@ -25,7 +25,7 @@ npm run sim -- --days=365 --seeds=5 --every=30
 npm run sim -- --json
 npm run sim -- --bot=honest     # + un robot joueur : honest (sans marchandage ni crédit), haggler (honnête + marchandage),
                                 # trader (marchandage, part du rang 1), exploit (crédit en boucle, rang 3), defaulter (mauvais payeur, rang 2)
-node scripts/hybridReport.mjs   # GD 11 : trader hybride (crédit + clients d'étal) avec / sans crédit, 20 graines appariées → reports/gd11-hybride.{md,csv}
+node scripts/hybridReport.mjs   # GD 11/12 : trader hybride (crédit + clients d'étal) avec / sans crédit, 20 graines appariées → reports/gd12-hybride.{md,csv}
 node scripts/smallTicketReport.mjs # GD 11 : expérience « petits consommables » à l'étal (désactivée) → reports/gd11-petits-tickets.{md,csv}
 ```
 
@@ -146,9 +146,10 @@ s'il achète beaucoup un objet, les prix d'annonce montent un peu ; s'il en vend
 - Aussi : **achat partiel** d'un lot (« Acheter… ») et **vente groupée** depuis le Sac (« Tout vendre… » au-dessus d'un prix minimum).
 - **Clients d'étal** (rang 2+, 1 à 2 par jour, panneau Marchands) : chaque proposition affiche le prix proposé, votre **coût de revient**
   (ou « inconnu »), le **bénéfice net** (aucun frais), la quantité restante et l'expiration en **fin de journée** ; une vente à perte demande
-  confirmation. Plafond anti-revente rapide (objet acheté il y a < 2 jours → le client lâche au plus 3 %) : codé mais **désactivé**
-  (`STALL_TUNING.flipCap`, conflit chiffré dans reports/gd11-hybride.md). La visite du jour est sauvegardée
-  (un rechargement ne fait ni gagner ni perdre de client).
+  confirmation. **Revente rapide** (GD 12) : un objet acheté le jour même → le client lâche au plus 3 % (« il lâchera peu »).
+  **Marchandise gagée** (GD 12) : tant qu'un prêt adossé à un contrat court, les clients d'étal ne demandent pas l'objet de ce
+  contrat (🔒 affiché dans le panneau) ; le gage est levé au remboursement. Mesures : reports/gd12-hybride.md. La visite du
+  jour est sauvegardée (un rechargement ne fait ni gagner ni perdre de client).
 - **Paliers de maîtrise** (rangs 3 et 4) : « ventes marchandées » ou, sans marchander, « livraisons rentables » (marge ≥ 5 %, coût connu ;
   3 catégories au rang 4) — même récompense, une seule fois par palier.
 

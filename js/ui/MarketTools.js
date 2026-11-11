@@ -108,7 +108,10 @@ export class MarketTools {
       </li>`).join('')}</ul></div>` : '';
     // GD passe 10 : clients qui marchandent sur l'étal (rang 2+) — accepter, refuser ou demander plus
     const stall = this.game.getStallBids ? this.game.getStallBids() : [];
-    const stallHtml = stall.length ? `<div class="stall-bids" id="stall-bids"><h3 class="section-title">🧺 Clients sur votre étal <small class="text-muted">(${stall.length})</small></h3><p class="text-muted stall-note">Les clients repartent à la fin de la journée : une proposition non traitée expire sans vente.</p><ul class="req-list">${stall.map(stallBidItemHtml).join('')}</ul></div>` : '';
+    // GD passe 12 : marchandise gagée (prêt adossé à un contrat en cours) — expliquée au joueur
+    const pledged = this.game.getPledgedItems ? this.game.getPledgedItems() : [];
+    const pledgeHtml = pledged.length ? `<p class="text-muted stall-note stall-pledge">🔒 Marchandise gagée : ${pledged.map(p => `${p.icon} ${esc(p.itemName)}`).join(', ')} — réservée au contrat financé par votre prêt, les clients d'étal ne la demandent pas avant la livraison.</p>` : '';
+    const stallHtml = stall.length || pledged.length ? `<div class="stall-bids" id="stall-bids"><h3 class="section-title">🧺 Clients sur votre étal <small class="text-muted">(${stall.length})</small></h3><p class="text-muted stall-note">Les clients repartent à la fin de la journée : une proposition non traitée expire sans vente.</p>${pledgeHtml}${stall.length ? `<ul class="req-list">${stall.map(stallBidItemHtml).join('')}</ul>` : ''}</div>` : '';
     el.innerHTML = stallHtml + pubHtml + `<h3 class="section-title">📜 Demandes des marchands <small class="text-muted">(${list.length})</small></h3>` + (list.length ? `<ul class="req-list">${list.map(r => `
       <li class="req-item ${r.have ? 'ready' : ''}" data-request="${esc(r.id)}">
         <span class="req-what">${r.icon} <strong>${r.qty} × ${esc(r.itemName)}</strong> Q${r.minQuality}+ pour <strong>${esc(r.npcName)}</strong></span>

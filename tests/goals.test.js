@@ -307,12 +307,13 @@ export function run() {
         assertEqual(inv.count('item_004'), 0, 'pas de duplication');
       } finally { restore(); }
     }],
-    ['GD passe 11 : anti-flip à l\'étal (désactivé par défaut, STALL_TUNING.flipCap) — activé : produit acheté le jour même → marge du client ≤ 3 %', async () => {
+    ['GD passe 11 / 12 : anti-flip à l\'étal (activé en GD 12, jour même) — produit acheté le jour même → marge du client ≤ 3 %', async () => {
       const { STALL_TUNING } = await import('../js/systems/NpcRequests.js');
       const { game, restore } = await makeGame({ reputation: 20 });
       const prevCap = STALL_TUNING.flipCap;
       try {
-        assertEqual(prevCap, false, 'désactivé par défaut (conflit mesuré, voir reports/gd11-hybride.md)');
+        assertEqual(prevCap, true, 'activé par défaut (GD passe 12, voir reports/gd12-hybride.md)');
+        assertEqual(STALL_TUNING.flipDays, 1, 'limité au jour même');
         STALL_TUNING.flipCap = true;
         const nr = game.npcRequests;
         // achat réel le jour même (achat immédiat d'une annonce de marchand), puis client d'étal sur cet objet
@@ -335,6 +336,33 @@ export function run() {
         const s = game.answerStallBid(b.id, 'accept');
         assert(s.success && s.price === r.counter, 'vente au prix plafonné');
       } finally { STALL_TUNING.flipCap = prevCap; restore(); }
+    }],
+    ['GD passe 12 : marchandise gagée — prêt adossé à un contrat en cours → aucun client d\'étal sur l\'objet du contrat, affiché ; libéré au remboursement', async () => {
+      const { STALL_TUNING } = await import('../js/systems/NpcRequests.js');
+      const { game, restore } = await makeGame({ reputation: 20 });
+      try {
+        assertEqual(STALL_TUNING.pledge, true, 'activé par défaut');
+        const nr = game.npcRequests;
+        const job = (game.jobBoard.contracts || []).find(j => j.status === 'open');
+        assert(job, 'un contrat ouvert');
+        game.player.inventory.items = [];
+        game.player.money = 5000;
+        game.player.inventory.add(job.itemId, 2, 60, 50, 5);
+        game.player.inventory.add(job.itemId === 'item_004' ? 'item_001' : 'item_004', 1, 60, 50, 5);
+        const br = game.credit.borrow(60, 3, { contractId: job.id });
+        assert(br.success, `prêt adossé : ${br.error || ''}`);
+        assertEqual(game.getPledgedItems().map(p => p.itemId).join(), job.itemId, 'objet gagé exposé');
+        let seen = 0;
+        for (let i = 0; i < 6; i++) {
+          nr.stallBids = [];
+          nr._postStallBids(nr._day());
+          for (const b of game.getStallBids()) { seen += 1; assert(b.itemId !== job.itemId, `client sur l'objet gagé ${b.itemId}`); }
+        }
+        assert(seen >= 6, `des clients viennent pour l'autre objet (${seen})`);
+        const rp = game.credit.repay();
+        assert(rp.success, 'remboursement');
+        assertEqual(game.getPledgedItems().length, 0, 'gage levé au remboursement');
+      } finally { restore(); }
     }],
     ['GD passe 11 (P1, expérience désactivée) : petits consommables à l\'étal — tickets ≤ plafond, budget du jour, payés par le PNJ, sauvegardés', async () => {
       const { STALL_TUNING, NpcRequests } = await import('../js/systems/NpcRequests.js');

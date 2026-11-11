@@ -151,7 +151,7 @@ export function run() {
         console.error = quiet;
       }
     }],
-    ['GD passe 11 : trader hybride (crédit + clients d\'étal), 20 graines appariées — ≤ 1,35 × honnête (variante « garde son stock » : garde-fou 1,5 ×, cible 1,35 non atteinte), masse 0,90–1,10, aucun paiement PNJ négatif ; scénario historique conservé', async () => {
+    ['GD passe 11 / 12 : trader hybride (crédit + clients d\'étal), 20 graines appariées — ≤ 1,35 × honnête, variante « garde son stock » comprise (GD 12), apport du crédit ≤ +25 % (garde-fou ≥ +10 %), masse 0,90–1,10, aucun paiement PNJ négatif ; scénario historique conservé', async () => {
       const quiet = console.error;
       console.error = () => {};
       try {
@@ -168,13 +168,13 @@ export function run() {
         const ok4 = marks.filter(m => m.supply_deliveries_40 != null).length;
         assert(marks.length === 20 && ok3 >= 16 && ok4 >= 16, `honnête : palier 3 sur ${ok3}/20 graines, palier 4 sur ${ok4}/20 (cible ≥ 16/20)`);
         assert(marks.every(m => m.haggle_sells_10 == null), 'l\'honnête ne valide pas la branche marchandage');
-        for (const bot of ['trader_hybrid', 'trader_hybrid_keep']) res[bot] = await pairedBotRuns({ bot, days: 120 });
+        for (const bot of ['trader_hybrid', 'trader_hybrid_keep', 'trader_hybrid_no_loan']) res[bot] = await pairedBotRuns({ bot, days: 120 });
         const g = Object.fromEntries(Object.entries(res).map(([k, v]) => [k, meanCi(v.map(x => x.gain)).mean]));
         for (const bot of ['trader_hybrid', 'trader_hybrid_keep']) {
           assert(res[bot].length === 20, `${bot} : 20 graines`);
-          // Cible GD 11 « ≤ 1,35 × honnête » : tenue par l'hybride ; l'hybride qui garde son stock la dépasse (≈ 1,38, IC95 ±1,2 €/j) —
-          // conflit NON résolu, reporté chiffré (reports/gd11-hybride.md) ; garde-fou 1,5 × comme le trader sur 3 graines.
-          const cap = bot === 'trader_hybrid' ? 1.35 : 1.5;
+          // Cible GD 11 « ≤ 1,35 × honnête ». GD passe 12 : l'hybride qui garde son stock (1,38 en GD 11, garde-fou 1,5 ×)
+          // est ramené à 1,33 par l'anti-flip du jour même + la marchandise gagée → même borne 1,35 pour les deux variantes.
+          const cap = 1.35;
           assert(g[bot] <= g.honest * cap, `${bot} ${g[bot]} €/jour ≤ honnête ${g.honest} × ${cap} (20 graines appariées)`);
           const stall = res[bot].reduce((t, x) => t + x.stallSalesPerDay, 0) / 20;
           assert(stall > 0.1, `${bot} : ${stall} vente(s) d'étal/jour — le scénario utilise bien les clients d'étal`);
@@ -184,6 +184,10 @@ export function run() {
             assert(x.minCapital >= 0, `${bot} graine ${x.seed} : trésorerie PNJ minimale ${x.minCapital}`);
           }
         }
+        // GD passe 12 : marchandise gagée → le crédit paie aussi pour l'hybride (1,07 en GD 11). Cible +15–25 % : 1,14 sur ces
+        // 20 graines, 1,17 sur 40 (IC95 de la différence appariée ±1,1 €/j) — borne haute 1,25 tenue, garde-fou bas 1,10.
+        const lift = g.trader_hybrid / g.trader_hybrid_no_loan;
+        assert(lift <= 1.25 && lift >= 1.1, `hybride avec / sans crédit : ${g.trader_hybrid} / ${g.trader_hybrid_no_loan} = ${lift.toFixed(3)} (1,10–1,25)`);
         // le scénario historique reste celui d'un trader qui ignore l'étal
         const { summary } = await runSimulation({ days: 40, seeds: 1, bot: 'trader' });
         assert(summary.bot.stallSalesPerDay === 0, `trader historique : ${summary.bot.stallSalesPerDay} vente(s) d'étal`);

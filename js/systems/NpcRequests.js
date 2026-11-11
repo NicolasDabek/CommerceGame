@@ -22,11 +22,16 @@ export const REQUEST_TUNING = { maxActive: 3, chance: 0.5, premium: 1.05, fairCa
  * Paiement depuis la trésorerie du PNJ : aucune création d'argent.
  */
 export const STALL_TUNING = { minRank: 2, extraChance: 0.75, bidMin: 0.92, bidMax: 0.97, roomMin: 0.03, roomMax: 0.07, minQuality: 30, fairBase: 1.10,
-  // GD passe 11 : plafond anti-flip à l'étal (comme Negotiation : revente < 2 j → marge du client ≤ maxFlex × 0,5 = 3 %).
-  // Mesuré mais DÉSACTIVÉ : sur 2 jours il coûte 0,16 €/j au marchandeur (ratio 1,196 < 1,20 sur 20 graines) et aucune
-  // adaptation du robot ne tient à la fois ce ratio, le garde-fou 3 graines (≥ 0,85) et ≥ 0,4 vente marchandée/j ;
-  // limité au jour même (flipDays 1) il ne bride pas le trader hybride (1,43 × honnête) — voir reports/gd11-hybride.md.
-  flipCap: false, flipDays: 2,
+  // GD passe 11 : plafond anti-flip à l'étal (comme Negotiation : revente rapide → marge du client ≤ maxFlex × 0,5 = 3 %).
+  // GD passe 12 : ACTIVÉ, limité au jour même (flipDays 1) et combiné à la marchandise gagée (pledge) : sur 2 jours il
+  // coûtait trop au marchandeur (1,196 < 1,20) ; seul (1 jour) il ne bridait pas l'hybride « garde son stock » (1,43).
+  // Ensemble, sur 20 graines appariées : marchandeur 1,26, hybride 1,25, hybride « garde son stock » 1,33 (≤ 1,35)
+  // — voir reports/gd12-hybride.md.
+  flipCap: true, flipDays: 1,
+  // GD passe 12 : marchandise gagée — tant qu'un prêt adossé à un contrat court, les clients d'étal ne demandent pas
+  // l'objet de ce contrat (il est réservé à la livraison qui rembourse le prêt). Le crédit redevient utile au joueur
+  // qui tient aussi un étal (apport du crédit : 1,07 → 1,14 sur 20 graines, 1,17 sur 40).
+  pledge: true,
   // GD passe 11 (P1, expérience) : petits consommables — en plus des 1–2 clients, des PNJ viennent acheter pour leur
   // besoin propre des objets à petit ticket (prix de base ≤ smallMaxTicket), dans un budget quotidien d'achats d'étal
   // (smallBudget €/jour, toutes visites « petit ticket » confondues). Même marge relative que les autres clients ;
@@ -209,7 +214,8 @@ export class NpcRequests {
       const inv = this.game.player.inventory.items.filter(s => s.quantity > 0 && (s.quality ?? 50) >= STALL_TUNING.minQuality).map(s => ({ itemId: s.itemId, quality: s.quality, perfection: s.perfection }));
       const lst = this.game.offers.filter(o => o.status === 'active' && o.type === 'sell' && o.ownerId === 'player' && o.currentBid == null && (o.quality ?? 50) >= STALL_TUNING.minQuality).map(o => ({ itemId: o.itemId, quality: o.quality, perfection: o.perfection }));
       // les objets en vitrine (annonces du joueur) attirent 3 fois plus les clients que le stock en réserve
-      for (const s of [...lst.map(x => ({ ...x, w: 3 })), ...inv.map(x => ({ ...x, w: 1 }))]) { const key = `${s.itemId}|${s.quality}|${s.perfection}`; if ((!used.has(key) || (small && STALL_TUNING.smallRepeat)) && !stacks.some(x => x.key === key)) stacks.push({ ...s, key }); }
+      const pledged = this._pledgedItems();
+      for (const s of [...lst.map(x => ({ ...x, w: 3 })), ...inv.map(x => ({ ...x, w: 1 }))]) { if (pledged.has(s.itemId)) continue; const key = `${s.itemId}|${s.quality}|${s.perfection}`; if ((!used.has(key) || (small && STALL_TUNING.smallRepeat)) && !stacks.some(x => x.key === key)) stacks.push({ ...s, key }); }
       if (small) {
         // petit ticket : seulement les objets bon marché qui tiennent dans le budget restant du jour
         for (let i = stacks.length - 1; i >= 0; i--) {
@@ -236,6 +242,22 @@ export class NpcRequests {
       this.stallBids.push({ id: `stall_${day}_${this.stats.stallBids}_${npc.id}`, day, npcId: npc.id, itemId: st.itemId, quality: st.quality, perfection: st.perfection, base, bid, max, counter: null, status: 'open', ...(small ? { small: true } : {}) });
       this.stats.stallBids += 1;
     }
+  }
+
+  /** GD passe 12 : marchandise gagée — objet d'un contrat ouvert financé par le prêt en cours (les clients d'étal ne le demandent pas). */
+  _pledgedItems() {
+    const out = new Set();
+    if (!STALL_TUNING.pledge) return out;
+    const loan = this.game.credit?.loan;
+    if (!loan?.contractId) return out;
+    const job = (this.game.jobBoard?.contracts || []).find(j => j.id === loan.contractId && j.status === 'open');
+    if (job) out.add(job.itemId);
+    return out;
+  }
+
+  /** GD passe 12 : objets gagés, pour l'affichage (nom, icône, contrat). */
+  pledgedView() {
+    return [...this._pledgedItems()].map(id => { const it = getItemById(id); return { itemId: id, itemName: it?.name || id, icon: it?.icon || '' }; });
   }
 
   stallBidsView() {

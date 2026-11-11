@@ -249,6 +249,7 @@ export function enhanceGame(game) {
   };
   // GD passe 10 : contre-offres de clients sur l'étal (rang 2+)
   game.getStallBids = () => game.npcRequests?.stallBidsView?.() || [];
+  game.getPledgedItems = () => game.npcRequests?.pledgedView?.() || [];
   game.answerStallBid = (id, action, price) => { const r = game.npcRequests.answerStallBid(id, action, price); if (r.success) { game._checkGoals?.(); game.career?.check(); game._notifyUI?.(); } return r; };
   game.deliverNpcRequest = (id) => { const r = game.npcRequests.deliver(id); if (r.success) { game.career?.check(); game._notifyUI?.(); } return r; };
   /** Fil du marché : échanges entre marchands (sans le joueur ni le Comptoir). */

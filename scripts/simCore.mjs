@@ -346,7 +346,7 @@ export function meanCi(xs) {
 }
 export function pairedDiff(a, b) { return meanCi(a.map((x, i) => x.gain - b[i].gain)); }
 
-export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'honest', 'haggler', 'trader', 'trader_no_loan', 'trader_hybrid', 'trader_hybrid_no_loan', 'exploit', 'defaulter'] } = {}) {
+export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'honest', 'haggler', 'trader', 'trader_no_loan', 'trader_hybrid', 'trader_hybrid_no_loan', 'trader_hybrid_keep', 'trader_hybrid_keep_no_loan', 'exploit', 'defaulter'] } = {}) {
   const head = ['bot', 'days', 'seeds', 'eur_per_day', 'eur_per_day_early', 'eur_per_day_late', 'worth_start', 'worth_end', 'haggle_deals_per_day', 'loans', 'contracts', 'subsidies', 'interventions', 'interventions_per_day', 'procurement_orders_per_day', 'public_orders_per_day', 'shortages_per_day', 'shortage_longest', 'price_end', 'money_min', 'money_max', 'big_contracts', 'big_contract_fail', 'haggle_gain_per_deal', 'haggle_attempts_per_day', 'haggle_blocked_fatigue', 'eur_per_day_sd', 'eur_per_day_ci95', 'haggle_sells_per_day', 'stall_sales_per_day', 'haggle_skipped_mood', 'trader_no_loan'];
   const lines = [head.join(',')];
   const num = (v) => (v == null || Number.isNaN(v) ? '' : String(v));
