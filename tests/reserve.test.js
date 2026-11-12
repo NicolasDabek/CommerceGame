@@ -165,6 +165,41 @@ export function run() {
         const old = MarketReserve.fromJSON({ treasury: 100, stock: {}, stats: {} });
         assertEqual(Object.keys(old.publicOrders).length, 0);
       } finally { restore(); }
+    }],
+    ['GD passe 13 : sollicitation ciblée — rupture depuis 9 jours, un marchand garde l\'objet → il en affiche 1 (argent conservé) ; personne n\'en garde → le Comptoir lui en confie 1 de sa réserve, payée à la valeur normale', async () => {
+      const { makeGame, totalMoney, drainItem } = await import('./helpers.js');
+      const { game, restore } = await makeGame();
+      try {
+        assertEqual(RESERVE_TUNING.solicitAfterDays, 9);
+        const id = 'item_007';
+        drainItem(game, id);
+        const day = game.timeManager.getCurrentDay();
+        const npcId = Object.keys(game.npcController.npcStates)[0];
+        game.npcController.giveItemToNpc(npcId, id, 2, 70, 50);
+        // pas avant le délai
+        game.reserve.outSince[id] = day - RESERVE_TUNING.solicitAfterDays + 1;
+        game.reserve.publicOrdersDaily(game);
+        assert(!game.offers.some(o => o.status === 'active' && o.type === 'sell' && o.itemId === id), 'pas de sollicitation avant 9 jours');
+        game.reserve.outSince[id] = day - RESERVE_TUNING.solicitAfterDays;
+        const m0 = totalMoney(game);
+        const acts = game.reserve.publicOrdersDaily(game);
+        assert(acts.some(a => a.type === 'solicit' && a.itemId === id && a.npcId === npcId), 'action de sollicitation');
+        const listing = game.offers.find(o => o.status === 'active' && o.type === 'sell' && o.itemId === id && o.ownerId === npcId);
+        assert(listing && listing.solicited && listing.quantity === 1, 'annonce de 1 unité');
+        assertEqual(game.npcController.npcStates[npcId].inventory.find(x => x.itemId === id).quantity, 1, 'retirée du stock du marchand');
+        assert(Math.abs(totalMoney(game) - m0) < 0.02, 'aucun argent créé');
+        assertEqual(game.reserve.stats.solicited, 1);
+        // personne n'en garde : consignation depuis la réserve du Comptoir
+        drainItem(game, id);
+        game.reserve.stock[id] = 3;
+        game.reserve.outSince[id] = day - RESERVE_TUNING.solicitAfterDays;
+        const m1 = totalMoney(game);
+        game.reserve.publicOrdersDaily(game);
+        assertEqual(game.reserve.stock[id], 2, 'une unité confiée');
+        assertEqual(game.reserve.stats.consigned, 1);
+        assert(game.offers.some(o => o.status === 'active' && o.type === 'sell' && o.itemId === id && o.ownerId !== RESERVE_ID && o.solicited), 'affichée par un marchand');
+        assert(Math.abs(totalMoney(game) - m1) < 0.02, 'payée par le marchand, aucun argent créé');
+      } finally { restore(); }
     }]
   ]);
 }

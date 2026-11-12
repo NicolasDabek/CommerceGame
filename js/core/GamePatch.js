@@ -6,7 +6,7 @@ import { TradingDesk } from '../systems/TradingDesk.js';
 import { Negotiation } from '../systems/Negotiation.js';
 import { Credit } from '../systems/Credit.js';
 import { Career } from '../systems/Career.js';
-import { getRankView, rankFor } from './Ranks.js';
+import { getRankView, rankFor, HOUSE_CHARTER, RANKS } from './Ranks.js';
 import { getItemById } from '../data/items.js';
 import { Storage } from '../utils/storage.js';
 import { Offer } from '../models/Offer.js';
@@ -155,6 +155,7 @@ export function enhanceGame(game) {
       const bids = game.npcRequests?.stallBidsView?.() || [];
       if (bids.length) game.uiCallbacks?.onStatus?.(`🧺 ${bids.length} client${bids.length > 1 ? 's' : ''} marchande${bids.length > 1 ? 'nt' : ''} sur votre étal — voir Marchands`);
       game.career?.check();
+      game.checkHouseCharter?.();
       game.save();
     } else {
       game.jobBoard.ensureContracts();
@@ -292,7 +293,32 @@ export function enhanceGame(game) {
   game.repayLoan = () => { const r = game.credit.repay(); if (r.success) game.career?.check(); return r; };
 
   // ---------- Rang, parcours, patrimoine ----------
-  game.getRankView = () => getRankView(game.player.reputation || 0);
+  // GD passe 13 : charte « Maison reconnue » (rang 5) — progression et attribution (une fois, au changement de jour)
+  game.getHouseCharterView = () => {
+    const p = game.player;
+    const revenue = Math.round((p.stats?.totalEarned || 0) * 100) / 100;
+    const st = game.jobBoard?.stats || {};
+    const bigOnTime = Math.max(0, (st.bigContracts || 0) - (st.bigContractFail || 0));
+    const rank4 = (p.reputation || 0) >= RANKS[4].minRep;
+    const creditOk = !(game.credit?.loan?.overdueDays > 0) && !game.credit?.banned?.();
+    const parts = [Math.min(1, revenue / HOUSE_CHARTER.revenue), Math.min(1, bigOnTime / HOUSE_CHARTER.bigOnTime)];
+    return {
+      granted: !!p.houseCharter, day: p.houseCharter?.day ?? null,
+      revenue, revenueTarget: HOUSE_CHARTER.revenue, bigOnTime, bigTarget: HOUSE_CHARTER.bigOnTime, rank4, creditOk,
+      ready: rank4 && creditOk && revenue >= HOUSE_CHARTER.revenue && bigOnTime >= HOUSE_CHARTER.bigOnTime,
+      pct: Math.round(100 * (parts[0] + parts[1]) / 2)
+    };
+  };
+  game.checkHouseCharter = () => {
+    if (game.player.houseCharter) return false;
+    const v = game.getHouseCharterView();
+    if (!v.ready) return false;
+    game.player.houseCharter = { day: game.timeManager?.getCurrentDay?.() ?? 1 };
+    game.uiCallbacks?.onStatus?.('🏛️ Charte du Comptoir : vous êtes « Maison reconnue » (rang 5) — crédit 3 000 € à 0,7 %/jour, 3 ordres permanents, gros contrats tous les 10 jours');
+    return true;
+  };
+  game.getRankId = () => rankFor(game.player.reputation || 0, game.player).id;
+  game.getRankView = () => getRankView(game.player.reputation || 0, game.player, game.getHouseCharterView());
   game.getCareerView = () => game.career.getView();
   game.notePanel = (panel) => { game.career?.notePanel(panel); };
 
@@ -355,7 +381,7 @@ export function enhanceGame(game) {
   const origSummary = game.getProgressSummary.bind(game);
   game.getProgressSummary = function() {
     const s = origSummary();
-    const rank = rankFor(game.player.reputation || 0);
+    const rank = rankFor(game.player.reputation || 0, game.player);
     return { ...s, reputationTitle: rank.title, rankIcon: rank.icon, feeMultiplier: game.player.getFeeMultiplier() };
   };
 

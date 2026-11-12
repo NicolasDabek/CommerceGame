@@ -194,7 +194,7 @@ export class TradingUI {
 
   _credit(c) {
     const pct = (r) => `${String(Math.round(r * 1000) / 10).replace('.', ',')} %`;
-    const ranks = c.ranks.map(r => `<tr class="${r.title === c.rank.title ? 'row-current' : ''}"><td>${r.icon} ${r.title}</td><td>${r.minRep}+</td><td>${formatMoney(r.limit)} €</td><td>${pct(r.rate)} / jour</td></tr>`).join('');
+    const ranks = c.ranks.map(r => `<tr class="${r.title === c.rank.title ? 'row-current' : ''}"><td>${r.icon} ${r.title}</td><td>${r.minRep}+${r.charter ? ' · charte' : ''}</td><td>${formatMoney(r.limit)} €</td><td>${pct(r.rate)} / jour</td></tr>`).join('');
     const history = c.history.map(h => `<tr><td>J${h.takenDay} → J${h.closedDay}</td><td>${formatMoney(h.principal)} €</td><td>${formatMoney(h.interest)} €</td><td>${h.onTime ? '<span class="text-success">à temps</span>' : `<span class="text-danger">${h.overdueDays} j de retard</span>`}</td></tr>`).join('');
     let main;
     if (c.loan) {
@@ -224,7 +224,7 @@ export class TradingUI {
           <div class="trading-add order-form">
             <label>Montant (€) <input class="input input-xs" type="number" id="cr-amount" min="${c.minAmount}" max="${c.limit}" step="10" value="${q ? q.amount : c.minAmount}" /></label>
             <label>Durée <select class="select" id="cr-days">${c.durations.map(d => `<option value="${d}" ${d === 7 ? 'selected' : ''}>${d} jours</option>`).join('')}</select></label>
-            ${(c.contracts || []).length ? `<label title="Un prêt adossé à un contrat ouvert du Comptoir bénéficie d'un taux réduit de 30 %">Pour un contrat <select class="select" id="cr-contract"><option value="">— aucun —</option>${c.contracts.map(j => `<option value="${j.id}">${j.title} (${formatMoney(j.reward)} €) · ${pct(c.contractRate)}/j</option>`).join('')}</select></label>` : ''}
+            ${(c.contracts || []).length ? `<label title="${c.pledgeRate != null ? 'Prêt adossé à un contrat : taux réduit de 30 %, et encore réduit pour la part du contrat déjà en stock (marchandise gagée, que les clients d\'étal ne demandent plus), si le prêt est remboursé à temps' : 'Un prêt adossé à un contrat ouvert du Comptoir bénéficie d\'un taux réduit de 30 %'}">Pour un contrat <select class="select" id="cr-contract"><option value="">— aucun —</option>${c.contracts.map(j => `<option value="${j.id}">${j.title} (${formatMoney(j.reward)} €) · ${pct(c.contractRate)}/j${c.pledgeRate != null ? ` (🔒 ${pct(c.pledgeRate)}/j si déjà en stock et remboursé à temps)` : ''}</option>`).join('')}</select></label>` : ''}
             <button class="btn btn-small btn-primary" data-tr="borrow">Emprunter</button>
             <small class="text-muted">max ${formatMoney(c.limit)} €</small>
           </div>
@@ -254,7 +254,7 @@ export class TradingUI {
     const updQuote = () => {
       if (!crAmount || !crQuote || !this.getCreditQuote) return;
       const q = this.getCreditQuote(Number(crAmount.value) || 0, Number(crDays.value) || 7, { contractId: crContract?.value || null });
-      crQuote.innerHTML = `${q.contractId ? '🧾 Taux « contrat » −30 % · ' : ''}Intérêts : <strong>${formatMoney(q.interest)} €</strong> (${String(Math.round(q.rate * 1000) / 10).replace('.', ',')} % × ${q.days} j) · à rembourser au jour ${q.dueDay} : <strong class="text-money">${formatMoney(q.total)} €</strong> · remboursement anticipé possible (min. 1 jour d'intérêts).`;
+      crQuote.innerHTML = `${q.contractId ? '🧾 Taux « contrat » −30 % · ' : ''}Intérêts : <strong>${formatMoney(q.interest)} €</strong> (${String(Math.round(q.rate * 1000) / 10).replace('.', ',')} % × ${q.days} j) · à rembourser au jour ${q.dueDay} : <strong class="text-money">${formatMoney(q.total)} €</strong>${q.pledge ? ` · 🔒 marchandise gagée (${Math.round(q.pledge.share * 100)} % du contrat en stock) : <strong>${formatMoney(q.pledge.interest)} €</strong> d'intérêts seulement si remboursé à temps` : ''} · remboursement anticipé possible (min. 1 jour d'intérêts).`;
     };
     crAmount?.addEventListener('input', updQuote);
     crDays?.addEventListener('change', updQuote);

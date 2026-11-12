@@ -136,7 +136,7 @@ export class Negotiation {
   }
 
   _rank() {
-    return rankFor(this.game.player?.reputation || 0);
+    return rankFor(this.game.player?.reputation || 0, this.game.player);
   }
 
   triesPerDay() {

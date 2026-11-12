@@ -41,6 +41,12 @@ export const RESERVE_TUNING = {
   publicOrderQty: 3,       // … pour 3 unités par jour au plus…
   publicOrderMax: 4,       // … et 4 objets à la fois au plus
   publicOrderKeep: 400,    // trésorerie minimale gardée hors commandes publiques
+  // GD passe 13 : sollicitation ciblée — rupture depuis `solicitAfterDays` jours alors qu'un marchand garde l'objet en réserve
+  // (souvent un collectionneur, objets épiques) : le Comptoir lui demande d'en afficher 1 (frais d'annonce offerts) ;
+  // si personne n'en garde, il confie 1 unité de sa réserve à un marchand, qui la paie à la valeur normale.
+  solicitAfterDays: 9,
+  solicitMarkup: 1,        // prix de l'annonce sollicitée = prix que le marchand aurait fixé × solicitMarkup
+  solicitDays: 2,          // durée de l'annonce sollicitée (jours)
   lot: 3,                  // quantité par intervention (passe 4 : 2 → 3, interventions plus rares mais plus franches)
   maxStockPerItem: 6,
   startStockPerItem: 2,
@@ -210,6 +216,29 @@ export class MarketReserve {
       if (!out) delete this.outSince[item.id];
     });
     const shortDays = (id) => (this.outSince[id] == null ? 0 : day - this.outSince[id]);
+    // GD passe 13 : sollicitation ciblée d'un détenteur (aucune annonce depuis solicitAfterDays jours)
+    if (t.solicitAfterDays > 0 && game.npcController?.solicitListing) {
+      for (const item of ITEMS) {
+        if (listed.has(item.id) || shortDays(item.id) < t.solicitAfterDays) continue;
+        const sol = { markup: t.solicitMarkup ?? 1, days: t.solicitDays ?? 2 };
+        let a = game.npcController.solicitListing(item.id, sol);
+        // aucun marchand n'en garde : le Comptoir confie 1 unité de sa réserve au marchand le mieux doté en trésorerie,
+        // qui la lui paie à la valeur normale (aucun argent créé) puis l'affiche
+        if (!a && (this.stock[item.id] || 0) > 0) {
+          const ctl = game.npcController;
+          const price = round2(game.economy.getFairValue(item.id));
+          const npcId = Object.keys(ctl.npcStates).sort((x, y) => ctl.getCapital(y) - ctl.getCapital(x))[0];
+          if (npcId && ctl.getCapital(npcId) >= price * 2 && ctl.debitNpc(npcId, price)) {
+            this.treasury = round2(this.treasury + price);
+            this.stock[item.id] -= 1;
+            ctl.giveItemToNpc(npcId, item.id, 1, 55, 50);
+            this.stats.consigned = (this.stats.consigned || 0) + 1;
+            a = ctl.solicitListing(item.id, sol);
+          }
+        }
+        if (a) { this.stats.solicited = (this.stats.solicited || 0) + 1; actions.push({ type: 'solicit', itemId: item.id, npcId: a.npcId, price: a.price }); }
+      }
+    }
     // Clôt les commandes résolues (pénurie terminée) ou dont l'offre n'est plus active
     Object.keys(this.publicOrders).forEach(id => {
       const po = this.publicOrders[id];

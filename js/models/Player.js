@@ -18,6 +18,8 @@ export class Player {
     this.xp = data.xp ?? 0;
     this.reputation = data.reputation ?? 0;
     this.allianceClanId = data.allianceClanId || null;
+    // GD passe 13 : charte « Maison reconnue » (rang 5) — { day } une fois accordée (absente des sauvegardes 1.0.0)
+    this.houseCharter = data.houseCharter && typeof data.houseCharter === 'object' ? { day: Number(data.houseCharter.day) || 1 } : null;
     this.stats = {
       totalSales: data.stats?.totalSales ?? 0,
       totalPurchases: data.stats?.totalPurchases ?? 0,
@@ -65,7 +67,7 @@ export class Player {
 
   getReputationTitle() {
     const r = this.reputation;
-    if (r >= 60) return 'Maison reconnue';
+    if (r >= 60) return this.houseCharter ? 'Maison reconnue' : 'Négociant établi';
     if (r >= 35) return 'Marchand estimé';
     if (r >= 18) return 'Commerçant fiable';
     if (r >= 8) return 'Connu sur la place';
@@ -142,6 +144,7 @@ export class Player {
       xp: this.xp,
       reputation: this.reputation,
       allianceClanId: this.allianceClanId,
+      houseCharter: this.houseCharter,
       stats: { ...this.stats },
       blacklist: [...this.blacklist],
       taxRate: this.taxRate

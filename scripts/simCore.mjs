@@ -102,6 +102,7 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000, bo
     const { createBot } = bot ? await import('./exploitBot.mjs') : {};
     const { resetOfferCounter } = await import('../js/models/Offer.js');
     const { resetTxCounter } = await import('../js/models/Transaction.js');
+    const { rankFor } = await import('../js/core/Ranks.js');
 
     for (let i = 0; i < seeds; i++) {
       const seed = seedBase + i * 7919;
@@ -148,6 +149,7 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000, bo
       const shortByItem = {};
       const shortNoListing = {};
       const shortDurations = [];
+      const rankDays = {};  // GD passe 13 : premier jour de chaque rang atteint par le robot
       const start = { money: moneySupply(game), stock: stock(game), price: priceIndex(game, ITEMS) };
       const botPlayer = bot ? createBot(game, bot) : null;
       if (botPlayer) botLogs.push(botPlayer.log);
@@ -163,6 +165,7 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000, bo
           const slot = acts === 1 ? end - msPerDay / 2 : end - msPerDay + (msPerDay / acts) * (botActs + 0.5);
           if (botPlayer && botActs < acts && virtualNow >= slot) { botPlayer.act(day, botActs === acts - 1); botActs += 1; }
         }
+        if (botPlayer) { const id = game.getRankId ? game.getRankId() : rankFor(game.player.reputation || 0).id; for (let k = 1; k <= id; k++) if (rankDays[k] == null) rankDays[k] = day; }
         if (globalThis.__SIM_DAY_HOOK) globalThis.__SIM_DAY_HOOK(game, day, botPlayer);
         if (game.offers.length > 400) game.offers = game.offers.filter(o => o.status === 'active');
         if (game.transactions.length > 2000) game.transactions.length = 2000;
@@ -229,7 +232,7 @@ export async function runSimulation({ days = 120, seeds = 3, seedBase = 1000, bo
       };
       const caps = Object.values(game.npcController.npcStates).map(st => st.capital ?? 0);
       pay.minCapital = Math.min(pay.minCapital, ...caps);
-      runs.push({ seed, start, series, npcMind, pay, shortDurations, shortByItem, shortNoListing, cityResolved: game.supplyDemand ? [...game.supplyDemand.resolved] : null, reserveStats: game.reserve ? { ...game.reserve.stats } : null, creditStats: game.credit ? { ...game.credit.stats } : null });
+      runs.push({ seed, start, series, npcMind, pay, shortDurations, rankDays, shortByItem, shortNoListing, cityResolved: game.supplyDemand ? [...game.supplyDemand.resolved] : null, reserveStats: game.reserve ? { ...game.reserve.stats } : null, creditStats: game.credit ? { ...game.credit.stats } : null });
     }
   } finally {
     Date.now = realNow;
@@ -331,7 +334,10 @@ export async function pairedBotRuns({ bot, days = 120, seedBases = PAIRED_SEED_B
         seed: seedBase, gain: Math.round((b.worthEnd - b.worthStart) / days * 100) / 100, worthStart: b.worthStart, worthEnd: b.worthEnd,
         early: b.gainPerDayEarly, late: b.gainPerDayLate, loans: b.loans, haggleDealsPerDay: b.haggleDealsPerDay, haggleSellsPerDay: b.haggleSellsPerDay,
         stallSalesPerDay: b.stallSalesPerDay, haggleGainPerDeal: b.haggleGainPerDeal, moneyBand: summary.moneyBand,
-        negPayments: r.pay?.negPayments ?? 0, minCapital: r.pay?.minCapital ?? null, stall: r.pay?.stall || [], diag: b.diag?.[0] || {}
+        negPayments: r.pay?.negPayments ?? 0, minCapital: r.pay?.minCapital ?? null, stall: r.pay?.stall || [], diag: b.diag?.[0] || {},
+        // GD passe 13 : pénurie la plus longue, commandes publiques/jour max, subventions, jours de rang, rabais marchandés
+        shortageLongest: summary.shortageLongest, procMax: r.reserveStats?.procureMaxDay || 0, subsidies: r.reserveStats?.subsidies || 0,
+        rankDays: r.rankDays || {}, discounts: b.discounts || []
       });
     }
   } finally { globalThis.__BOT_PARAMS = prev; }
@@ -347,7 +353,7 @@ export function meanCi(xs) {
 export function pairedDiff(a, b) { return meanCi(a.map((x, i) => x.gain - b[i].gain)); }
 
 export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'honest', 'haggler', 'trader', 'trader_no_loan', 'trader_hybrid', 'trader_hybrid_no_loan', 'trader_hybrid_keep', 'trader_hybrid_keep_no_loan', 'exploit', 'defaulter'] } = {}) {
-  const head = ['bot', 'days', 'seeds', 'eur_per_day', 'eur_per_day_early', 'eur_per_day_late', 'worth_start', 'worth_end', 'haggle_deals_per_day', 'loans', 'contracts', 'subsidies', 'interventions', 'interventions_per_day', 'procurement_orders_per_day', 'public_orders_per_day', 'shortages_per_day', 'shortage_longest', 'price_end', 'money_min', 'money_max', 'big_contracts', 'big_contract_fail', 'haggle_gain_per_deal', 'haggle_attempts_per_day', 'haggle_blocked_fatigue', 'eur_per_day_sd', 'eur_per_day_ci95', 'haggle_sells_per_day', 'stall_sales_per_day', 'haggle_skipped_mood', 'trader_no_loan'];
+  const head = ['bot', 'days', 'seeds', 'eur_per_day', 'eur_per_day_early', 'eur_per_day_late', 'worth_start', 'worth_end', 'haggle_deals_per_day', 'loans', 'contracts', 'subsidies', 'interventions', 'interventions_per_day', 'procurement_orders_per_day', 'public_orders_per_day', 'shortages_per_day', 'shortage_longest', 'price_end', 'money_min', 'money_max', 'big_contracts', 'big_contract_fail', 'haggle_gain_per_deal', 'haggle_attempts_per_day', 'haggle_blocked_fatigue', 'eur_per_day_sd', 'eur_per_day_ci95', 'haggle_sells_per_day', 'stall_sales_per_day', 'haggle_skipped_mood', 'trader_no_loan', 'haggle_discount_mean_pct', 'haggle_discount_median_pct', 'rank2_day', 'rank3_day', 'rank4_day', 'rank5_day', 'rank5_share'];
   const lines = [head.join(',')];
   const num = (v) => (v == null || Number.isNaN(v) ? '' : String(v));
   // Passe 5 : « trader_no_loan » = même trader (4 actions/jour) sans aucun prêt ; colonne trader_no_loan sur la ligne trader
@@ -378,13 +384,22 @@ export async function botSummaryCsv({ days = 120, seeds = 3, bots = ['none', 'ho
       b ? r2c((b.worthEnd - b.worthStart) / days) : '', b ? b.gainPerDayEarly : '', b ? b.gainPerDayLate : '',
       b ? b.worthStart : '', b ? b.worthEnd : '', b ? b.haggleDealsPerDay : '', b ? b.loans : '', contracts,
       avgOf('subsidies'), avgOf('interventions'), r2c(avgRaw('regulations') / days), r2c(avgRaw('procureOrders') / days), r2c((avgRaw('procureOrders') + avgRaw('publicOrders')) / days), summary.shortagesPerDay, summary.shortageLongest, summary.priceEnd,
-      summary.moneyBand[0], summary.moneyBand[1], bigC, bigF, hgd, b ? b.haggleAttemptsPerDay : '', b ? b.haggleBlockedFatigue : '', sd, ci, b ? b.haggleSellsPerDay : '', b ? b.stallSalesPerDay : '', b ? b.haggleSkippedMood : '', ''
+      summary.moneyBand[0], summary.moneyBand[1], bigC, bigF, hgd, b ? b.haggleAttemptsPerDay : '', b ? b.haggleBlockedFatigue : '', sd, ci, b ? b.haggleSellsPerDay : '', b ? b.stallSalesPerDay : '', b ? b.haggleSkippedMood : '', '__NOLOAN__',
+      // GD passe 13 : rabais marchandé (% du prix) moyen / médian, jour médian d'atteinte des rangs 2–5 (vide si < 50 % des graines)
+      b ? b.haggleDiscountMeanPct : '', b ? b.haggleDiscountMedianPct : '',
+      ...[2, 3, 4, 5].map(k => (b ? rankDayMedian(runs, k) : '')), b ? r2c(runs.filter(r => r.rankDays?.[5] != null).length / runs.length) : ''
     ].map(num).join(','));
   }
   // la ligne trader porte le €/jour du trader sans prêt (calculé après)
   const iT = bots.indexOf('trader');
-  if (iT >= 0 && noLoanGain.v != null) lines[iT + 1] = lines[iT + 1].replace(/,$/, ',' + noLoanGain.v);
-  if (bots.includes('trader_no_loan')) { const iN = bots.indexOf('trader_no_loan'); lines[iN + 1] = lines[iN + 1].replace(/,$/, ',' + noLoanGain.v); }
-  return lines.join('\n') + '\n';
+  if (iT >= 0 && noLoanGain.v != null) lines[iT + 1] = lines[iT + 1].replace('__NOLOAN__', noLoanGain.v);
+  if (bots.includes('trader_no_loan')) { const iN = bots.indexOf('trader_no_loan'); lines[iN + 1] = lines[iN + 1].replace('__NOLOAN__', noLoanGain.v ?? ''); }
+  return lines.map(l => l.replace('__NOLOAN__', '')).join('\n') + '\n';
+}
+/** GD passe 13 : jour médian d'atteinte du rang k (graines qui ne l'atteignent pas = jamais) ; '' si moins de la moitié. */
+export function rankDayMedian(runs, k) {
+  const d = runs.map(r => r.rankDays?.[k] ?? Infinity).sort((a, b) => a - b);
+  const m = d[Math.floor((d.length - 1) / 2)];
+  return Number.isFinite(m) ? m : '';
 }
 function r2c(n) { return Math.round(n * 100) / 100; }

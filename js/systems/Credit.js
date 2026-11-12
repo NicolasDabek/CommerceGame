@@ -20,6 +20,7 @@
 
 import { NPCS } from '../data/npcs.js';
 import { rankFor, RANKS, isFeatureUnlocked, lockedMessage } from '../core/Ranks.js';
+import { STALL_TUNING } from './NpcRequests.js';
 
 export const CREDIT_TUNING = {
   durations: [3, 7],
@@ -37,7 +38,11 @@ export const CREDIT_TUNING = {
   onTimeRep: 2,
   seizeShare: 0.5,          // part du produit des ventes saisie en cas de retard
   seizeAfterDays: 3,        // au-delà, le Comptoir prélève ce qu'il peut sur le solde
-  contractRateFactor: 0.7   // passe 4 : crédit adossé à un contrat ouvert → taux −30 %
+  contractRateFactor: 0.7,  // passe 4 : crédit adossé à un contrat ouvert → taux −30 %
+  // GD passe 13 : prêt adossé à une marchandise gagée (contrat ouvert, rang ≥ 2 : les clients d'étal ne peuvent pas
+  // l'acheter) → taux réduit de `pledgeRateCut` × part gagée par jour, jamais sous `pledgeRateFloor`
+  pledgeRateCut: 0.003,      // × part du contrat déjà en stock (gagée) au moment d'emprunter ; dû seulement si remboursé à temps
+  pledgeRateFloor: 0.002
 };
 
 const r2 = (n) => Math.round(Number(n || 0) * 100) / 100;
@@ -58,7 +63,7 @@ export class Credit {
   }
 
   rank() {
-    return rankFor(this.game.player?.reputation || 0);
+    return rankFor(this.game.player?.reputation || 0, this.game.player);
   }
 
   /** Fonds prêtables : Comptoir au-dessus de sa réserve + dépôts des marchands aisés. */
@@ -110,6 +115,32 @@ export class Credit {
     return this._contract(contractId) ? Math.round(base * CREDIT_TUNING.contractRateFactor * 100000) / 100000 : base;
   }
 
+  /**
+   * GD passe 13 : taux d'un prêt gagé, dû s'il est remboursé à temps (sinon le taux « contrat » s'applique).
+   * null si rien n'est gagé (pas de contrat, rien en stock, gage désactivé ou rang < 2).
+   */
+  pledgeRate({ contractId = null } = {}) {
+    const job = this._contract(contractId);
+    const share = this.pledgeShare(job);
+    if (!(share > 0)) return null;
+    const rate = Math.max(CREDIT_TUNING.pledgeRateFloor, this.rate({ contractId }) - CREDIT_TUNING.pledgeRateCut * share);
+    return Math.round(rate * 100000) / 100000;
+  }
+
+  /**
+   * GD passe 13 : part du contrat déjà en stock au moment d'emprunter — marchandise gagée (les clients d'étal ne
+   * peuvent plus l'acheter) qui garantit le prêt. 0 à 1 ; 0 si le gage est désactivé ou si le rang n'ouvre pas l'étal.
+   */
+  pledgeShare(job) {
+    if (!job || !STALL_TUNING.pledge || this.rank().id < STALL_TUNING.minRank) return 0;
+    const held = this.game.player?.inventory?.count?.(job.itemId) || 0;
+    return Math.max(0, Math.min(1, held / Math.max(1, job.quantity || 1)));
+  }
+
+  pledged() {
+    return !!(STALL_TUNING.pledge && this.rank().id >= STALL_TUNING.minRank);
+  }
+
   /** Devis : intérêts et total dû pour un montant et une durée (option : contrat ouvert → taux réduit). */
   quote(amount, days = 7, { contractId = null } = {}) {
     const a = r2(amount);
@@ -117,7 +148,10 @@ export class Credit {
     const rate = this.rate({ contractId });
     const interest = r2(a * rate * d);
     const contract = this._contract(contractId);
-    return { amount: a, days: d, rate, interest, total: r2(a + interest), dueDay: this._day() + d, contractId: contract ? contract.id : null };
+    // GD passe 13 : prêt gagé — taux réduit si remboursé à temps (le taux affiché `rate` reste celui dû en cas de retard)
+    const pledgeRate = this.pledgeRate({ contractId });
+    const pledge = pledgeRate != null ? { rate: pledgeRate, interest: r2(a * pledgeRate * d), share: this.pledgeShare(contract) } : null;
+    return { amount: a, days: d, rate, interest, total: r2(a + interest), dueDay: this._day() + d, contractId: contract ? contract.id : null, pledge };
   }
 
   borrow(amount, days = 7, { contractId = null } = {}) {
@@ -157,7 +191,7 @@ export class Credit {
     const q = this.quote(a, days, { contractId });
     this.loan = {
       id: `loan_${this._seq++}`,
-      principal: a, rate: q.rate, days: q.days, takenDay: this._day(), dueDay: q.dueDay, contractId: q.contractId,
+      principal: a, rate: q.rate, pledgeRate: q.pledge ? q.pledge.rate : null, days: q.days, takenDay: this._day(), dueDay: q.dueDay, contractId: q.contractId,
       paid: 0, lenders, overdueDays: 0, penalty: 0, status: 'active', rankTitle: rank.title
     };
     this.game.player.addMoney(a);
@@ -177,7 +211,9 @@ export class Credit {
   interestDue(loan = this.loan, day = this._day()) {
     if (!loan) return 0;
     const elapsed = Math.max(1, Math.min(loan.days, day - loan.takenDay));
-    return r2(loan.principal * loan.rate * elapsed + (loan.penalty || 0));
+    // GD passe 13 : prêt gagé remboursé à temps → taux réduit ; en retard, le taux « contrat » s'applique de nouveau
+    const rate = loan.pledgeRate != null && !(loan.overdueDays > 0) ? loan.pledgeRate : loan.rate;
+    return r2(loan.principal * rate * elapsed + (loan.penalty || 0));
   }
 
   outstanding(loan = this.loan) {
@@ -312,14 +348,16 @@ export class Credit {
     const day = this._day();
     return {
       rank,
-      ranks: RANKS.map(r => ({ title: r.title, icon: r.icon, limit: r.creditLimit, rate: r.creditRate, minRep: r.minRep })),
+      ranks: RANKS.map(r => ({ title: r.title, icon: r.icon, limit: r.creditLimit, rate: r.creditRate, minRep: r.minRep, charter: !!r.charter })),
       rate: rank.creditRate,
       rankLimit: rank.creditLimit,
       pool: pool.total,
       lenders: pool.sources.length,
       limit: this.limit(),
       durations: CREDIT_TUNING.durations,
-      contractRate: r2(rank.creditRate * CREDIT_TUNING.contractRateFactor * 1000) / 1000,
+      contractRate: Math.round(rank.creditRate * CREDIT_TUNING.contractRateFactor * 100000) / 100000,
+      // GD passe 13 : taux d'un prêt adossé à un contrat entièrement en stock (marchandise gagée, rang ≥ 2)
+      pledgeRate: this.pledged() ? Math.round(Math.max(CREDIT_TUNING.pledgeRateFloor, rank.creditRate * CREDIT_TUNING.contractRateFactor - CREDIT_TUNING.pledgeRateCut) * 100000) / 100000 : null,
       contracts: (this.game.jobBoard?.contracts || []).filter(j => j.status === 'open').map(j => ({ id: j.id, title: j.title, reward: j.reward })),
       minAmount: CREDIT_TUNING.minAmount,
       loan: loan ? {

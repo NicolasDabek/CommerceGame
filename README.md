@@ -65,6 +65,10 @@ Les panneaux d'hôtel de vente / d'achat, de marché et d'inventaire affichent l
   affichée dans *Marchands → Commandes publiques du Comptoir* avec un bouton « Livrer ». Les producteurs de la spécialité
   s'y mettent en priorité ; la ville consomme les objets livrés. L'argent vient de la trésorerie (rien n'est créé).
   Au-delà de 5 000 € de trésorerie (passe 4 ; 4 000 avant), l'excédent est détruit (puits d'argent).
+- **Sollicitation ciblée (GD passe 13)** : un objet sans aucune annonce depuis 9 jours (souvent un objet épique gardé par un
+  collectionneur) → le Comptoir demande au marchand qui en garde le plus d'en afficher 1 (frais offerts) ; si personne n'en garde,
+  il confie 1 unité de sa réserve au marchand le mieux doté, qui la lui paie à la valeur normale et l'affiche. Aucun argent créé.
+  Pénurie la plus longue ≤ 12 jours pour tous les robots sur 20 graines appariées (jusqu’à 14–16 jours avant sur le lot testé, 20 sur d’autres graines ; reports/gd13.md).
 - **PNJ producteurs et consommateurs** : ils consomment une partie de leur stock (surtout la nourriture) et fabriquent
   sous leur stock cible, ce qui crée offre et demande en continu.
 - **Lisibilité** : carte *Santé de l'économie* dans le Marché (niveau des prix, masse monétaire, Comptoir, activité),
@@ -150,6 +154,9 @@ s'il achète beaucoup un objet, les prix d'annonce montent un peu ; s'il en vend
   **Marchandise gagée** (GD 12) : tant qu'un prêt adossé à un contrat court, les clients d'étal ne demandent pas l'objet de ce
   contrat (🔒 affiché dans le panneau) ; le gage est levé au remboursement. Mesures : reports/gd12-hybride.md. La visite du
   jour est sauvegardée (un rechargement ne fait ni gagner ni perdre de client).
+- **Cible de marchandage (GD passe 13)** : l'objectif « gain de 0,9 à 1,1 € par accord » est remplacé par un **rabais médian de 3 à 6 % du prix**
+  (rabais = gain ÷ prix de référence de l'affaire, à l'achat comme à la vente), avec toujours ≥ 1,5 accord/jour visé. Colonnes
+  `haggle_discount_mean_pct` / `haggle_discount_median_pct` du CSV de simulation.
 - **Paliers de maîtrise** (rangs 3 et 4) : « ventes marchandées » ou, sans marchander, « livraisons rentables » (marge ≥ 5 %, coût connu ;
   3 catégories au rang 4) — même récompense, une seule fois par palier.
 
@@ -161,7 +168,14 @@ s'il achète beaucoup un objet, les prix d'annonce montent un peu ; s'il en vend
 | 🙂 Connu sur la place | 8+ | **Marchandage** | 3 essais, +1 % | — | — |
 | 🤝 Commerçant fiable | 18+ | **Crédit du Comptoir** | 4 essais, +2 % | 1 000 € · 1,2 %/j | — |
 | ⭐ Marchand estimé | 35+ | **Ordres permanents, comparateur de marchands** | 4 essais, +3 % | 1 600 € · 1 %/j | +1 |
-| 🏛️ Maison reconnue | 60+ | | 5 essais, +4 % | 2 500 € · 0,8 %/j | +2 |
+| 🎖️ Négociant établi | 60+ | | 5 essais, +4 % | 2 500 € · 0,8 %/j | +2 |
+| 🏛️ Maison reconnue | 60+ **et charte** | Gros contrats tous les 10 jours (15 au rang 4) | 5 essais, +4 % | 3 000 € · 0,7 %/j | +3 |
+
+**Rang 5 « Maison reconnue » (GD passe 13)** : charte définitive accordée par le Comptoir (vérifiée chaque jour) quand, au rang 4,
+vous avez réalisé **7 000 € de chiffre d'affaires** et livré **3 gros contrats du Comptoir à temps**, sans crédit en retard ni
+interdiction de crédit en cours. Avantages volontairement modérés (pas de marchandage ni de frais plus avantageux qu'au rang 4).
+Avancement visible dans Parcours → Rang. Les sauvegardes 1.0.0 se chargent sans charte (aucune migration nécessaire).
+Seuil calibré sur la simulation : un trader réalise ≈ 9 000 € de chiffre d'affaires en 120 jours (25 000 € n'était jamais atteint).
 
 **Prime de démarrage (passe 4)** : au rang 0 ou 1, vos 3 premiers contrats du Comptoir livrés rapportent +20 % (affiché sur la carte du contrat).
 
@@ -172,7 +186,9 @@ Réputation négative : pas de crédit.
 
 ## Crédit du Comptoir (Suivi → Crédit)
 
-- Un prêt à la fois, 3 ou 7 jours, plafond et taux selon le rang ; **passe 4** : un prêt adossé à un contrat ouvert a un taux −30 %. **Aucun argent créé** : les fonds viennent de la trésorerie du Comptoir
+- Un prêt à la fois, 3 ou 7 jours, plafond et taux selon le rang ; **passe 4** : un prêt adossé à un contrat ouvert a un taux −30 %.
+  **Prêt gagé (GD passe 13, rang 2+)** : la part du contrat déjà en stock au moment d'emprunter (marchandise gagée) baisse encore
+  le taux de 0,3 point/jour au prorata (plancher 0,2 %/jour) — tout le contrat en stock au rang 4 : 0,56 → 0,26 %/jour. **Aucun argent créé** : les fonds viennent de la trésorerie du Comptoir
   (au-delà de 600 €) et des marchands les plus riches ; capital et intérêts leur reviennent.
 - Remboursement anticipé possible (au moins 1 jour d'intérêts) ; prélèvement automatique à l'échéance ; à temps : +2 réputation.
 - Retard : +2 %/jour (max 30 %), −6 puis −2 réputation/jour, 50 % des ventes saisies, prélèvement du solde dès le 3ᵉ jour, saisie du stock (rachat par le Comptoir au prix du marché) dès le 5ᵉ, puis 14 jours sans crédit.

@@ -1,7 +1,7 @@
 import { Offer } from '../js/models/Offer.js';
 import { Transaction } from '../js/models/Transaction.js';
 import { CHAPTERS } from '../js/systems/Career.js';
-import { rankFor, getRankView, RANKS, feeMultiplierFor, isFeatureUnlocked, featureView } from '../js/core/Ranks.js';
+import { rankFor, getRankView, RANKS, feeMultiplierFor, isFeatureUnlocked, featureView, HOUSE_CHARTER } from '../js/core/Ranks.js';
 import { assert, assertEqual, runSuite } from './assert.js';
 import { makeGame, totalMoney, installMemoryStorage, UNLOCK_ALL_REP } from './helpers.js';
 
@@ -32,7 +32,10 @@ export function run() {
     ['rangs : paliers, avantages et résumé de progression corrigé', async () => {
       assertEqual(rankFor(0).title, 'Nouveau venu');
       assertEqual(rankFor(18).title, 'Commerçant fiable');
-      assertEqual(rankFor(60).title, 'Maison reconnue');
+      // GD passe 13 : le rang 4 devient « Négociant établi » ; « Maison reconnue » est le rang 5 (charte)
+      assertEqual(rankFor(60).title, 'Négociant établi');
+      assertEqual(rankFor(120).id, 4, 'sans charte : rang 4 au plus');
+      assertEqual(rankFor(60, { houseCharter: { day: 80 } }).title, 'Maison reconnue');
       assertEqual(rankFor(-3).creditLimit, 0, 'pas de crédit si réputation négative');
       const v = getRankView(10);
       assertEqual(v.next.title, 'Commerçant fiable');
@@ -169,6 +172,49 @@ export function run() {
         assertEqual(g3.credit.loan, null);
         assertEqual(g3.career.counters.buysBelow, 1, 'compteurs reconstitués depuis l\'historique');
         assert(g3.getCareerView().chapters.length === 5);
+      } finally { restore(); }
+    }],
+    ['GD passe 13 : rang 5 « Maison reconnue » — charte (rang 4 + chiffre d\'affaires + 3 gros contrats à temps, sans retard de crédit), avantages modérés, sauvegardée, compatible 1.0.0', async () => {
+      const { game, restore } = await makeGame({ reputation: 60 });
+      try {
+        assertEqual(RANKS.length, 6);
+        const r5 = RANKS[5];
+        assertEqual(r5.title, 'Maison reconnue');
+        assert(r5.creditLimit > RANKS[4].creditLimit && r5.creditLimit <= 3000, `plafond ${r5.creditLimit}`);
+        assert(r5.creditRate < RANKS[4].creditRate && r5.creditRate >= 0.007, `taux ${r5.creditRate}`);
+        assertEqual(r5.orderSlots, RANKS[4].orderSlots + 1, 'un ordre permanent de plus');
+        assertEqual(r5.haggleTries, RANKS[4].haggleTries, 'marchandage inchangé');
+        assertEqual(game.getRankId(), 4);
+        const slots4 = game.tradingDesk.slots();
+        let v = game.getRankView();
+        assertEqual(v.next.id, 5);
+        assertEqual(v.charter.ready, false);
+        assertEqual(game.checkHouseCharter(), false, 'conditions non remplies');
+        game.player.stats.totalEarned = HOUSE_CHARTER.revenue;
+        game.jobBoard.stats.bigContracts = HOUSE_CHARTER.bigOnTime + 1;
+        game.jobBoard.stats.bigContractFail = 1;
+        assertEqual(game.getHouseCharterView().bigOnTime, HOUSE_CHARTER.bigOnTime);
+        game.player.reputation = 59;
+        assertEqual(game.checkHouseCharter(), false, 'il faut être au rang 4');
+        game.player.reputation = 60;
+        assertEqual(game.checkHouseCharter(), true, 'charte accordée');
+        assertEqual(game.getRankId(), 5);
+        v = game.getRankView();
+        assertEqual(v.rank.title, 'Maison reconnue');
+        assertEqual(v.next, null);
+        assertEqual(v.table[5].reached, true);
+        assertEqual(game.player.getReputationTitle(), 'Maison reconnue');
+        assertEqual(game.getCreditView().rankLimit, r5.creditLimit);
+        assertEqual(game.tradingDesk.slots(), slots4 + 1, 'un ordre permanent de plus');
+        // sauvegarde : la charte est conservée ; une sauvegarde 1.0.0 (sans le champ) charge sans charte
+        const { Player } = await import('../js/models/Player.js');
+        const json = JSON.parse(JSON.stringify(game.player.toJSON()));
+        assertEqual(Player.fromJSON(json).houseCharter.day, game.player.houseCharter.day);
+        delete json.houseCharter;
+        assertEqual(Player.fromJSON(json).houseCharter, null);
+        assertEqual(rankFor(60, Player.fromJSON(json)).id, 4);
+        // gros contrats plus fréquents au rang 5
+        assert(r5.largeEvery > 0 && r5.largeEvery < 15, `gros contrats tous les ${r5.largeEvery} jours`);
       } finally { restore(); }
     }]
   ]);

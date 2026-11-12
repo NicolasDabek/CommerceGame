@@ -342,6 +342,35 @@ export const NpcActions = {
   },
 
 
+  /**
+   * GD passe 13 : sollicitation du Comptoir — l'objet manque sur le marché depuis plusieurs jours et ce marchand en garde :
+   * il en affiche 1 au prix qu'il aurait fixé lui-même (frais offerts, aucun argent créé). Renvoie l'action ou null.
+   */
+  solicitListing(itemId, { markup = 1, days = 2 } = {}) {
+    const now = this.getNow();
+    let best = null;
+    for (const npc of NPCS) {
+      const state = this.npcStates[npc.id];
+      if (!state) continue;
+      for (const slot of state.inventory) {
+        if (slot.itemId !== itemId || !(slot.quantity > 0)) continue;
+        if (!best || slot.quantity > best.slot.quantity || (slot.quantity === best.slot.quantity && (slot.quality ?? 50) < (best.slot.quality ?? 50))) best = { npc, state, slot };
+      }
+    }
+    if (!best) return null;
+    const { npc, state, slot } = best;
+    const price = round2(this.listingPrice(npc, state, slot).price * markup);
+    const offer = new Offer({ type: 'sell', itemId, quantity: 1, price, buyoutPrice: round2(price * 1.08), ownerId: npc.id, durationDays: days, quality: slot.quality, perfection: slot.perfection, createdAt: now, msPerGameDay: this.getMsPerGameDay() });
+    offer.solicited = true;
+    slot.quantity -= 1;
+    if (slot.quantity <= 0) state.inventory = state.inventory.filter(s => s !== slot);
+    markSold(state, itemId, state.dayHint);
+    this.addOffer(offer);
+    this.runMatching(offer);
+    return { npcId: npc.id, price, offer };
+  },
+
+
   _tryBuy(npc, state) {
     const spendable = this._spendable(npc, state);
     if (spendable < 10) return null;

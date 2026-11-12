@@ -4,6 +4,29 @@ Toutes les évolutions notables de Commerce Tycoon. Format inspiré de [Keep a C
 versionnage [sémantique](https://semver.org/lang/fr/). Les « passes » GD (game design) et UX sont mesurées
 par la simulation headless (`npm run sim -- --csv`, 20 graines appariées) et les audits Playwright (réseau externe bloqué).
 
+## [Non publié]
+
+### Ajouté
+- **GD passe 13 — rang 5 « Maison reconnue »** : charte définitive du Comptoir, accordée au rang 4 après 7 000 € de chiffre
+  d'affaires et 3 gros contrats du Comptoir livrés à temps, sans crédit en retard. Avantages modérés : crédit 3 000 € à 0,7 %/jour,
+  un 3ᵉ ordre permanent, gros contrats tous les 10 jours. Avancement affiché dans Parcours → Rang. L'ancien rang 4 devient
+  « 🎖️ Négociant établi ». Sauvegardes 1.0.0 compatibles (champ `houseCharter` facultatif).
+- **Sollicitation ciblée du Comptoir** : un objet sans annonce depuis 9 jours est remis en vente par le marchand qui en garde le plus
+  (ou confié depuis la réserve du Comptoir, payé à la valeur normale). Aucun argent créé.
+- **Prêt gagé** : la part d'un contrat déjà en stock au moment d'emprunter baisse le taux de 0,3 point/jour au prorata
+  (plancher 0,2 %/jour), si le prêt est remboursé à temps.
+- Simulation : colonnes `haggle_discount_mean_pct`, `haggle_discount_median_pct`, `rank2_day` à `rank5_day`, `rank5_share` ;
+  rapport `reports/gd13.{md,csv}` (lots A et B, 40 graines, avant / après) via `scripts/gd13Collect.mjs` et `scripts/gd13Report.mjs`.
+
+### Modifié
+- Cible du marchandage : « rabais médian de 3 à 6 % du prix » remplace « 0,9 à 1,1 € par accord » (décision de Nicolas).
+- Tests resserrés : pénuries ≤ 12 jours vérifiées sur 20 graines (3 auparavant) et pour chaque robot ; subventions ≤ 20 k€ aussi
+  graine par graine ; test du crédit du trader sur 20 graines appariées ; garde-fou bas de l'apport du crédit à l'hybride 1,10 → 1,15.
+
+### Écarts connus (reports/gd13.md)
+- Apport du crédit au trader « garde son stock » : 1,05–1,08 pour une cible ≥ 1,12, incompatible avec « garde » ≤ 1,35.
+- 1,38 accord marchandé par jour pour une cible ≥ 1,5.
+
 ## [1.0.0] — 2026-11-11
 
 Première version stable : jeu complet, 100 % local (aucun CDN), sauvegardes versionnées.

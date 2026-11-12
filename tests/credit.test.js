@@ -183,6 +183,45 @@ export function run() {
         assertEqual(c.banned(), false);
         assertEqual(c.stats.seized, 0);
       } finally { restore(); }
+    }],
+    ['GD passe 13 : prêt gagé — part du contrat déjà en stock → taux réduit (−0,3 pt/jour au prorata, plancher 0,2 %) si remboursé à temps, rang ≥ 2 seulement', async () => {
+      const { game, restore } = await makeGame({ reputation: 35 });
+      try {
+        game.reserve.treasury = 3000;
+        game.jobBoard.ensureContracts();
+        const job = game.jobBoard.contracts.find(j => j.status === 'open' && j.quantity >= 2);
+        assert(job, 'un contrat ouvert');
+        game.player.inventory.items = game.player.inventory.items.filter(x => x.itemId !== job.itemId);
+        const base = game.getCreditQuote(300, 3);
+        const contract = Math.round(base.rate * CREDIT_TUNING.contractRateFactor * 100000) / 100000;
+        const q0 = game.getCreditQuote(300, 3, { contractId: job.id });
+        assertEqual(q0.rate, contract, 'rien en stock : taux « contrat »');
+        assertEqual(q0.pledge, null, 'rien de gagé');
+        game.player.inventory.add(job.itemId, job.quantity, 60, 60, 10);
+        const full = game.getCreditQuote(300, 3, { contractId: job.id });
+        assertEqual(full.rate, contract, 'taux affiché (dû en cas de retard) inchangé');
+        const want = Math.round(Math.max(CREDIT_TUNING.pledgeRateFloor, contract - CREDIT_TUNING.pledgeRateCut) * 100000) / 100000;
+        assertEqual(full.pledge.rate, want, `tout en stock : ${full.pledge.rate}`);
+        assertEqual(full.pledge.share, 1);
+        assert(full.pledge.interest < full.interest, 'gage : intérêts plus bas');
+        assert(game.getCreditView().pledgeRate != null, 'taux gagé affiché');
+        // emprunt gagé remboursé à temps : intérêts au taux gagé, argent conservé
+        const before = totalMoney(game);
+        const r = game.borrow(300, 3, { contractId: job.id });
+        assert(r.success, r.error);
+        assertEqual(game.credit.loan.pledgeRate, want);
+        nextDay(game);
+        assertEqual(game.credit.interestDue(), Math.round(300 * want * 1 * 100) / 100, 'intérêts au taux gagé');
+        // en retard : le taux « contrat » revient
+        game.credit.loan.overdueDays = 1;
+        assertEqual(game.credit.interestDue(), Math.round(300 * contract * 1 * 100) / 100, 'retard : taux « contrat »');
+        game.credit.loan.overdueDays = 0;
+        assert(game.credit.repay().success, 'remboursé');
+        assert(Math.abs(totalMoney(game) - before) < 0.05, 'aucun argent créé');
+        // rang 1 : pas de clients d'étal → pas de gage
+        game.player.reputation = 10;
+        assertEqual(game.credit.pledgeRate({ contractId: job.id }), null, 'rang 1 : pas de gage');
+      } finally { restore(); }
     }]
   ]);
 }

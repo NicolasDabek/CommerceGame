@@ -28,7 +28,7 @@ export const LARGE_CONTRACTS = { ranks: [1, 2], qtyMult: 3, marginBonus: 0.05, m
  * GD passe 6 : puits d'argent progressif — taxe d'étal quotidienne selon le rang (€/jour), versée au Comptoir.
  * Jamais plus de `maxShare` de la caisse du joueur, et rien sous `minCash` (un joueur à sec n'est pas taxé).
  */
-export const STALL_TAX = { byRank: [0, 0, 0, 0.5, 1.1], maxShare: 0.01, minCash: 100 };
+export const STALL_TAX = { byRank: [0, 0, 0, 0.5, 1.1, 1.1], maxShare: 0.01, minCash: 100 };  // GD 13 : rang 5 = rang 4
 
 export const JobContracts = {
 
@@ -80,7 +80,7 @@ export const JobContracts = {
   collectStallTax() {
     const player = this.game.player;
     if (!player) return 0;
-    const rank = rankFor(player.reputation || 0);
+    const rank = rankFor(player.reputation || 0, player);
     const base = STALL_TAX.byRank[Math.max(0, rank.id)] || 0;
     const cash = player.money || 0;
     if (base <= 0 || cash < STALL_TAX.minCash) return 0;
@@ -154,10 +154,12 @@ export const JobContracts = {
   /** Passe 5 : un gros contrat par jour aux rangs 1-2, sur un produit abondant, à financer par un crédit adossé. */
   _rollLarge(day) {
     const T = LARGE_CONTRACTS;
-    const rank = rankFor(this.game.player?.reputation || 0);
+    const rank = rankFor(this.game.player?.reputation || 0, this.game.player);
     if (!(rank.creditLimit > 0) || rank.id < Math.min(...T.ranks)) return null;
-    // au-delà des rangs 1-2, un gros contrat n'est proposé que tous les `laterEvery` jours (0 : jamais)
-    if (!T.ranks.includes(rank.id) && !(T.laterEvery > 0 && day % T.laterEvery === 0)) return null;
+    // au-delà des rangs 1-2, un gros contrat n'est proposé que tous les `laterEvery` jours (0 : jamais) ;
+    // GD passe 13 : rang 5 (Maison reconnue) → tous les `rank.largeEvery` jours
+    const every = rank.largeEvery || T.laterEvery;
+    if (!T.ranks.includes(rank.id) && !(every > 0 && day % every === 0)) return null;
     // GD passe 6 : au plus un nouveau gros contrat tous les `every` jours
     if (T.every > 1 && this.lastLargeDay != null && day - this.lastLargeDay < T.every) return null;
     // payé intégralement par la trésorerie du Comptoir (aucune création d'argent) : taille plafonnée par ce qu'elle peut payer

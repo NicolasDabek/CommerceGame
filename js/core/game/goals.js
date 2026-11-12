@@ -65,7 +65,7 @@ export const GameGoals = {
     const aboveMarketSales = playerSales.filter(tx => (tx.priceDeltaPct ?? 0) >= 8).length;
 
     // GD passe 10 : objectifs de fin de partie liés au marchandage des ventes (rang 3 puis 4)
-    const rankId = rankFor(this.player.reputation || 0).id;
+    const rankId = rankFor(this.player.reputation || 0, this.player).id;
     const haggledSales = this.negotiation?.stats?.sellDeals || 0;
     const rankGated = (minRank, target, value = haggledSales) => (rankId >= minRank ? Math.min(value, target) : Math.min(value, target - 1));
     // GD passe 11 : branche « approvisionneur » (sans marchandage) — livraisons rentables (coût connu, marge ≥ 5 %)
@@ -506,7 +506,7 @@ export const GameGoals = {
       // GD passe 9 : les livraisons comptent désormais dans les objectifs ; leur réputation ne doit pas
       // précipiter les rangs 3–4 (plafonds de crédit 1 600 / 2 500 €, création monétaire par le trader). Au rang 2+, la récompense devient de l'XP (×10).
       if (goal.reputationReward) {
-        if (rankFor(this.player.reputation || 0).id >= GOAL_REP_MAX_RANK) this.player.addXp(goal.reputationReward * 10);
+        if (rankFor(this.player.reputation || 0, this.player).id >= GOAL_REP_MAX_RANK) this.player.addXp(goal.reputationReward * 10);
         else this.player.addReputation(goal.reputationReward);
       }
       if (goal.xpReward) this.player.addXp(goal.xpReward);

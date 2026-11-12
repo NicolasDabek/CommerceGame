@@ -81,7 +81,7 @@ export class CareerUI {
           <span class="eco-label">Rang</span>
           <div class="eco-main"><strong>${rank.rank.icon} ${rank.rank.title}</strong></div>
           <div class="prof-bar"><span style="width:${rank.pct}%"></span></div>
-          <small class="text-muted">réputation ${rank.reputation}${next ? ` · encore ${rank.toNext} pour ${next.icon} ${next.title}` : ' · rang maximum'}</small>
+          <small class="text-muted">réputation ${rank.reputation}${next ? (next.charter ? ` · charte ${next.icon} ${next.title} : ${rank.pct} %` : ` · encore ${rank.toNext} pour ${next.icon} ${next.title}`) : ' · rang maximum'}</small>
         </div>
         <div class="eco-tile" title="Chapitres du parcours terminés">
           <span class="eco-label">Parcours</span>
@@ -126,12 +126,25 @@ export class CareerUI {
     const rows = rank.table.map(r => `
       <tr class="${r.current ? 'row-current' : ''} ${r.reached ? '' : 'row-locked'}">
         <td>${r.icon} <strong>${r.title}</strong><br><small class="text-muted">${r.text}</small>${r.unlocks?.length ? `<br><small class="text-success">🔓 Débloque : ${r.unlocks.join(', ')}</small>` : r.id === 0 ? '<br><small class="text-muted">Hôtel de vente, atelier, contrats et commandes</small>' : ''}</td>
-        <td>${r.minRep}+</td>
+        <td>${r.charter ? `${r.minRep}+<br><small class="text-muted">+ charte</small>` : `${r.minRep}+`}</td>
         <td title="Multiplicateur des frais d'annonce">${Math.round(r.feeMultiplier * 100)} %</td>
         <td>${r.haggleTries} essais / marchand${r.haggleBonus ? `<br><small class="text-success">+${Math.round(r.haggleBonus * 100)} % de marge</small>` : ''}</td>
         <td>${formatMoney(r.creditLimit)} €<br><small class="text-muted">${pct(r.creditRate)} / jour</small></td>
         <td>${r.orderSlots ? `+${r.orderSlots}` : '—'}</td>
       </tr>`).join('');
+    // GD passe 13 : charte « Maison reconnue » (rang 5) — conditions et avancement
+    const ch = rank.charter;
+    const charter = ch ? `
+      <div class="rank-help" id="house-charter">
+        <h3>🏛️ Charte « Maison reconnue » (rang 5)${ch.granted ? ` <small class="text-success">— accordée le jour ${ch.day}</small>` : ''}</h3>
+        <ul class="charter-list">
+          <li>${ch.rank4 ? '✅' : '⬜'} Rang 4 (réputation 60+)</li>
+          <li>${ch.revenue >= ch.revenueTarget ? '✅' : '⬜'} Chiffre d'affaires : ${formatMoney(Math.min(ch.revenue, ch.revenueTarget))} / ${formatMoney(ch.revenueTarget)} €</li>
+          <li>${ch.bigOnTime >= ch.bigTarget ? '✅' : '⬜'} Gros contrats du Comptoir livrés à temps : ${Math.min(ch.bigOnTime, ch.bigTarget)} / ${ch.bigTarget}</li>
+          <li>${ch.creditOk ? '✅' : '⬜'} Aucun crédit en retard</li>
+        </ul>
+        <p class="text-muted">Avantages : crédit 3 000 € à 0,7 %/jour, un 3e ordre permanent, gros contrats proposés tous les 10 jours (au lieu de 15). La charte est définitive.</p>
+      </div>` : '';
     return `
       ${this._summaryTiles(this.getCareer(), rank)}
       <div class="table-container">
@@ -140,6 +153,7 @@ export class CareerUI {
           <tbody>${rows}</tbody>
         </table>
       </div>
+      ${charter}
       <div class="rank-help">
         <h3>Gagner de la réputation</h3>
         <ul>

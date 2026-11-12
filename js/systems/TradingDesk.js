@@ -212,7 +212,7 @@ export class TradingDesk {
   slots() {
     // Métier Négociant + avantage du rang de réputation
     const base = this.game.jobBoard?.standingOrderSlots?.() ?? 2;
-    return base + (rankFor(this.game.player?.reputation || 0).orderSlots || 0);
+    return base + (rankFor(this.game.player?.reputation || 0, this.game.player).orderSlots || 0);
   }
 
   /** Les ordres permanents se débloquent au rang 3 (analyse GD passe 2). */

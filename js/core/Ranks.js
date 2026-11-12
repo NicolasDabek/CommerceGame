@@ -26,11 +26,29 @@ export const RANKS = [
     text: 'Le Comptoir vous fait crédit à meilleur taux.'
   },
   {
-    id: 4, minRep: 60, title: 'Maison reconnue', icon: '🏛️',
+    id: 4, minRep: 60, title: 'Négociant établi', icon: '🎖️',
     haggleTries: 5, haggleBonus: 0.038, creditLimit: 2500, creditRate: 0.008, orderSlots: 2,
-    text: 'Une maison de commerce établie : meilleures conditions partout.'
+    text: 'Un négociant établi : meilleures conditions partout.'
+  },
+  /**
+   * GD passe 13 : rang 5 « Maison reconnue » — pas seulement de la réputation : une charte accordée par le Comptoir
+   * (voir HOUSE_CHARTER). Avantages modérés : crédit 3 000 € à 0,7 %/jour, 3 ordres permanents, gros contrats
+   * du Comptoir tous les 10 jours (15 au rang 4). Marchandage et frais identiques au rang 4.
+   */
+  {
+    id: 5, minRep: 60, title: 'Maison reconnue', icon: '🏛️', charter: true,
+    haggleTries: 5, haggleBonus: 0.038, creditLimit: 3000, creditRate: 0.007, orderSlots: 3, largeEvery: 10,
+    text: 'Charte du Comptoir : crédit élargi à meilleur taux, un ordre permanent de plus, gros contrats plus fréquents.'
   }
 ];
+
+/**
+ * GD passe 13 : charte de « Maison reconnue » (rang 5), accordée une fois pour toutes quand, au rang 4, le joueur a
+ * réalisé `revenue` € de chiffre d'affaires et livré `bigOnTime` gros contrats du Comptoir à temps, sans crédit en
+ * retard ni interdiction de crédit en cours.
+ */
+export const HOUSE_CHARTER = { revenue: 7000, bigOnTime: 3 };
+
 
 /** Réputation négative : pas de crédit, marchands méfiants. */
 export const DISTRUSTED_RANK = {
@@ -39,17 +57,24 @@ export const DISTRUSTED_RANK = {
   text: 'Réputation négative : pas de crédit et des marchands sur leurs gardes.'
 };
 
-export function rankFor(reputation = 0) {
+/** Rang courant. `player` (facultatif) : le rang 5 exige en plus la charte (player.houseCharter). */
+export function rankFor(reputation = 0, player = null) {
   const rep = Number(reputation) || 0;
   if (rep < 0) return DISTRUSTED_RANK;
   let current = RANKS[0];
-  for (const r of RANKS) if (rep >= r.minRep) current = r;
+  for (const r of RANKS) if (rep >= r.minRep && (!r.charter || player?.houseCharter)) current = r;
   return current;
 }
 
-export function nextRank(reputation = 0) {
+/** Rang du joueur (charte comprise). */
+export function playerRank(player) {
+  return rankFor(player?.reputation || 0, player);
+}
+
+export function nextRank(reputation = 0, player = null) {
   const rep = Number(reputation) || 0;
-  return RANKS.find(r => r.minRep > rep) || null;
+  const cur = rankFor(rep, player);
+  return RANKS.find(r => r.id > cur.id) || null;
 }
 
 /** Réduction des frais d'annonce dès le rang 1 (analyse GD passe 2 : −20 %). */
@@ -93,24 +118,26 @@ export function featureView(reputation = 0) {
 }
 
 /** Vue complète pour l'interface : rang actuel, suivant, progression et tableau des avantages. */
-export function getRankView(reputation = 0) {
+export function getRankView(reputation = 0, player = null, charter = null) {
   const rep = Number(reputation) || 0;
-  const rank = rankFor(rep);
-  const next = nextRank(rep);
+  const rank = rankFor(rep, player);
+  const next = nextRank(rep, player);
   const base = rank.id >= 0 ? rank.minRep : -40;
-  const pct = next ? Math.max(0, Math.min(100, Math.round(((rep - base) / Math.max(1, next.minRep - base)) * 100))) : 100;
+  // rang 5 : progression = avancement de la charte (chiffre d'affaires et gros contrats à temps)
+  const pct = !next ? 100 : next.charter ? (charter ? charter.pct : 0) : Math.max(0, Math.min(100, Math.round(((rep - base) / Math.max(1, next.minRep - base)) * 100)));
   return {
     reputation: rep,
     rank,
     next,
     pct,
-    toNext: next ? next.minRep - rep : 0,
+    charter,
+    toNext: next && !next.charter ? next.minRep - rep : 0,
     feeMultiplier: feeMultiplierFor(rep),
     features: featureView(rep),
     table: RANKS.map(r => ({
       ...r,
       unlocks: Object.keys(FEATURE_RANK).filter(f => FEATURE_RANK[f] === r.id).map(f => FEATURE_LABEL[f]),
-      reached: rep >= r.minRep,
+      reached: r.charter ? rank.id >= r.id : rep >= r.minRep,
       current: r.id === rank.id,
       feeMultiplier: feeMultiplierFor(r.minRep)
     }))

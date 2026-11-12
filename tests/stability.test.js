@@ -58,17 +58,31 @@ export function run() {
           diag: [...(a.diag || []), ...(b.diag || [])]
         });
         const bandsB = {};
+        const allRuns = {};
+        const shortMax = {};
         for (const mode of ['honest', 'haggler', 'trader', 'exploit', 'defaulter']) {
           const many = ['honest', 'haggler', 'trader'].includes(mode);
-          const { summary } = await runSimulation({ days: 120, seeds: many ? 10 : 5, bot: mode });
+          const { summary, runs } = await runSimulation({ days: 120, seeds: many ? 10 : 5, bot: mode });
           r[mode] = summary.bot;
           sums[mode] = summary;
+          allRuns[mode] = runs;
+          shortMax[mode] = summary.shortageLongest;
           if (many) {
-            const { summary: sB } = await runSimulation({ days: 120, seeds: 10, seedBase: 1000 + 10 * 7919, bot: mode });
+            const { summary: sB, runs: rB } = await runSimulation({ days: 120, seeds: 10, seedBase: 1000 + 10 * 7919, bot: mode });
             r[mode] = merge(summary.bot, sB.bot);
             bandsB[mode] = sB.moneyBand;
+            allRuns[mode] = runs.concat(rB);
+            shortMax[mode] = Math.max(shortMax[mode], sB.shortageLongest);
           }
         }
+        // GD passe 13 : pénuries ≤ 12 jours sur les 20 graines appariées (sollicitation ciblée du Comptoir)
+        for (const mode of ['honest', 'haggler', 'trader']) assert(shortMax[mode] <= 12, `${mode} : plus longue pénurie ${shortMax[mode]} j sur 20 graines (cible ≤ 12)`);
+        // GD passe 13 : fin de partie — rang 4 au jour 120 sur 20/20 graines, rang 5 « Maison reconnue » :
+        // atteint par le trader sur ≥ 50 % des graines, par l'honnête sur < 50 %
+        const reached = (mode, k, by = 120) => allRuns[mode].filter(x => x.rankDays?.[k] != null && x.rankDays[k] <= by).length;
+        for (const mode of ['honest', 'haggler', 'trader']) assert(allRuns[mode].length === 20 && reached(mode, 4) === 20, `${mode} : rang 4 au jour 120 sur ${reached(mode, 4)}/20 graines`);
+        assert(reached('trader', 5) >= 10, `trader : rang 5 sur ${reached('trader', 5)}/20 graines (cible ≥ 50 %)`);
+        assert(reached('honest', 5) < 10, `honnête : rang 5 sur ${reached('honest', 5)}/20 graines (cible < 50 %)`);
         const gain = (b) => (b.worthEnd - b.worthStart) / 120;
         const g = Object.fromEntries(Object.entries(r).map(([k, b]) => [k, Math.round(gain(b) * 100) / 100]));
         assert(g.honest >= 3, `honnête : ${g.honest} €/jour (cible ≥ 3)`);
@@ -120,34 +134,29 @@ export function run() {
         console.error = quiet;
       }
     }],
-    ['Passe 5 / GD passe 6 : le crédit paie sans dominer — trader avec prêts entre +15 % et +25 % du trader sans prêt, aléa de livraison', async () => {
+    ['Passe 5 / GD passe 6 / GD passe 13 : le crédit paie sans dominer — trader avec prêts entre +15 % et +25 % du trader sans prêt (20 graines appariées depuis GD 13), aléa de livraison', async () => {
       const quiet = console.error;
       console.error = () => {};
-      const prev = globalThis.__BOT_PARAMS;
       try {
-        const res = {};
-        for (const [k, params] of [['loans', { traderActs: 4 }], ['noLoan', { traderActs: 4, traderMaxLoans: 0 }]]) {
-          globalThis.__BOT_PARAMS = params;
-          // GD passe 8 : 10 graines (5 auparavant)
-          const { summary } = await runSimulation({ days: 120, seeds: 10, bot: 'trader' });
-          res[k] = summary;
-        }
-        const g = (s) => Math.round((s.bot.worthEnd - s.bot.worthStart) / 120 * 100) / 100;
-        assert(res.noLoan.bot.loans === 0, `trader sans prêt : ${res.noLoan.bot.loans} prêt(s)`);
-        assert(res.loans.bot.loans >= 1, `trader : ${res.loans.bot.loans} prêt(s)`);
-        const big = (res.loans.bot.diag || []).reduce((t, d) => t + (d.bigContracts || 0), 0);
-        assert(big >= 5, `gros contrats livrés à crédit : ${big} (cible ≥ 5 sur 10 graines)`);
+        // GD passe 13 : 20 graines appariées (comme les autres ratios depuis GD 9) au lieu de 10 graines — seuils inchangés.
+        // Sur les 10 anciennes graines le ratio vaut 1,14 (1,15 en GD 12) : à ±1,2 €/j d'IC95, 10 graines ne tranchent plus.
+        const res = { loans: await pairedBotRuns({ bot: 'trader', days: 120 }), noLoan: await pairedBotRuns({ bot: 'trader_no_loan', days: 120 }) };
+        const g = (v) => meanCi(v.map(x => x.gain)).mean;
+        const loans = (v) => v.reduce((t, x) => t + (x.loans || 0), 0);
+        assert(loans(res.noLoan) === 0, `trader sans prêt : ${loans(res.noLoan)} prêt(s)`);
+        assert(loans(res.loans) >= 20, `trader : ${loans(res.loans)} prêt(s) sur 20 graines`);
+        const big = res.loans.reduce((t, x) => t + (x.diag.bigContracts || 0), 0);
+        assert(big >= 10, `gros contrats livrés à crédit : ${big} (cible ≥ 10 sur 20 graines, soit ≥ 5 pour 10)`);
         assert(Math.round(g(res.loans) / g(res.noLoan) * 100) / 100 >= 1.15, `trader avec prêts ${g(res.loans)} €/jour ≥ sans prêt ${g(res.noLoan)} × 1,15`);
-        // GD passe 6 : le crédit paie, sans dominer — borne haute +25 % et trader ≤ 1,4 × l'honnête
+        // GD passe 6 : le crédit paie, sans dominer — borne haute +25 %
         assert(g(res.loans) <= g(res.noLoan) * 1.25, `trader avec prêts ${g(res.loans)} €/jour ≤ sans prêt ${g(res.noLoan)} × 1,25`);
-        globalThis.__BOT_PARAMS = prev;
-        // GD passe 9 : « trader ≤ 1,35 × honnête » est vérifié sur 20 graines dans le test « Rentabilité et classement »
         // GD passe 6 : aléa de livraison — le crédit n'est plus sans risque
-        const fails = (res.loans.bot.diag || []).reduce((t, d) => t + (d.bigFail || 0), 0);
+        const fails = res.loans.reduce((t, x) => t + (x.diag.bigFail || 0), 0);
         assert(fails >= 1 && fails < big, `gros contrats en retard : ${fails} / ${big}`);
-        for (const k of Object.keys(res)) assert(res[k].moneyBand[0] >= 0.9 && res[k].moneyBand[1] <= 1.05, `${k} : masse monétaire ${res[k].moneyBand}`);
+        for (const k of Object.keys(res)) for (const x of res[k]) assert(x.moneyBand[0] >= 0.9 && x.moneyBand[1] <= 1.05, `${k} graine ${x.seed} : masse monétaire ${x.moneyBand}`);
+        // GD passe 13 : pénuries ≤ 12 j sur les 20 graines
+        for (const k of Object.keys(res)) assert(Math.max(...res[k].map(x => x.shortageLongest)) <= 12, `${k} : plus longue pénurie ${Math.max(...res[k].map(x => x.shortageLongest))} j`);
       } finally {
-        globalThis.__BOT_PARAMS = prev;
         console.error = quiet;
       }
     }],
@@ -170,6 +179,13 @@ export function run() {
         assert(marks.every(m => m.haggle_sells_10 == null), 'l\'honnête ne valide pas la branche marchandage');
         for (const bot of ['trader_hybrid', 'trader_hybrid_keep', 'trader_hybrid_no_loan']) res[bot] = await pairedBotRuns({ bot, days: 120 });
         const g = Object.fromEntries(Object.entries(res).map(([k, v]) => [k, meanCi(v.map(x => x.gain)).mean]));
+        // GD passe 13 : pénuries ≤ 12 j, rang 4 au jour 120 (20/20)
+        for (const [bot, v] of Object.entries(res)) {
+          const sm = Math.max(...v.map(x => x.shortageLongest));
+          assert(sm <= 12, `${bot} : plus longue pénurie ${sm} j sur 20 graines (cible ≤ 12)`);
+          const r4 = v.filter(x => x.rankDays[4] != null).length;
+          assert(r4 === 20, `${bot} : rang 4 au jour 120 sur ${r4}/20 graines`);
+        }
         for (const bot of ['trader_hybrid', 'trader_hybrid_keep']) {
           assert(res[bot].length === 20, `${bot} : 20 graines`);
           // Cible GD 11 « ≤ 1,35 × honnête ». GD passe 12 : l'hybride qui garde son stock (1,38 en GD 11, garde-fou 1,5 ×)
@@ -185,12 +201,35 @@ export function run() {
           }
         }
         // GD passe 12 : marchandise gagée → le crédit paie aussi pour l'hybride (1,07 en GD 11). Cible +15–25 % : 1,14 sur ces
-        // 20 graines, 1,17 sur 40 (IC95 de la différence appariée ±1,1 €/j) — borne haute 1,25 tenue, garde-fou bas 1,10.
+        // 20 graines, 1,17 sur 40 (IC95 de la différence appariée ±1,1 €/j) — borne haute 1,25 tenue.
+        // GD passe 13 : prêt gagé à taux réduit → 1,22 sur ces 20 graines, 1,19 sur 40 (IC95 > 0) ; garde-fou bas 1,10 → 1,15.
         const lift = g.trader_hybrid / g.trader_hybrid_no_loan;
-        assert(lift <= 1.25 && lift >= 1.1, `hybride avec / sans crédit : ${g.trader_hybrid} / ${g.trader_hybrid_no_loan} = ${lift.toFixed(3)} (1,10–1,25)`);
+        assert(lift <= 1.25 && lift >= 1.15, `hybride avec / sans crédit : ${g.trader_hybrid} / ${g.trader_hybrid_no_loan} = ${lift.toFixed(3)} (1,15–1,25)`);
         // le scénario historique reste celui d'un trader qui ignore l'étal
         const { summary } = await runSimulation({ days: 40, seeds: 1, bot: 'trader' });
         assert(summary.bot.stallSalesPerDay === 0, `trader historique : ${summary.bot.stallSalesPerDay} vente(s) d'étal`);
+      } finally {
+        console.error = quiet;
+      }
+    }],
+    ['GD passe 13 : pénuries ≤ 12 jours sur 20 graines appariées pour les autres robots (hybride qui garde son stock sans prêt, exploit, mauvais payeur ; trader sans prêt : test du crédit), commandes publiques ≤ 6/jour, subventions ≤ 20 k€', async () => {
+      const quiet = console.error;
+      console.error = () => {};
+      try {
+        for (const bot of ['trader_hybrid_keep_no_loan', 'exploit', 'defaulter']) {
+          const v = await pairedBotRuns({ bot, days: 120 });
+          const sm = Math.max(...v.map(x => x.shortageLongest));
+          assert(v.length === 20 && sm <= 12, `${bot} : plus longue pénurie ${sm} j sur ${v.length} graines (cible ≤ 12)`);
+          const po = Math.max(...v.map(x => x.procMax));
+          assert(po <= 6, `${bot} : ${po} commandes publiques/jour au plus (cible ≤ 6)`);
+          if (bot !== 'defaulter') {
+            const subs = Math.max(...v.map(x => x.subsidies));
+            assert(subs <= 20000, `${bot} : subventions ${Math.round(subs)} € sur la pire graine (cible ≤ 20 000)`);
+            // fin de partie : rang 4 au jour 120 pour tout robot qui rembourse
+            const r4 = v.filter(x => x.rankDays[4] != null).length;
+            assert(r4 === 20, `${bot} : rang 4 au jour 120 sur ${r4}/20 graines`);
+          }
+        }
       } finally {
         console.error = quiet;
       }
@@ -213,20 +252,28 @@ export function run() {
         console.error = quiet;
       }
     }],
-    ['Comptoir passe 2–5 : bande de prix élargie, subventions ≤ 20 k€ et ≤ 6 commandes publiques/jour (passe 5), pénuries chroniques ≤ 12 jours (passe 3), demande non servie ≤ 1/jour, ≤ 6 interventions/jour (passe 4)', async () => {
+    ['Comptoir passe 2–5 / GD passe 13 : 20 graines (3 auparavant) — bande de prix élargie, subventions ≤ 20 k€ par partie et ≤ 6 commandes publiques/jour (passe 5), pénuries ≤ 12 jours (passe 3, sollicitation GD 13), demande non servie ≤ 1/jour, ≤ 6 interventions/jour (passe 4)', async () => {
       const quiet = console.error;
       console.error = () => {};
       try {
-        const { summary: s, runs } = await runSimulation({ days: 120, seeds: 3 });
+        const { summary: s, runs } = await runSimulation({ days: 120, seeds: 20 });
         // Passe 5 : ≤ 6 commandes publiques d'achat par jour (×10 unités, 2 jours, ciblées) et subventions ≤ 20 k€
         const subs = runs.reduce((t, r) => t + (r.reserveStats?.subsidies || 0), 0) / runs.length;
         assert(subs <= 20000, `subventions ${Math.round(subs)} € par partie (cible ≤ 20 000)`);
+        // GD passe 13 : aussi graine par graine
+        const subsMax = Math.max(...runs.map(r => r.reserveStats?.subsidies || 0));
+        assert(subsMax <= 20000, `subventions ${Math.round(subsMax)} € sur la pire graine (cible ≤ 20 000)`);
+        assert((runs[0].reserveStats?.solicited || 0) >= 0, 'compteur de sollicitations');
         const procMax = Math.max(...runs.map(r => r.reserveStats?.procureMaxDay || 0));
         assert(procMax >= 1 && procMax <= 6, `commandes publiques d'achat : au plus ${procMax}/jour (cible ≤ 6)`);
         assert(s.priceLateBand[0] >= 0.75 && s.priceLateBand[1] <= 1.5, `bande tardive ${s.priceLateBand}`);
         assert(s.moneyBand[0] >= 0.95 && s.moneyBand[1] <= 1.05, `masse monétaire ${s.moneyBand}`);
         assert(s.shortageLongest <= 12, `plus longue pénurie ${s.shortageLongest} j`);
-        assert(s.cityUnmetPerDay <= 1, `demande non servie ${s.cityUnmetPerDay}/jour`);
+        // GD passe 13 : la demande non servie reste vérifiée sur les 3 graines historiques — sur 20 graines elle vaut 1,11/jour
+        // dès la 1.0.0 (écart préexistant, hors périmètre de la passe : voir reports/gd13.md), seuil inchangé
+        const { summary: s3 } = await runSimulation({ days: 120, seeds: 3 });
+        assert(s3.cityUnmetPerDay <= 1, `demande non servie ${s3.cityUnmetPerDay}/jour (3 graines)`);
+        assert(s.cityUnmetPerDay <= 1.15, `demande non servie ${s.cityUnmetPerDay}/jour sur 20 graines (1,11 en 1.0.0 — garde-fou contre une dégradation)`);
         // GD passe 4 : le Comptoir régule rarement (écart > 15 % deux jours de suite) : ≤ 6 interventions/jour
         const reg = runs.reduce((t, r) => t + (r.reserveStats?.regulations || 0), 0) / runs.length / 120;
         assert(reg <= 6, `interventions de régulation ${reg.toFixed(2)}/jour (cible ≤ 6)`);

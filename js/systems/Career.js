@@ -75,7 +75,7 @@ export const CHAPTERS = [
     steps: [
       { id: 'worth_20000', title: 'Patrimoine de 20 000 €', metric: 'netWorth', target: 20000, panel: 'trading',
         how: 'Combinez ordres permanents, crédit et marchandage sur les objets chers (électronique, épiques).' },
-      { id: 'rep_60', title: 'Rang « Maison reconnue »', metric: 'reputation', target: 60, panel: 'goals',
+      { id: 'rep_60', title: 'Rang « Négociant établi »', metric: 'reputation', target: 60, panel: 'goals',
         how: 'Frais d\'annonce réduits, crédit à 0,8 %/jour, 5 essais de marchandage par jour.' },
       { id: 'shortage_15', title: 'Approvisionner 15 pénuries', metric: 'shortageSales', target: 15, panel: 'market',
         how: 'Gardez un œil sur les alertes de pénurie (Suivi) et sur les contrats du Comptoir.' },
